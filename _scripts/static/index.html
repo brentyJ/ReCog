@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReCog - Text Analysis Engine</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --surface: #1a1a1a;
+            --border: #2a2a2a;
+            --text: #e0e0e0;
+            --text-dim: #888;
+            --accent: #00ff88;
+            --accent-dim: #00aa55;
+            --warning: #ffaa00;
+            --error: #ff4444;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        header {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        h1 {
+            color: var(--accent);
+            font-size: 1.5rem;
+            font-weight: 400;
+        }
+        
+        h1::before {
+            content: "◇ ";
+            color: var(--accent-dim);
+        }
+        
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+        
+        section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        h2 {
+            color: var(--accent);
+            font-size: 1rem;
+            font-weight: 400;
+            margin-bottom: 1rem;
+        }
+        
+        h2::before {
+            content: "▸ ";
+            color: var(--accent-dim);
+        }
+        
+        h3 {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            font-weight: 400;
+            margin: 1rem 0 0.5rem 0;
+        }
+        
+        /* Drop zone */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 4px;
+            padding: 3rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(0, 255, 136, 0.05);
+        }
+        
+        .drop-zone input {
+            display: none;
+        }
+        
+        .drop-zone p {
+            color: var(--text-dim);
+        }
+        
+        .drop-zone .icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: var(--accent-dim);
+        }
+        
+        /* Text input */
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1rem;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.9rem;
+            resize: vertical;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        /* Buttons */
+        button {
+            background: var(--accent-dim);
+            color: var(--bg);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: var(--accent);
+        }
+        
+        button:disabled {
+            background: var(--border);
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        
+        /* Results */
+        .results {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1rem;
+            margin-top: 1rem;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .results pre {
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        /* Status */
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            margin-top: 1rem;
+        }
+        
+        .status.success {
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--accent);
+        }
+        
+        .status.error {
+            background: rgba(255, 68, 68, 0.1);
+            color: var(--error);
+        }
+        
+        .status.loading {
+            background: rgba(255, 170, 0, 0.1);
+            color: var(--warning);
+        }
+        
+        /* Tags */
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        
+        .tag {
+            background: var(--border);
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+        
+        .tag.emotion {
+            background: rgba(255, 100, 100, 0.2);
+            color: #ff9999;
+        }
+        
+        .tag.flag {
+            background: rgba(0, 255, 136, 0.2);
+            color: var(--accent);
+        }
+        
+        .tag.temporal {
+            background: rgba(100, 150, 255, 0.2);
+            color: #99aaff;
+        }
+        
+        .tag.entity {
+            background: rgba(255, 200, 100, 0.2);
+            color: #ffcc66;
+        }
+        
+        /* Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .stat {
+            text-align: center;
+            padding: 1rem;
+            background: var(--bg);
+            border-radius: 4px;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            color: var(--accent);
+        }
+        
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 0.25rem;
+        }
+        
+        /* Detail sections */
+        .detail-section {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: var(--bg);
+            border-radius: 4px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            font-size: 0.85rem;
+        }
+        
+        .detail-row .label {
+            color: var(--text-dim);
+        }
+        
+        .detail-row .value {
+            color: var(--text);
+        }
+        
+        /* Footer */
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+        
+        footer a {
+            color: var(--accent-dim);
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            color: var(--accent);
+        }
+        
+        /* Collapsible JSON */
+        .json-toggle {
+            color: var(--accent-dim);
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            display: inline-block;
+        }
+        
+        .json-toggle:hover {
+            color: var(--accent);
+        }
+        
+        .json-content {
+            display: none;
+            margin-top: 0.5rem;
+        }
+        
+        .json-content.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ReCog</h1>
+            <p class="subtitle">Recursive Cognition Engine - Extract insights from text</p>
+        </header>
+        
+        <!-- File Upload -->
+        <section>
+            <h2>Upload File</h2>
+            <div class="drop-zone" id="dropZone">
+                <div class="icon">📄</div>
+                <p>Drop file here or click to upload</p>
+                <p style="font-size: 0.8rem; margin-top: 0.5rem;">Supports: TXT, MD, JSON, PDF, CSV</p>
+                <input type="file" id="fileInput" accept=".txt,.md,.json,.pdf,.csv,.xml">
+            </div>
+            <div id="uploadStatus"></div>
+        </section>
+        
+        <!-- Text Analysis -->
+        <section>
+            <h2>Analyse Text (Tier 0)</h2>
+            <textarea id="textInput" placeholder="Paste text here for signal extraction..."></textarea>
+            <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                <button id="analyseBtn">Analyse</button>
+                <button id="clearBtn" class="btn-secondary">Clear</button>
+            </div>
+            <div id="tier0Results"></div>
+        </section>
+        
+        <!-- Server Status -->
+        <section>
+            <h2>Server Status</h2>
+            <div id="serverStatus">
+                <div class="status loading">⏳ Checking...</div>
+            </div>
+            <div class="stats-grid" id="serverStats"></div>
+        </section>
+        
+        <footer>
+            <p>ReCog v0.1 · <a href="/api/info">API Info</a> · <a href="https://ehkolabs.io">EhkoLabs</a></p>
+        </footer>
+    </div>
+    
+    <script>
+        const API = '';
+        
+        // Health check
+        async function checkHealth() {
+            const statusEl = document.getElementById('serverStatus');
+            const statsEl = document.getElementById('serverStats');
+            
+            try {
+                const res = await fetch(`${API}/api/health`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    statusEl.innerHTML = `<div class="status success">✓ Server healthy</div>`;
+                    statsEl.innerHTML = `
+                        <div class="stat">
+                            <div class="stat-value">${data.data.database.tables}</div>
+                            <div class="stat-label">Tables</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">${data.data.database.rows}</div>
+                            <div class="stat-label">Rows</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">${data.data.llm_configured ? '✓' : '✗'}</div>
+                            <div class="stat-label">LLM Ready</div>
+                        </div>
+                    `;
+                } else {
+                    throw new Error('Unhealthy');
+                }
+            } catch (e) {
+                statusEl.innerHTML = `<div class="status error">✗ Server unavailable</div>`;
+            }
+        }
+        
+        // Tier 0 analysis
+        async function analyseTier0() {
+            const text = document.getElementById('textInput').value.trim();
+            const resultsEl = document.getElementById('tier0Results');
+            
+            if (!text) {
+                resultsEl.innerHTML = `<div class="status error">✗ No text provided</div>`;
+                return;
+            }
+            
+            resultsEl.innerHTML = `<div class="status loading">⏳ Analysing...</div>`;
+            
+            try {
+                const res = await fetch(`${API}/api/tier0`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({text})
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    const t0 = data.data.tier0;
+                    
+                    // Basic stats
+                    let html = `
+                        <div class="stats-grid">
+                            <div class="stat">
+                                <div class="stat-value">${t0.word_count}</div>
+                                <div class="stat-label">Words</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-value">${t0.char_count}</div>
+                                <div class="stat-label">Chars</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-value">${t0.question_analysis?.question_count || 0}</div>
+                                <div class="stat-label">Questions</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-value">${t0.structural?.sentence_count || 0}</div>
+                                <div class="stat-label">Sentences</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Emotion tags
+                    const emotions = t0.emotion_signals?.categories || [];
+                    const emotionKws = t0.emotion_signals?.keywords_found || [];
+                    if (emotions.length || emotionKws.length) {
+                        html += `<h3>😊 Emotions</h3><div class="tags">`;
+                        emotions.forEach(e => {
+                            html += `<span class="tag emotion">${e}</span>`;
+                        });
+                        html += `</div>`;
+                        if (emotionKws.length) {
+                            html += `<div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.5rem;">Keywords: ${emotionKws.slice(0, 10).join(', ')}</div>`;
+                        }
+                    }
+                    
+                    // Flags
+                    const flags = t0.flags || {};
+                    const activeFlags = Object.entries(flags).filter(([k, v]) => v).map(([k]) => k.replace(/_/g, ' '));
+                    if (activeFlags.length) {
+                        html += `<h3>🚩 Flags</h3><div class="tags">`;
+                        activeFlags.forEach(f => {
+                            html += `<span class="tag flag">${f}</span>`;
+                        });
+                        html += `</div>`;
+                    }
+                    
+                    // Entities
+                    const entities = t0.entities || {};
+                    const people = entities.people || [];
+                    const phones = entities.phone_numbers || [];
+                    const emails = entities.email_addresses || [];
+                    if (people.length || phones.length || emails.length) {
+                        html += `<h3>👤 Entities</h3><div class="tags">`;
+                        people.forEach(p => {
+                            html += `<span class="tag entity">👤 ${p}</span>`;
+                        });
+                        phones.forEach(p => {
+                            html += `<span class="tag entity">📞 ${p.normalised || p.raw}</span>`;
+                        });
+                        emails.forEach(e => {
+                            html += `<span class="tag entity">✉️ ${e.normalised || e.raw}</span>`;
+                        });
+                        html += `</div>`;
+                    }
+                    
+                    // Temporal
+                    const temporal = t0.temporal_references || {};
+                    const temporalTags = [];
+                    ['past', 'present', 'future', 'habitual'].forEach(period => {
+                        const refs = temporal[period] || [];
+                        if (refs.length) {
+                            temporalTags.push(`${period}: ${refs.slice(0, 3).join(', ')}`);
+                        }
+                    });
+                    if (temporalTags.length) {
+                        html += `<h3>⏰ Temporal</h3><div class="tags">`;
+                        temporalTags.forEach(t => {
+                            html += `<span class="tag temporal">${t}</span>`;
+                        });
+                        html += `</div>`;
+                    }
+                    
+                    // Intensity
+                    const intensity = t0.intensity_markers || {};
+                    if (intensity.exclamations || intensity.all_caps_words || intensity.intensifiers?.length || intensity.hedges?.length) {
+                        html += `<h3>⚡ Intensity</h3><div class="detail-section">`;
+                        if (intensity.exclamations) {
+                            html += `<div class="detail-row"><span class="label">Exclamations</span><span class="value">${intensity.exclamations}</span></div>`;
+                        }
+                        if (intensity.all_caps_words) {
+                            html += `<div class="detail-row"><span class="label">ALL CAPS words</span><span class="value">${intensity.all_caps_words}</span></div>`;
+                        }
+                        if (intensity.intensifiers?.length) {
+                            html += `<div class="detail-row"><span class="label">Intensifiers</span><span class="value">${intensity.intensifiers.slice(0, 5).join(', ')}</span></div>`;
+                        }
+                        if (intensity.hedges?.length) {
+                            html += `<div class="detail-row"><span class="label">Hedges</span><span class="value">${intensity.hedges.slice(0, 5).join(', ')}</span></div>`;
+                        }
+                        html += `</div>`;
+                    }
+                    
+                    // Questions
+                    const questions = t0.question_analysis || {};
+                    if (questions.question_count) {
+                        html += `<h3>❓ Questions</h3><div class="detail-section">`;
+                        html += `<div class="detail-row"><span class="label">Count</span><span class="value">${questions.question_count}</span></div>`;
+                        html += `<div class="detail-row"><span class="label">Density</span><span class="value">${(questions.question_density * 100).toFixed(1)}%</span></div>`;
+                        if (questions.self_inquiry) {
+                            html += `<div class="detail-row"><span class="label">Self-inquiry</span><span class="value">${questions.self_inquiry}</span></div>`;
+                        }
+                        html += `</div>`;
+                    }
+                    
+                    // Structure
+                    const structure = t0.structural || {};
+                    html += `<h3>📝 Structure</h3><div class="detail-section">`;
+                    html += `<div class="detail-row"><span class="label">Paragraphs</span><span class="value">${structure.paragraph_count || 0}</span></div>`;
+                    html += `<div class="detail-row"><span class="label">Sentences</span><span class="value">${structure.sentence_count || 0}</span></div>`;
+                    html += `<div class="detail-row"><span class="label">Avg sentence length</span><span class="value">${structure.avg_sentence_length || 0} words</span></div>`;
+                    if (structure.speaker_changes) {
+                        html += `<div class="detail-row"><span class="label">Speaker changes</span><span class="value">${structure.speaker_changes}</span></div>`;
+                    }
+                    html += `</div>`;
+                    
+                    // Summary
+                    html += `<h3>📋 Prompt Summary</h3>`;
+                    html += `<div class="results"><pre>${data.data.summary || 'No significant signals detected.'}</pre></div>`;
+                    
+                    // Raw JSON toggle
+                    html += `<span class="json-toggle" onclick="toggleJson()">▸ Show raw JSON</span>`;
+                    html += `<div class="json-content" id="jsonContent"><pre>${JSON.stringify(t0, null, 2)}</pre></div>`;
+                    
+                    resultsEl.innerHTML = html;
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (e) {
+                resultsEl.innerHTML = `<div class="status error">✗ ${e.message}</div>`;
+            }
+        }
+        
+        function toggleJson() {
+            const el = document.getElementById('jsonContent');
+            el.classList.toggle('show');
+        }
+        
+        // File upload
+        async function uploadFile(file) {
+            const statusEl = document.getElementById('uploadStatus');
+            statusEl.innerHTML = `<div class="status loading">⏳ Uploading ${file.name}...</div>`;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const res = await fetch(`${API}/api/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    const d = data.data;
+                    if (d.supported) {
+                        statusEl.innerHTML = `
+                            <div class="status success">✓ Uploaded: ${d.filename}</div>
+                            <div class="stats-grid">
+                                <div class="stat">
+                                    <div class="stat-value">${d.items}</div>
+                                    <div class="stat-label">Items</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="stat-value">${d.words?.toLocaleString() || 0}</div>
+                                    <div class="stat-label">Words</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="stat-value">${d.entities || 0}</div>
+                                    <div class="stat-label">Entities</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="stat-value">$${((d.estimated_cost_cents || 0) / 100).toFixed(3)}</div>
+                                    <div class="stat-label">Est. Cost</div>
+                                </div>
+                            </div>
+                            <p style="margin-top: 1rem; color: var(--text-dim);">
+                                Preflight session: ${d.preflight_session_id}
+                            </p>
+                        `;
+                    } else {
+                        statusEl.innerHTML = `
+                            <div class="status error">✗ Unsupported: ${d.message || 'Unknown format'}</div>
+                            ${d.suggestions?.length ? `<p style="margin-top: 0.5rem; color: var(--text-dim);">Suggestions: ${d.suggestions.join(', ')}</p>` : ''}
+                        `;
+                    }
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (e) {
+                statusEl.innerHTML = `<div class="status error">✗ ${e.message}</div>`;
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('analyseBtn').addEventListener('click', analyseTier0);
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            document.getElementById('textInput').value = '';
+            document.getElementById('tier0Results').innerHTML = '';
+        });
+        
+        // Enter key to analyse
+        document.getElementById('textInput').addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                analyseTier0();
+            }
+        });
+        
+        // File input
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) uploadFile(e.target.files[0]);
+        });
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
+        });
+        
+        // Init
+        checkHealth();
+    </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+# ReCog Server Dependencies
+
+# Core
+flask>=3.0.0
+flask-cors>=4.0.0
+werkzeug>=3.0.0
+
+# Database
+# (sqlite3 is built-in)
+
+# LLM (optional - for extraction)
+openai>=1.0.0
+
+# File parsing
+pypdf>=4.0.0      # PDF text extraction
+python-dateutil   # Date parsing
+
+# Development
+python-dotenv     # Environment variables
