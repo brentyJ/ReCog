@@ -30,6 +30,20 @@ from .llm import (
     MockLLMProvider,
 )
 
+from .providers import (
+    OpenAIProvider,
+    AnthropicProvider,
+    create_provider,
+    get_available_providers,
+)
+
+from .routing import (
+    RoutingConfig,
+    ProviderRouter,
+    estimate_extraction_cost,
+    estimate_batch_cost,
+)
+
 from .signal import (
     SignalProcessor,
     process_text,
@@ -71,6 +85,16 @@ __all__ = [
     "LLMResponse",
     "LLMProvider",
     "MockLLMProvider",
+    # LLM Providers
+    "OpenAIProvider",
+    "AnthropicProvider",
+    "create_provider",
+    "get_available_providers",
+    # Provider Routing
+    "RoutingConfig",
+    "ProviderRouter",
+    "estimate_extraction_cost",
+    "estimate_batch_cost",
     # Signal processing (Tier 0)
     "SignalProcessor",
     "process_text",

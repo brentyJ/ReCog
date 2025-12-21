@@ -10,6 +10,7 @@ werkzeug>=3.0.0
 
 # LLM (optional - for extraction)
 openai>=1.0.0
+anthropic>=0.30.0
 
 # File parsing
 pypdf>=4.0.0      # PDF text extraction

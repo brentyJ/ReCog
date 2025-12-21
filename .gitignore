@@ -31,3 +31,6 @@ Thumbs.db
 # Secrets
 .env
 *.key
+
+# Private (roadmaps, proprietary mod planning, sensitive docs)
+_private/

@@ -38,12 +38,22 @@ from recog_engine import (
     EntityRegistry,
     PreflightManager,
 )
+from recog_engine.core.providers import (
+    create_provider,
+    get_available_providers,
+    load_env_file,
+)
 from ingestion import detect_file, ingest_file
 from db import init_database, check_database
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
+
+# Load .env file before Config class
+_scripts_dir = Path(__file__).parent
+load_env_file(_scripts_dir / ".env")
+
 
 class Config:
     """Server configuration."""
@@ -54,13 +64,13 @@ class Config:
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
     ALLOWED_EXTENSIONS = {
         'txt', 'md', 'json', 'pdf', 'csv',
-        'eml', 'msg', 'mbox',
+        'eml', 'msg', 'mbox', 'xml', 'xlsx',
     }
     
-    # LLM config (optional - for extraction)
-    LLM_PROVIDER = os.environ.get("RECOG_LLM_PROVIDER", "openai")
-    LLM_API_KEY = os.environ.get("RECOG_LLM_API_KEY", "")
-    LLM_MODEL = os.environ.get("RECOG_LLM_MODEL", "gpt-4o-mini")
+    # LLM config - uses provider factory
+    # Available providers determined by which API keys are configured
+    AVAILABLE_PROVIDERS = get_available_providers()
+    LLM_CONFIGURED = len(AVAILABLE_PROVIDERS) > 0
 
 
 # =============================================================================
@@ -136,7 +146,8 @@ def health():
             "tables": db_status.get("total_tables", 0),
             "rows": db_status.get("total_rows", 0),
         },
-        "llm_configured": bool(Config.LLM_API_KEY),
+        "llm_configured": Config.LLM_CONFIGURED,
+        "available_providers": Config.AVAILABLE_PROVIDERS,
     })
 
 
@@ -522,19 +533,24 @@ def extract_insights():
         "text": "...",
         "source_type": "document",
         "source_id": "optional-id",
-        "is_chat": false
+        "is_chat": false,
+        "provider": "openai|anthropic" (optional)
     }
     
-    Requires RECOG_LLM_API_KEY environment variable.
+    Requires LLM API key(s) configured via environment variables.
     """
-    if not Config.LLM_API_KEY:
-        return api_response(error="LLM not configured. Set RECOG_LLM_API_KEY.", status=503)
+    if not Config.LLM_CONFIGURED:
+        return api_response(
+            error="LLM not configured. Set RECOG_OPENAI_API_KEY or RECOG_ANTHROPIC_API_KEY.",
+            status=503
+        )
     
     data = request.get_json()
     text = data.get("text", "")
     source_type = data.get("source_type", "unknown")
     source_id = data.get("source_id", str(uuid4()))
     is_chat = data.get("is_chat", False)
+    provider_name = data.get("provider")  # Optional override
     
     if not text:
         return api_response(error="No text provided", status=400)
@@ -551,40 +567,40 @@ def extract_insights():
         is_chat=is_chat,
     )
     
-    # Call LLM
+    # Call LLM via provider
     try:
-        import openai
+        provider = create_provider(provider_name)
         
-        client = openai.OpenAI(api_key=Config.LLM_API_KEY)
-        
-        response = client.chat.completions.create(
-            model=Config.LLM_MODEL,
-            messages=[
-                {"role": "system", "content": "You are an insight extraction system. Return valid JSON only."},
-                {"role": "user", "content": prompt},
-            ],
+        response = provider.generate(
+            prompt=prompt,
+            system_prompt="You are an insight extraction system. Return valid JSON only.",
             temperature=0.3,
             max_tokens=2000,
         )
         
-        response_text = response.choices[0].message.content
+        if not response.success:
+            return api_response(error=response.error, status=500)
         
         # Parse response
-        result = parse_extraction_response(response_text, source_type, source_id)
+        result = parse_extraction_response(response.content, source_type, source_id)
         
         return api_response({
             "success": result.success,
             "insights": [i.to_dict() for i in result.insights],
             "content_quality": result.content_quality,
             "notes": result.notes,
+            "provider": provider.name,
+            "model": response.model,
+            "tokens_used": response.usage.get("total_tokens", 0) if response.usage else 0,
             "tier0": {
                 "flags": pre_annotation.get("flags", {}),
                 "emotion_categories": pre_annotation.get("emotion_signals", {}).get("categories", []),
             },
         })
     
-    except ImportError:
-        return api_response(error="OpenAI package not installed", status=503)
+    except ValueError as e:
+        # Provider configuration error
+        return api_response(error=str(e), status=503)
     except Exception as e:
         logger.error(f"Extraction error: {e}")
         return api_response(error=str(e), status=500)
@@ -644,7 +660,7 @@ if __name__ == "__main__":
     
     print(f"\n🔮 ReCog Server starting on http://localhost:{port}")
     print(f"   Database: {Config.DB_PATH}")
-    print(f"   LLM configured: {bool(Config.LLM_API_KEY)}")
+    print(f"   LLM providers: {', '.join(Config.AVAILABLE_PROVIDERS) or 'none'}")
     print()
     
     app.run(host="0.0.0.0", port=port, debug=debug)

@@ -17,19 +17,43 @@
 
 **Goal**: Connect LLM extraction and persist insights to database
 
-### 4.1 LLM Extraction Integration
+### 4.1 LLM Provider System ✅
 ```
-Files to modify:
-- server.py: Update /api/extract endpoint
-- recog_engine/extraction.py: Add database storage
+Files created:
+- recog_engine/core/providers/__init__.py
+- recog_engine/core/providers/openai_provider.py
+- recog_engine/core/providers/anthropic_provider.py  
+- recog_engine/core/providers/factory.py
+- .env.example
+- .env (gitignored)
 ```
 
-Tasks:
-- [ ] Test extraction with real OpenAI API key
+Completed:
+- [x] LLMProvider abstract interface (llm.py)
+- [x] OpenAI provider with gpt-4o-mini support
+- [x] Anthropic provider with Claude Sonnet support
+- [x] Provider factory with auto-detection from env vars
+- [x] JSON generation methods on both providers
+- [x] Token/usage tracking per response
+- [x] Environment-based configuration (.env support)
+- [x] server.py updated to use provider system
+- [x] Health endpoint shows available providers
+
+### 4.2 LLM Extraction Integration
+```
+Files modified:
+- server.py: /api/extract uses provider factory
+```
+
+Completed:
+- [x] Test extraction with real OpenAI API key
+- [x] Token/cost tracking per extraction call
+- [x] Provider selection via request body
+
+Pending:
 - [ ] Store ExtractedInsight objects in `insights` table
 - [ ] Store source links in `insight_sources` table
 - [ ] Track extraction history in `insight_history` table
-- [ ] Add token/cost tracking per session
 
 ### 4.2 Insight Database Layer
 ```
@@ -229,4 +253,4 @@ Total: ~6-9 sessions to production-ready MVP
 
 ---
 
-*Last updated: Phase 3 completion - Dec 2025*
+*Last updated: Phase 4.1 LLM Provider System complete - 21 Dec 2025*
