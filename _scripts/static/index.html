@@ -4,323 +4,668 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ReCog - Text Analysis Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
+        /* ================================================================
+           DESIGN TOKENS
+           ================================================================ */
         :root {
-            --bg: #0a0a0a;
-            --surface: #1a1a1a;
-            --border: #2a2a2a;
-            --text: #e0e0e0;
-            --text-dim: #888;
-            --accent: #00ff88;
-            --accent-dim: #00aa55;
-            --warning: #ffaa00;
-            --error: #ff4444;
+            /* Colors - Dark theme with green accent */
+            --bg-base: #0a0b0d;
+            --bg-surface: #12141a;
+            --bg-elevated: #1a1d24;
+            --bg-hover: #22262f;
+            
+            --border-subtle: #2a2e38;
+            --border-default: #363b47;
+            --border-focus: #00cc6a;
+            
+            --text-primary: #f0f2f5;
+            --text-secondary: #a0a8b8;
+            --text-muted: #6b7280;
+            --text-dim: #4b5563;
+            
+            --accent: #00e676;
+            --accent-dim: #00b85c;
+            --accent-bg: rgba(0, 230, 118, 0.1);
+            --accent-bg-hover: rgba(0, 230, 118, 0.15);
+            
+            --warning: #ffb020;
+            --warning-bg: rgba(255, 176, 32, 0.1);
+            
+            --error: #f04444;
+            --error-bg: rgba(240, 68, 68, 0.1);
+            
+            --info: #3b82f6;
+            --info-bg: rgba(59, 130, 246, 0.1);
+            
+            /* Tag colors */
+            --tag-emotion: #f472b6;
+            --tag-emotion-bg: rgba(244, 114, 182, 0.15);
+            --tag-entity: #fbbf24;
+            --tag-entity-bg: rgba(251, 191, 36, 0.15);
+            --tag-temporal: #60a5fa;
+            --tag-temporal-bg: rgba(96, 165, 250, 0.15);
+            --tag-flag: var(--accent);
+            --tag-flag-bg: var(--accent-bg);
+            
+            /* Typography */
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+            
+            /* Spacing */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            --space-2xl: 48px;
+            
+            /* Radius */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-full: 9999px;
+            
+            /* Transitions */
+            --transition-fast: 150ms ease;
+            --transition-base: 200ms ease;
+            
+            /* Layout */
+            --sidebar-width: 240px;
+            --header-height: 56px;
         }
         
-        * {
+        /* ================================================================
+           RESET & BASE
+           ================================================================ */
+        *, *::before, *::after {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }
         
+        html {
+            font-size: 14px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
         body {
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            background: var(--bg);
-            color: var(--text);
+            font-family: var(--font-sans);
+            background: var(--bg-base);
+            color: var(--text-primary);
             min-height: 100vh;
-            padding: 2rem;
+            line-height: 1.5;
         }
         
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
+        /* ================================================================
+           LAYOUT
+           ================================================================ */
+        .app {
+            display: flex;
+            min-height: 100vh;
         }
         
-        header {
-            margin-bottom: 2rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border);
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 100;
         }
         
-        h1 {
+        .sidebar-header {
+            padding: var(--space-lg);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+        
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--accent-bg);
+            border: 1px solid var(--accent-dim);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+        
+        .logo-text {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            font-size: 1.15rem;
             color: var(--accent);
-            font-size: 1.5rem;
+        }
+        
+        .logo-version {
+            font-size: 0.7rem;
+            color: var(--text-dim);
             font-weight: 400;
         }
         
-        h1::before {
-            content: "◇ ";
-            color: var(--accent-dim);
+        /* Navigation */
+        .nav {
+            flex: 1;
+            padding: var(--space-md);
+            overflow-y: auto;
         }
         
-        .subtitle {
+        .nav-section {
+            margin-bottom: var(--space-lg);
+        }
+        
+        .nav-section-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             color: var(--text-dim);
+            padding: var(--space-sm) var(--space-md);
+        }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            text-decoration: none;
             font-size: 0.9rem;
-            margin-top: 0.5rem;
+            cursor: pointer;
+            transition: all var(--transition-fast);
         }
         
-        section {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
+        .nav-item:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
         }
         
-        h2 {
+        .nav-item.active {
+            background: var(--accent-bg);
             color: var(--accent);
+        }
+        
+        .nav-item-icon {
+            width: 18px;
+            text-align: center;
             font-size: 1rem;
-            font-weight: 400;
-            margin-bottom: 1rem;
         }
         
-        h2::before {
-            content: "▸ ";
-            color: var(--accent-dim);
+        .nav-item-badge {
+            margin-left: auto;
+            background: var(--bg-hover);
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            color: var(--text-muted);
         }
         
-        h3 {
-            color: var(--text-dim);
+        .nav-item.active .nav-item-badge {
+            background: var(--accent-dim);
+            color: var(--bg-base);
+        }
+        
+        /* Sidebar footer */
+        .sidebar-footer {
+            padding: var(--space-md);
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-dim);
+        }
+        
+        .status-dot.online {
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+        }
+        
+        .status-dot.offline {
+            background: var(--error);
+        }
+        
+        /* Main content */
+        .main {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .main-header {
+            height: var(--header-height);
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 var(--space-xl);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        
+        .page-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+        
+        .page-title-icon {
+            color: var(--accent);
+        }
+        
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+        }
+        
+        .main-content {
+            flex: 1;
+            padding: var(--space-xl);
+            overflow-y: auto;
+        }
+        
+        /* ================================================================
+           COMPONENTS
+           ================================================================ */
+        
+        /* Cards */
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+        
+        .card-header {
+            padding: var(--space-md) var(--space-lg);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .card-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+        
+        .card-title-icon {
+            color: var(--accent);
+        }
+        
+        .card-body {
+            padding: var(--space-lg);
+        }
+        
+        .card-footer {
+            padding: var(--space-md) var(--space-lg);
+            border-top: 1px solid var(--border-subtle);
+            background: var(--bg-elevated);
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-sm);
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-md);
+            font-family: inherit;
             font-size: 0.85rem;
-            font-weight: 400;
-            margin: 1rem 0 0.5rem 0;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            border: 1px solid transparent;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg-base);
+            border-color: var(--accent);
+        }
+        
+        .btn-primary:hover {
+            background: var(--accent-dim);
+            border-color: var(--accent-dim);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border-color: var(--border-default);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-color: var(--border-focus);
+        }
+        
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+        }
+        
+        .btn-ghost:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-sm {
+            padding: var(--space-xs) var(--space-sm);
+            font-size: 0.8rem;
+        }
+        
+        .btn-lg {
+            padding: var(--space-md) var(--space-lg);
+            font-size: 0.95rem;
+        }
+        
+        /* Form elements */
+        .input {
+            width: 100%;
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-base);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: all var(--transition-fast);
+        }
+        
+        .input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-bg);
+        }
+        
+        .input::placeholder {
+            color: var(--text-dim);
+        }
+        
+        textarea.input {
+            min-height: 120px;
+            resize: vertical;
+            font-family: var(--font-mono);
+        }
+        
+        .form-group {
+            margin-bottom: var(--space-md);
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-xs);
         }
         
         /* Drop zone */
         .drop-zone {
-            border: 2px dashed var(--border);
-            border-radius: 4px;
-            padding: 3rem;
+            border: 2px dashed var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: var(--space-2xl);
             text-align: center;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all var(--transition-base);
         }
         
-        .drop-zone:hover, .drop-zone.dragover {
+        .drop-zone:hover,
+        .drop-zone.dragover {
             border-color: var(--accent);
-            background: rgba(0, 255, 136, 0.05);
+            background: var(--accent-bg);
+        }
+        
+        .drop-zone-icon {
+            font-size: 2.5rem;
+            margin-bottom: var(--space-md);
+            opacity: 0.6;
+        }
+        
+        .drop-zone-text {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-sm);
+        }
+        
+        .drop-zone-hint {
+            font-size: 0.8rem;
+            color: var(--text-dim);
         }
         
         .drop-zone input {
             display: none;
         }
         
-        .drop-zone p {
-            color: var(--text-dim);
-        }
-        
-        .drop-zone .icon {
-            font-size: 2rem;
-            margin-bottom: 1rem;
-            color: var(--accent-dim);
-        }
-        
-        /* Text input */
-        textarea {
-            width: 100%;
-            min-height: 150px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 1rem;
-            color: var(--text);
-            font-family: inherit;
-            font-size: 0.9rem;
-            resize: vertical;
-        }
-        
-        textarea:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-        
-        /* Buttons */
-        button {
-            background: var(--accent-dim);
-            color: var(--bg);
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 4px;
-            font-family: inherit;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        button:hover {
-            background: var(--accent);
-        }
-        
-        button:disabled {
-            background: var(--border);
-            cursor: not-allowed;
-        }
-        
-        .btn-secondary {
-            background: transparent;
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-        
-        .btn-secondary:hover {
-            border-color: var(--accent);
-            color: var(--accent);
-        }
-        
-        /* Results */
-        .results {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 1rem;
-            margin-top: 1rem;
-            max-height: 500px;
-            overflow-y: auto;
-        }
-        
-        .results pre {
-            font-size: 0.85rem;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-        
-        /* Status */
-        .status {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            margin-top: 1rem;
-        }
-        
-        .status.success {
-            background: rgba(0, 255, 136, 0.1);
-            color: var(--accent);
-        }
-        
-        .status.error {
-            background: rgba(255, 68, 68, 0.1);
-            color: var(--error);
-        }
-        
-        .status.loading {
-            background: rgba(255, 170, 0, 0.1);
-            color: var(--warning);
-        }
-        
         /* Tags */
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .tag-default {
+            background: var(--bg-hover);
+            color: var(--text-secondary);
+        }
+        
+        .tag-emotion {
+            background: var(--tag-emotion-bg);
+            color: var(--tag-emotion);
+        }
+        
+        .tag-entity {
+            background: var(--tag-entity-bg);
+            color: var(--tag-entity);
+        }
+        
+        .tag-temporal {
+            background: var(--tag-temporal-bg);
+            color: var(--tag-temporal);
+        }
+        
+        .tag-flag {
+            background: var(--tag-flag-bg);
+            color: var(--tag-flag);
+        }
+        
         .tags {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
+            gap: var(--space-xs);
         }
         
-        .tag {
-            background: var(--border);
-            padding: 0.25rem 0.75rem;
-            border-radius: 999px;
-            font-size: 0.8rem;
-            color: var(--text-dim);
-        }
-        
-        .tag.emotion {
-            background: rgba(255, 100, 100, 0.2);
-            color: #ff9999;
-        }
-        
-        .tag.flag {
-            background: rgba(0, 255, 136, 0.2);
-            color: var(--accent);
-        }
-        
-        .tag.temporal {
-            background: rgba(100, 150, 255, 0.2);
-            color: #99aaff;
-        }
-        
-        .tag.entity {
-            background: rgba(255, 200, 100, 0.2);
-            color: #ffcc66;
-        }
-        
-        /* Grid */
+        /* Stats grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-            gap: 1rem;
-            margin-top: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: var(--space-md);
         }
         
-        .stat {
+        .stat-card {
+            background: var(--bg-elevated);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
             text-align: center;
-            padding: 1rem;
-            background: var(--bg);
-            border-radius: 4px;
         }
         
         .stat-value {
-            font-size: 1.5rem;
+            font-size: 1.75rem;
+            font-weight: 600;
             color: var(--accent);
+            font-family: var(--font-mono);
         }
         
         .stat-label {
             font-size: 0.75rem;
-            color: var(--text-dim);
-            margin-top: 0.25rem;
+            color: var(--text-muted);
+            margin-top: var(--space-xs);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
-        /* Detail sections */
-        .detail-section {
-            margin-top: 1rem;
-            padding: 0.75rem;
-            background: var(--bg);
-            border-radius: 4px;
-        }
-        
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.25rem 0;
-            font-size: 0.85rem;
-        }
-        
-        .detail-row .label {
-            color: var(--text-dim);
-        }
-        
-        .detail-row .value {
-            color: var(--text);
-        }
-        
-        /* Footer */
-        footer {
-            margin-top: 2rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--border);
-            text-align: center;
-            color: var(--text-dim);
+        /* Status badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--radius-md);
             font-size: 0.8rem;
         }
         
-        footer a {
-            color: var(--accent-dim);
-            text-decoration: none;
-        }
-        
-        footer a:hover {
+        .status-badge.success {
+            background: var(--accent-bg);
             color: var(--accent);
         }
         
-        /* Collapsible JSON */
-        .json-toggle {
-            color: var(--accent-dim);
-            cursor: pointer;
+        .status-badge.warning {
+            background: var(--warning-bg);
+            color: var(--warning);
+        }
+        
+        .status-badge.error {
+            background: var(--error-bg);
+            color: var(--error);
+        }
+        
+        .status-badge.info {
+            background: var(--info-bg);
+            color: var(--info);
+        }
+        
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .table th,
+        .table td {
+            padding: var(--space-sm) var(--space-md);
+            text-align: left;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .table th {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            background: var(--bg-elevated);
+        }
+        
+        .table tr:hover td {
+            background: var(--bg-hover);
+        }
+        
+        /* Results panel */
+        .results-panel {
+            background: var(--bg-base);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .results-section {
+            padding: var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .results-section:last-child {
+            border-bottom: none;
+        }
+        
+        .results-section-title {
             font-size: 0.8rem;
-            margin-top: 0.5rem;
-            display: inline-block;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-sm);
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+        
+        .results-row {
+            display: flex;
+            justify-content: space-between;
+            padding: var(--space-xs) 0;
+            font-size: 0.85rem;
+        }
+        
+        .results-row-label {
+            color: var(--text-muted);
+        }
+        
+        .results-row-value {
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+        }
+        
+        /* JSON viewer */
+        .json-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: color var(--transition-fast);
         }
         
         .json-toggle:hover {
@@ -329,257 +674,719 @@
         
         .json-content {
             display: none;
-            margin-top: 0.5rem;
+            margin-top: var(--space-sm);
+            padding: var(--space-md);
+            background: var(--bg-base);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
         }
         
         .json-content.show {
             display: block;
         }
+        
+        .json-content pre {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 0;
+        }
+        
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: var(--space-2xl);
+            color: var(--text-muted);
+        }
+        
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: var(--space-md);
+            opacity: 0.5;
+        }
+        
+        .empty-state-text {
+            margin-bottom: var(--space-md);
+        }
+        
+        /* Loading spinner */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-subtle);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Grid layouts */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-lg);
+        }
+        
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-lg);
+        }
+        
+        @media (max-width: 1024px) {
+            .grid-2, .grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Section spacing */
+        .section {
+            margin-bottom: var(--space-xl);
+        }
+        
+        .section-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-dim);
+            margin-bottom: var(--space-md);
+        }
+        
+        /* Page views - hide all except active */
+        .page-view {
+            display: none;
+        }
+        
+        .page-view.active {
+            display: block;
+        }
+        
+        /* ================================================================
+           PAGE-SPECIFIC STYLES
+           ================================================================ */
+        
+        /* Preflight items list */
+        .preflight-item {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-md);
+            padding: var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            transition: background var(--transition-fast);
+        }
+        
+        .preflight-item:hover {
+            background: var(--bg-hover);
+        }
+        
+        .preflight-item-checkbox {
+            margin-top: 2px;
+        }
+        
+        .preflight-item-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .preflight-item-title {
+            font-weight: 500;
+            margin-bottom: var(--space-xs);
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+        
+        .preflight-item-meta {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .preflight-item-actions {
+            display: flex;
+            gap: var(--space-xs);
+        }
+        
+        /* Entity list */
+        .entity-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-md);
+            transition: background var(--transition-fast);
+        }
+        
+        .entity-item:hover {
+            background: var(--bg-hover);
+        }
+        
+        .entity-avatar {
+            width: 36px;
+            height: 36px;
+            background: var(--tag-entity-bg);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+        
+        .entity-info {
+            flex: 1;
+        }
+        
+        .entity-name {
+            font-weight: 500;
+        }
+        
+        .entity-detail {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        /* Quick analysis inline */
+        .quick-analysis {
+            background: var(--bg-elevated);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            margin-top: var(--space-md);
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>ReCog</h1>
-            <p class="subtitle">Recursive Cognition Engine - Extract insights from text</p>
-        </header>
-        
-        <!-- File Upload -->
-        <section>
-            <h2>Upload File</h2>
-            <div class="drop-zone" id="dropZone">
-                <div class="icon">📄</div>
-                <p>Drop file here or click to upload</p>
-                <p style="font-size: 0.8rem; margin-top: 0.5rem;">Supports: TXT, MD, JSON, PDF, CSV</p>
-                <input type="file" id="fileInput" accept=".txt,.md,.json,.pdf,.csv,.xml">
+    <div class="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="/" class="logo">
+                    <div class="logo-icon">◇</div>
+                    <div>
+                        <div class="logo-text">ReCog</div>
+                        <div class="logo-version">v0.1.0</div>
+                    </div>
+                </a>
             </div>
-            <div id="uploadStatus"></div>
-        </section>
-        
-        <!-- Text Analysis -->
-        <section>
-            <h2>Analyse Text (Tier 0)</h2>
-            <textarea id="textInput" placeholder="Paste text here for signal extraction..."></textarea>
-            <div style="margin-top: 1rem; display: flex; gap: 1rem;">
-                <button id="analyseBtn">Analyse</button>
-                <button id="clearBtn" class="btn-secondary">Clear</button>
+            
+            <nav class="nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Analysis</div>
+                    <a class="nav-item active" data-page="analyse" onclick="showPage('analyse')">
+                        <span class="nav-item-icon">⚡</span>
+                        Quick Analyse
+                    </a>
+                    <a class="nav-item" data-page="upload" onclick="showPage('upload')">
+                        <span class="nav-item-icon">📄</span>
+                        Upload File
+                    </a>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title">Workflow</div>
+                    <a class="nav-item" data-page="preflight" onclick="showPage('preflight')">
+                        <span class="nav-item-icon">📋</span>
+                        Preflight
+                        <span class="nav-item-badge" id="preflight-count">0</span>
+                    </a>
+                    <a class="nav-item" data-page="entities" onclick="showPage('entities')">
+                        <span class="nav-item-icon">👤</span>
+                        Entities
+                        <span class="nav-item-badge" id="entity-count">0</span>
+                    </a>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title">Results</div>
+                    <a class="nav-item" data-page="insights" onclick="showPage('insights')">
+                        <span class="nav-item-icon">💡</span>
+                        Insights
+                    </a>
+                </div>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <span class="status-dot" id="server-status-dot"></span>
+                    <span id="server-status-text">Checking...</span>
+                </div>
             </div>
-            <div id="tier0Results"></div>
-        </section>
+        </aside>
         
-        <!-- Server Status -->
-        <section>
-            <h2>Server Status</h2>
-            <div id="serverStatus">
-                <div class="status loading">⏳ Checking...</div>
+        <!-- Main Content -->
+        <main class="main">
+            <header class="main-header">
+                <h1 class="page-title" id="page-title">
+                    <span class="page-title-icon">⚡</span>
+                    Quick Analyse
+                </h1>
+                <div class="header-actions">
+                    <a href="https://ehkolabs.io" target="_blank" class="btn btn-ghost btn-sm">EhkoLabs</a>
+                    <a href="/api/info" target="_blank" class="btn btn-secondary btn-sm">API Docs</a>
+                </div>
+            </header>
+            
+            <div class="main-content">
+                <!-- ANALYSE PAGE -->
+                <div class="page-view active" id="page-analyse">
+                    <div class="grid-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">
+                                    <span class="card-title-icon">📝</span>
+                                    Input Text
+                                </h2>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <textarea 
+                                        class="input" 
+                                        id="textInput" 
+                                        placeholder="Paste or type text here for Tier 0 signal extraction...
+
+Ctrl+Enter to analyse"
+                                        rows="12"
+                                    ></textarea>
+                                </div>
+                                <div style="display: flex; gap: var(--space-sm);">
+                                    <button class="btn btn-primary" id="analyseBtn">
+                                        <span>⚡</span> Analyse
+                                    </button>
+                                    <button class="btn btn-secondary" id="clearBtn">Clear</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">
+                                    <span class="card-title-icon">📊</span>
+                                    Analysis Results
+                                </h2>
+                            </div>
+                            <div class="card-body" id="analysisResults">
+                                <div class="empty-state">
+                                    <div class="empty-state-icon">🔍</div>
+                                    <div class="empty-state-text">Enter text and click Analyse to see results</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- UPLOAD PAGE -->
+                <div class="page-view" id="page-upload">
+                    <div class="card section">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <span class="card-title-icon">📤</span>
+                                Upload Documents
+                            </h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="drop-zone" id="dropZone">
+                                <div class="drop-zone-icon">📄</div>
+                                <div class="drop-zone-text">Drop files here or click to upload</div>
+                                <div class="drop-zone-hint">Supports: TXT, MD, JSON, PDF, CSV, EML</div>
+                                <input type="file" id="fileInput" accept=".txt,.md,.json,.pdf,.csv,.xml,.eml" multiple>
+                            </div>
+                            <div id="uploadStatus" style="margin-top: var(--space-lg);"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <span class="card-title-icon">📁</span>
+                                Recent Uploads
+                            </h2>
+                        </div>
+                        <div class="card-body" id="recentUploads">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📭</div>
+                                <div class="empty-state-text">No recent uploads</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- PREFLIGHT PAGE -->
+                <div class="page-view" id="page-preflight">
+                    <div class="card section">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <span class="card-title-icon">📋</span>
+                                Preflight Review
+                            </h2>
+                            <div style="display: flex; gap: var(--space-sm);">
+                                <button class="btn btn-secondary btn-sm" id="refreshPreflight">Refresh</button>
+                            </div>
+                        </div>
+                        <div class="card-body" id="preflightContent">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📭</div>
+                                <div class="empty-state-text">No active preflight sessions</div>
+                                <button class="btn btn-secondary" onclick="showPage('upload')">Upload a file to start</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ENTITIES PAGE -->
+                <div class="page-view" id="page-entities">
+                    <div class="grid-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">
+                                    <span class="card-title-icon">❓</span>
+                                    Needs Identification
+                                </h2>
+                                <button class="btn btn-secondary btn-sm" onclick="loadUnknownEntities()">Refresh</button>
+                            </div>
+                            <div class="card-body" id="unknownEntities">
+                                <div class="empty-state">
+                                    <div class="empty-state-icon">✓</div>
+                                    <div class="empty-state-text">All entities identified</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">
+                                    <span class="card-title-icon">👥</span>
+                                    Entity Registry
+                                </h2>
+                            </div>
+                            <div class="card-body" id="entityRegistry">
+                                <div class="empty-state">
+                                    <div class="empty-state-icon">👤</div>
+                                    <div class="empty-state-text">No entities registered yet</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card section" style="margin-top: var(--space-xl);">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <span class="card-title-icon">📊</span>
+                                Entity Statistics
+                            </h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="stats-grid" id="entityStats">
+                                <div class="stat-card">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Total</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">People</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Confirmed</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Unknown</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- INSIGHTS PAGE -->
+                <div class="page-view" id="page-insights">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <span class="card-title-icon">💡</span>
+                                Extracted Insights
+                            </h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">💭</div>
+                                <div class="empty-state-text">No insights extracted yet</div>
+                                <p style="color: var(--text-dim); margin-top: var(--space-sm);">
+                                    Process documents through the preflight workflow to extract insights
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="stats-grid" id="serverStats"></div>
-        </section>
-        
-        <footer>
-            <p>ReCog v0.1 · <a href="/api/info">API Info</a> · <a href="https://ehkolabs.io">EhkoLabs</a></p>
-        </footer>
+        </main>
     </div>
     
     <script>
         const API = '';
         
-        // Health check
+        // ================================================================
+        // NAVIGATION
+        // ================================================================
+        
+        const pageConfig = {
+            'analyse': { title: 'Quick Analyse', icon: '⚡' },
+            'upload': { title: 'Upload Files', icon: '📄' },
+            'preflight': { title: 'Preflight Review', icon: '📋' },
+            'entities': { title: 'Entity Management', icon: '👤' },
+            'insights': { title: 'Insights', icon: '💡' },
+        };
+        
+        function showPage(pageName) {
+            // Update nav
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.page === pageName);
+            });
+            
+            // Update page views
+            document.querySelectorAll('.page-view').forEach(view => {
+                view.classList.toggle('active', view.id === `page-${pageName}`);
+            });
+            
+            // Update header
+            const config = pageConfig[pageName];
+            document.getElementById('page-title').innerHTML = `
+                <span class="page-title-icon">${config.icon}</span>
+                ${config.title}
+            `;
+            
+            // Load page data
+            if (pageName === 'entities') {
+                loadEntities();
+            } else if (pageName === 'preflight') {
+                // loadPreflight();
+            }
+        }
+        
+        // ================================================================
+        // HEALTH CHECK
+        // ================================================================
+        
         async function checkHealth() {
-            const statusEl = document.getElementById('serverStatus');
-            const statsEl = document.getElementById('serverStats');
+            const dot = document.getElementById('server-status-dot');
+            const text = document.getElementById('server-status-text');
             
             try {
                 const res = await fetch(`${API}/api/health`);
                 const data = await res.json();
                 
                 if (data.success) {
-                    statusEl.innerHTML = `<div class="status success">✓ Server healthy</div>`;
-                    statsEl.innerHTML = `
-                        <div class="stat">
-                            <div class="stat-value">${data.data.database.tables}</div>
-                            <div class="stat-label">Tables</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-value">${data.data.database.rows}</div>
-                            <div class="stat-label">Rows</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-value">${data.data.llm_configured ? '✓' : '✗'}</div>
-                            <div class="stat-label">LLM Ready</div>
-                        </div>
-                    `;
+                    dot.className = 'status-dot online';
+                    text.textContent = 'Connected';
                 } else {
                     throw new Error('Unhealthy');
                 }
             } catch (e) {
-                statusEl.innerHTML = `<div class="status error">✗ Server unavailable</div>`;
+                dot.className = 'status-dot offline';
+                text.textContent = 'Offline';
             }
         }
         
-        // Tier 0 analysis
-        async function analyseTier0() {
+        // ================================================================
+        // TIER 0 ANALYSIS
+        // ================================================================
+        
+        async function runAnalysis() {
             const text = document.getElementById('textInput').value.trim();
-            const resultsEl = document.getElementById('tier0Results');
+            const resultsEl = document.getElementById('analysisResults');
             
             if (!text) {
-                resultsEl.innerHTML = `<div class="status error">✗ No text provided</div>`;
+                resultsEl.innerHTML = `
+                    <div class="status-badge error">
+                        <span>✗</span> No text provided
+                    </div>
+                `;
                 return;
             }
             
-            resultsEl.innerHTML = `<div class="status loading">⏳ Analysing...</div>`;
+            resultsEl.innerHTML = `
+                <div style="display: flex; align-items: center; gap: var(--space-sm); color: var(--text-muted);">
+                    <div class="spinner"></div>
+                    <span>Analysing...</span>
+                </div>
+            `;
             
             try {
                 const res = await fetch(`${API}/api/tier0`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({text})
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
                 });
                 const data = await res.json();
                 
                 if (data.success) {
-                    const t0 = data.data.tier0;
-                    
-                    // Basic stats
-                    let html = `
-                        <div class="stats-grid">
-                            <div class="stat">
-                                <div class="stat-value">${t0.word_count}</div>
-                                <div class="stat-label">Words</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-value">${t0.char_count}</div>
-                                <div class="stat-label">Chars</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-value">${t0.question_analysis?.question_count || 0}</div>
-                                <div class="stat-label">Questions</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-value">${t0.structural?.sentence_count || 0}</div>
-                                <div class="stat-label">Sentences</div>
-                            </div>
-                        </div>
-                    `;
-                    
-                    // Emotion tags
-                    const emotions = t0.emotion_signals?.categories || [];
-                    const emotionKws = t0.emotion_signals?.keywords_found || [];
-                    if (emotions.length || emotionKws.length) {
-                        html += `<h3>😊 Emotions</h3><div class="tags">`;
-                        emotions.forEach(e => {
-                            html += `<span class="tag emotion">${e}</span>`;
-                        });
-                        html += `</div>`;
-                        if (emotionKws.length) {
-                            html += `<div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.5rem;">Keywords: ${emotionKws.slice(0, 10).join(', ')}</div>`;
-                        }
-                    }
-                    
-                    // Flags
-                    const flags = t0.flags || {};
-                    const activeFlags = Object.entries(flags).filter(([k, v]) => v).map(([k]) => k.replace(/_/g, ' '));
-                    if (activeFlags.length) {
-                        html += `<h3>🚩 Flags</h3><div class="tags">`;
-                        activeFlags.forEach(f => {
-                            html += `<span class="tag flag">${f}</span>`;
-                        });
-                        html += `</div>`;
-                    }
-                    
-                    // Entities
-                    const entities = t0.entities || {};
-                    const people = entities.people || [];
-                    const phones = entities.phone_numbers || [];
-                    const emails = entities.email_addresses || [];
-                    if (people.length || phones.length || emails.length) {
-                        html += `<h3>👤 Entities</h3><div class="tags">`;
-                        people.forEach(p => {
-                            html += `<span class="tag entity">👤 ${p}</span>`;
-                        });
-                        phones.forEach(p => {
-                            html += `<span class="tag entity">📞 ${p.normalised || p.raw}</span>`;
-                        });
-                        emails.forEach(e => {
-                            html += `<span class="tag entity">✉️ ${e.normalised || e.raw}</span>`;
-                        });
-                        html += `</div>`;
-                    }
-                    
-                    // Temporal
-                    const temporal = t0.temporal_references || {};
-                    const temporalTags = [];
-                    ['past', 'present', 'future', 'habitual'].forEach(period => {
-                        const refs = temporal[period] || [];
-                        if (refs.length) {
-                            temporalTags.push(`${period}: ${refs.slice(0, 3).join(', ')}`);
-                        }
-                    });
-                    if (temporalTags.length) {
-                        html += `<h3>⏰ Temporal</h3><div class="tags">`;
-                        temporalTags.forEach(t => {
-                            html += `<span class="tag temporal">${t}</span>`;
-                        });
-                        html += `</div>`;
-                    }
-                    
-                    // Intensity
-                    const intensity = t0.intensity_markers || {};
-                    if (intensity.exclamations || intensity.all_caps_words || intensity.intensifiers?.length || intensity.hedges?.length) {
-                        html += `<h3>⚡ Intensity</h3><div class="detail-section">`;
-                        if (intensity.exclamations) {
-                            html += `<div class="detail-row"><span class="label">Exclamations</span><span class="value">${intensity.exclamations}</span></div>`;
-                        }
-                        if (intensity.all_caps_words) {
-                            html += `<div class="detail-row"><span class="label">ALL CAPS words</span><span class="value">${intensity.all_caps_words}</span></div>`;
-                        }
-                        if (intensity.intensifiers?.length) {
-                            html += `<div class="detail-row"><span class="label">Intensifiers</span><span class="value">${intensity.intensifiers.slice(0, 5).join(', ')}</span></div>`;
-                        }
-                        if (intensity.hedges?.length) {
-                            html += `<div class="detail-row"><span class="label">Hedges</span><span class="value">${intensity.hedges.slice(0, 5).join(', ')}</span></div>`;
-                        }
-                        html += `</div>`;
-                    }
-                    
-                    // Questions
-                    const questions = t0.question_analysis || {};
-                    if (questions.question_count) {
-                        html += `<h3>❓ Questions</h3><div class="detail-section">`;
-                        html += `<div class="detail-row"><span class="label">Count</span><span class="value">${questions.question_count}</span></div>`;
-                        html += `<div class="detail-row"><span class="label">Density</span><span class="value">${(questions.question_density * 100).toFixed(1)}%</span></div>`;
-                        if (questions.self_inquiry) {
-                            html += `<div class="detail-row"><span class="label">Self-inquiry</span><span class="value">${questions.self_inquiry}</span></div>`;
-                        }
-                        html += `</div>`;
-                    }
-                    
-                    // Structure
-                    const structure = t0.structural || {};
-                    html += `<h3>📝 Structure</h3><div class="detail-section">`;
-                    html += `<div class="detail-row"><span class="label">Paragraphs</span><span class="value">${structure.paragraph_count || 0}</span></div>`;
-                    html += `<div class="detail-row"><span class="label">Sentences</span><span class="value">${structure.sentence_count || 0}</span></div>`;
-                    html += `<div class="detail-row"><span class="label">Avg sentence length</span><span class="value">${structure.avg_sentence_length || 0} words</span></div>`;
-                    if (structure.speaker_changes) {
-                        html += `<div class="detail-row"><span class="label">Speaker changes</span><span class="value">${structure.speaker_changes}</span></div>`;
-                    }
-                    html += `</div>`;
-                    
-                    // Summary
-                    html += `<h3>📋 Prompt Summary</h3>`;
-                    html += `<div class="results"><pre>${data.data.summary || 'No significant signals detected.'}</pre></div>`;
-                    
-                    // Raw JSON toggle
-                    html += `<span class="json-toggle" onclick="toggleJson()">▸ Show raw JSON</span>`;
-                    html += `<div class="json-content" id="jsonContent"><pre>${JSON.stringify(t0, null, 2)}</pre></div>`;
-                    
-                    resultsEl.innerHTML = html;
+                    renderAnalysisResults(data.data);
                 } else {
                     throw new Error(data.error);
                 }
             } catch (e) {
-                resultsEl.innerHTML = `<div class="status error">✗ ${e.message}</div>`;
+                resultsEl.innerHTML = `
+                    <div class="status-badge error">
+                        <span>✗</span> ${e.message}
+                    </div>
+                `;
             }
+        }
+        
+        function renderAnalysisResults(data) {
+            const t0 = data.tier0;
+            const resultsEl = document.getElementById('analysisResults');
+            
+            let html = '';
+            
+            // Stats
+            html += `
+                <div class="stats-grid" style="margin-bottom: var(--space-lg);">
+                    <div class="stat-card">
+                        <div class="stat-value">${t0.word_count}</div>
+                        <div class="stat-label">Words</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${t0.structural?.sentence_count || 0}</div>
+                        <div class="stat-label">Sentences</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${t0.question_analysis?.question_count || 0}</div>
+                        <div class="stat-label">Questions</div>
+                    </div>
+                </div>
+            `;
+            
+            // Results panel
+            html += '<div class="results-panel">';
+            
+            // Emotions
+            const emotions = t0.emotion_signals?.categories || [];
+            if (emotions.length) {
+                html += `
+                    <div class="results-section">
+                        <div class="results-section-title">
+                            <span>😊</span> Emotions
+                        </div>
+                        <div class="tags">
+                            ${emotions.map(e => `<span class="tag tag-emotion">${e}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Flags
+            const flags = t0.flags || {};
+            const activeFlags = Object.entries(flags).filter(([k, v]) => v).map(([k]) => k.replace(/_/g, ' '));
+            if (activeFlags.length) {
+                html += `
+                    <div class="results-section">
+                        <div class="results-section-title">
+                            <span>🚩</span> Flags
+                        </div>
+                        <div class="tags">
+                            ${activeFlags.map(f => `<span class="tag tag-flag">${f}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Entities
+            const entities = t0.entities || {};
+            const people = entities.people || [];
+            const phones = entities.phone_numbers || [];
+            const emails = entities.email_addresses || [];
+            if (people.length || phones.length || emails.length) {
+                html += `
+                    <div class="results-section">
+                        <div class="results-section-title">
+                            <span>👤</span> Entities
+                        </div>
+                        <div class="tags">
+                            ${people.map(p => `<span class="tag tag-entity">👤 ${p}</span>`).join('')}
+                            ${phones.map(p => `<span class="tag tag-entity">📞 ${p.normalised || p.raw}</span>`).join('')}
+                            ${emails.map(e => `<span class="tag tag-entity">✉️ ${e.normalised || e.raw}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Temporal
+            const temporal = t0.temporal_references || {};
+            const temporalItems = [];
+            ['past', 'present', 'future', 'habitual'].forEach(period => {
+                const refs = temporal[period] || [];
+                if (refs.length) {
+                    temporalItems.push({ period, refs: refs.slice(0, 3) });
+                }
+            });
+            if (temporalItems.length) {
+                html += `
+                    <div class="results-section">
+                        <div class="results-section-title">
+                            <span>⏰</span> Temporal
+                        </div>
+                        <div class="tags">
+                            ${temporalItems.map(t => `<span class="tag tag-temporal">${t.period}: ${t.refs.join(', ')}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Structure
+            const structure = t0.structural || {};
+            html += `
+                <div class="results-section">
+                    <div class="results-section-title">
+                        <span>📝</span> Structure
+                    </div>
+                    <div class="results-row">
+                        <span class="results-row-label">Paragraphs</span>
+                        <span class="results-row-value">${structure.paragraph_count || 0}</span>
+                    </div>
+                    <div class="results-row">
+                        <span class="results-row-label">Avg sentence</span>
+                        <span class="results-row-value">${structure.avg_sentence_length || 0} words</span>
+                    </div>
+                    ${structure.speaker_changes ? `
+                    <div class="results-row">
+                        <span class="results-row-label">Speaker changes</span>
+                        <span class="results-row-value">${structure.speaker_changes}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            // Summary
+            html += `
+                <div class="results-section">
+                    <div class="results-section-title">
+                        <span>📋</span> Prompt Summary
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
+                        ${data.summary || 'No significant signals detected.'}
+                    </p>
+                </div>
+            `;
+            
+            html += '</div>';
+            
+            // JSON toggle
+            html += `
+                <div style="margin-top: var(--space-md);">
+                    <span class="json-toggle" onclick="toggleJson()">
+                        <span>▸</span> Show raw JSON
+                    </span>
+                    <div class="json-content" id="jsonContent">
+                        <pre>${JSON.stringify(t0, null, 2)}</pre>
+                    </div>
+                </div>
+            `;
+            
+            resultsEl.innerHTML = html;
         }
         
         function toggleJson() {
@@ -587,10 +1394,19 @@
             el.classList.toggle('show');
         }
         
-        // File upload
+        // ================================================================
+        // FILE UPLOAD
+        // ================================================================
+        
         async function uploadFile(file) {
             const statusEl = document.getElementById('uploadStatus');
-            statusEl.innerHTML = `<div class="status loading">⏳ Uploading ${file.name}...</div>`;
+            
+            statusEl.innerHTML = `
+                <div style="display: flex; align-items: center; gap: var(--space-sm); color: var(--text-muted);">
+                    <div class="spinner"></div>
+                    <span>Uploading ${file.name}...</span>
+                </div>
+            `;
             
             const formData = new FormData();
             formData.append('file', file);
@@ -602,88 +1418,214 @@
                 });
                 const data = await res.json();
                 
-                if (data.success) {
+                if (data.success && data.data.supported) {
                     const d = data.data;
-                    if (d.supported) {
-                        statusEl.innerHTML = `
-                            <div class="status success">✓ Uploaded: ${d.filename}</div>
-                            <div class="stats-grid">
-                                <div class="stat">
-                                    <div class="stat-value">${d.items}</div>
-                                    <div class="stat-label">Items</div>
-                                </div>
-                                <div class="stat">
-                                    <div class="stat-value">${d.words?.toLocaleString() || 0}</div>
-                                    <div class="stat-label">Words</div>
-                                </div>
-                                <div class="stat">
-                                    <div class="stat-value">${d.entities || 0}</div>
-                                    <div class="stat-label">Entities</div>
-                                </div>
-                                <div class="stat">
-                                    <div class="stat-value">$${((d.estimated_cost_cents || 0) / 100).toFixed(3)}</div>
-                                    <div class="stat-label">Est. Cost</div>
-                                </div>
+                    statusEl.innerHTML = `
+                        <div class="status-badge success" style="margin-bottom: var(--space-md);">
+                            <span>✓</span> Uploaded: ${d.filename}
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-value">${d.items}</div>
+                                <div class="stat-label">Items</div>
                             </div>
-                            <p style="margin-top: 1rem; color: var(--text-dim);">
-                                Preflight session: ${d.preflight_session_id}
-                            </p>
-                        `;
-                    } else {
-                        statusEl.innerHTML = `
-                            <div class="status error">✗ Unsupported: ${d.message || 'Unknown format'}</div>
-                            ${d.suggestions?.length ? `<p style="margin-top: 0.5rem; color: var(--text-dim);">Suggestions: ${d.suggestions.join(', ')}</p>` : ''}
-                        `;
-                    }
+                            <div class="stat-card">
+                                <div class="stat-value">${(d.words || 0).toLocaleString()}</div>
+                                <div class="stat-label">Words</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${d.entities || 0}</div>
+                                <div class="stat-label">Entities</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">$${((d.estimated_cost_cents || 0) / 100).toFixed(3)}</div>
+                                <div class="stat-label">Est. Cost</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: var(--space-lg);">
+                            <button class="btn btn-primary" onclick="showPage('preflight')">
+                                Review in Preflight →
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Update badge
+                    document.getElementById('preflight-count').textContent = d.items;
                 } else {
-                    throw new Error(data.error);
+                    throw new Error(data.data?.message || data.error || 'Upload failed');
                 }
             } catch (e) {
-                statusEl.innerHTML = `<div class="status error">✗ ${e.message}</div>`;
+                statusEl.innerHTML = `
+                    <div class="status-badge error">
+                        <span>✗</span> ${e.message}
+                    </div>
+                `;
             }
         }
         
-        // Event listeners
-        document.getElementById('analyseBtn').addEventListener('click', analyseTier0);
-        document.getElementById('clearBtn').addEventListener('click', () => {
-            document.getElementById('textInput').value = '';
-            document.getElementById('tier0Results').innerHTML = '';
-        });
+        // ================================================================
+        // ENTITIES
+        // ================================================================
         
-        // Enter key to analyse
-        document.getElementById('textInput').addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') {
-                analyseTier0();
+        async function loadEntities() {
+            loadUnknownEntities();
+            loadEntityRegistry();
+            loadEntityStats();
+        }
+        
+        async function loadUnknownEntities() {
+            const el = document.getElementById('unknownEntities');
+            
+            try {
+                const res = await fetch(`${API}/api/entities/unknown`);
+                const data = await res.json();
+                
+                if (data.success && data.data.entities.length > 0) {
+                    el.innerHTML = data.data.entities.map(entity => `
+                        <div class="entity-item">
+                            <div class="entity-avatar">👤</div>
+                            <div class="entity-info">
+                                <div class="entity-name">${entity.canonical_value || entity.raw_value}</div>
+                                <div class="entity-detail">${entity.entity_type} • ${entity.occurrence_count} occurrences</div>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" onclick="identifyEntity(${entity.id})">Identify</button>
+                        </div>
+                    `).join('');
+                    
+                    document.getElementById('entity-count').textContent = data.data.count;
+                } else {
+                    el.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">✓</div>
+                            <div class="empty-state-text">All entities identified</div>
+                        </div>
+                    `;
+                    document.getElementById('entity-count').textContent = '0';
+                }
+            } catch (e) {
+                el.innerHTML = `<div class="status-badge error"><span>✗</span> ${e.message}</div>`;
             }
+        }
+        
+        async function loadEntityRegistry() {
+            const el = document.getElementById('entityRegistry');
+            
+            try {
+                const res = await fetch(`${API}/api/entities?confirmed=true&limit=20`);
+                const data = await res.json();
+                
+                if (data.success && data.data.entities.length > 0) {
+                    el.innerHTML = data.data.entities.map(entity => `
+                        <div class="entity-item">
+                            <div class="entity-avatar">${entity.entity_type === 'person' ? '👤' : '📧'}</div>
+                            <div class="entity-info">
+                                <div class="entity-name">${entity.display_name || entity.canonical_value}</div>
+                                <div class="entity-detail">${entity.relationship || entity.entity_type}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    el.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">👤</div>
+                            <div class="empty-state-text">No entities registered yet</div>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                // Silently fail - not critical
+            }
+        }
+        
+        async function loadEntityStats() {
+            try {
+                const res = await fetch(`${API}/api/entities/stats`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    const stats = data.data;
+                    document.getElementById('entityStats').innerHTML = `
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.total || 0}</div>
+                            <div class="stat-label">Total</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.by_type?.person || 0}</div>
+                            <div class="stat-label">People</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.confirmed || 0}</div>
+                            <div class="stat-label">Confirmed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.unconfirmed || 0}</div>
+                            <div class="stat-label">Unknown</div>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                // Silently fail
+            }
+        }
+        
+        function identifyEntity(entityId) {
+            // TODO: Open modal for entity identification
+            alert('Entity identification modal coming soon. Entity ID: ' + entityId);
+        }
+        
+        // ================================================================
+        // EVENT LISTENERS
+        // ================================================================
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Health check
+            checkHealth();
+            setInterval(checkHealth, 30000);
+            
+            // Analyse button
+            document.getElementById('analyseBtn').addEventListener('click', runAnalysis);
+            document.getElementById('clearBtn').addEventListener('click', () => {
+                document.getElementById('textInput').value = '';
+                document.getElementById('analysisResults').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <div class="empty-state-text">Enter text and click Analyse to see results</div>
+                    </div>
+                `;
+            });
+            
+            // Ctrl+Enter to analyse
+            document.getElementById('textInput').addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'Enter') {
+                    runAnalysis();
+                }
+            });
+            
+            // File upload
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+            
+            dropZone.addEventListener('click', () => fileInput.click());
+            
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length) uploadFile(e.target.files[0]);
+            });
+            
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            });
+            
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('dragover');
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
+            });
         });
-        
-        // File input
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        
-        dropZone.addEventListener('click', () => fileInput.click());
-        
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) uploadFile(e.target.files[0]);
-        });
-        
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-        
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-        
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
-        });
-        
-        // Init
-        checkHealth();
     </script>
 </body>
 </html>

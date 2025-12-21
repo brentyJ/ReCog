@@ -639,7 +639,7 @@ def create_app():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("RECOG_PORT", 5000))
+    port = int(os.environ.get("RECOG_PORT", 5100))
     debug = os.environ.get("RECOG_DEBUG", "false").lower() == "true"
     
     print(f"\n🔮 ReCog Server starting on http://localhost:{port}")

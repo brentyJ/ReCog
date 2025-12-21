@@ -11,8 +11,9 @@ ENV/
 
 # Data
 _data/uploads/*
-_data/*.db
+*.db
 !_data/.gitkeep
+_scripts/_data/
 
 # IDE
 .idea/

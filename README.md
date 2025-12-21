@@ -16,7 +16,7 @@ python recog_cli.py db init
 python server.py
 ```
 
-Server runs at http://localhost:5000
+Server runs at http://localhost:5100
 
 ## Architecture
 
@@ -76,7 +76,7 @@ python recog_cli.py preflight status <id>
 
 ```bash
 RECOG_DATA_DIR=./_data      # Data directory
-RECOG_PORT=5000             # Server port
+RECOG_PORT=5100             # Server port
 RECOG_DEBUG=false           # Debug mode
 RECOG_LLM_API_KEY=sk-...    # OpenAI API key (for extraction)
 RECOG_LLM_MODEL=gpt-4o-mini # LLM model
