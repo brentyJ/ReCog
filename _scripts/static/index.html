@@ -41,6 +41,9 @@
             --info: #3b82f6;
             --info-bg: rgba(59, 130, 246, 0.1);
             
+            --purple: #a78bfa;
+            --purple-bg: rgba(167, 139, 250, 0.1);
+            
             /* Tag colors */
             --tag-emotion: #f472b6;
             --tag-emotion-bg: rgba(244, 114, 182, 0.15);
@@ -390,6 +393,16 @@
             color: var(--text-primary);
         }
         
+        .btn-danger {
+            background: transparent;
+            color: var(--error);
+            border-color: var(--error);
+        }
+        
+        .btn-danger:hover {
+            background: var(--error-bg);
+        }
+        
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -434,6 +447,15 @@
             font-family: var(--font-mono);
         }
         
+        select.input {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+        }
+        
         .form-group {
             margin-bottom: var(--space-md);
         }
@@ -444,6 +466,42 @@
             font-weight: 500;
             color: var(--text-secondary);
             margin-bottom: var(--space-xs);
+        }
+        
+        .form-row {
+            display: flex;
+            gap: var(--space-md);
+        }
+        
+        .form-row .form-group {
+            flex: 1;
+        }
+        
+        /* Checkbox */
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            cursor: pointer;
+        }
+        
+        .checkbox {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            background: var(--bg-base);
+            cursor: pointer;
+            appearance: none;
+            transition: all var(--transition-fast);
+        }
+        
+        .checkbox:checked {
+            background: var(--accent);
+            border-color: var(--accent);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%230a0b0d'%3E%3Cpath d='M10 3L4.5 8.5 2 6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
         }
         
         /* Drop zone */
@@ -518,6 +576,11 @@
             color: var(--tag-flag);
         }
         
+        .tag-pattern {
+            background: var(--purple-bg);
+            color: var(--purple);
+        }
+        
         .tags {
             display: flex;
             flex-wrap: wrap;
@@ -527,7 +590,7 @@
         /* Stats grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
             gap: var(--space-md);
         }
         
@@ -539,14 +602,22 @@
         }
         
         .stat-value {
-            font-size: 1.75rem;
+            font-size: 1.5rem;
             font-weight: 600;
             color: var(--accent);
             font-family: var(--font-mono);
         }
         
+        .stat-value.warning {
+            color: var(--warning);
+        }
+        
+        .stat-value.error {
+            color: var(--error);
+        }
+        
         .stat-label {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: var(--text-muted);
             margin-top: var(--space-xs);
             text-transform: uppercase;
@@ -581,36 +652,6 @@
         .status-badge.info {
             background: var(--info-bg);
             color: var(--info);
-        }
-        
-        /* Tables */
-        .table-container {
-            overflow-x: auto;
-        }
-        
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        .table th,
-        .table td {
-            padding: var(--space-sm) var(--space-md);
-            text-align: left;
-            border-bottom: 1px solid var(--border-subtle);
-        }
-        
-        .table th {
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-muted);
-            background: var(--bg-elevated);
-        }
-        
-        .table tr:hover td {
-            background: var(--bg-hover);
         }
         
         /* Results panel */
@@ -725,6 +766,15 @@
             to { transform: rotate(360deg); }
         }
         
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-sm);
+            color: var(--text-muted);
+            padding: var(--space-xl);
+        }
+        
         /* Grid layouts */
         .grid-2 {
             display: grid;
@@ -768,10 +818,102 @@
         }
         
         /* ================================================================
-           PAGE-SPECIFIC STYLES
+           MODAL
            ================================================================ */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
         
-        /* Preflight items list */
+        .modal-overlay.show {
+            display: flex;
+        }
+        
+        .modal {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .modal-header {
+            padding: var(--space-md) var(--space-lg);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .modal-title {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+        
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+        
+        .modal-body {
+            padding: var(--space-lg);
+            overflow-y: auto;
+        }
+        
+        .modal-footer {
+            padding: var(--space-md) var(--space-lg);
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: flex-end;
+            gap: var(--space-sm);
+        }
+        
+        /* ================================================================
+           PREFLIGHT ITEMS
+           ================================================================ */
+        .preflight-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+            padding: var(--space-lg);
+            background: var(--bg-elevated);
+            border-radius: var(--radius-md);
+        }
+        
+        .preflight-filters {
+            display: flex;
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+            padding: var(--space-md);
+            background: var(--bg-elevated);
+            border-radius: var(--radius-md);
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        
+        .preflight-filters .form-group {
+            margin-bottom: 0;
+            min-width: 120px;
+        }
+        
         .preflight-item {
             display: flex;
             align-items: flex-start;
@@ -783,6 +925,11 @@
         
         .preflight-item:hover {
             background: var(--bg-hover);
+        }
+        
+        .preflight-item.excluded {
+            opacity: 0.5;
+            background: var(--error-bg);
         }
         
         .preflight-item-checkbox {
@@ -805,6 +952,9 @@
         .preflight-item-meta {
             font-size: 0.8rem;
             color: var(--text-muted);
+            display: flex;
+            gap: var(--space-md);
+            flex-wrap: wrap;
         }
         
         .preflight-item-actions {
@@ -812,7 +962,30 @@
             gap: var(--space-xs);
         }
         
-        /* Entity list */
+        .preflight-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: var(--space-lg);
+            padding-top: var(--space-lg);
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .preflight-cost-warning {
+            padding: var(--space-md);
+            background: var(--warning-bg);
+            border: 1px solid var(--warning);
+            border-radius: var(--radius-md);
+            color: var(--warning);
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+        
+        /* ================================================================
+           ENTITY LIST
+           ================================================================ */
         .entity-item {
             display: flex;
             align-items: center;
@@ -835,14 +1008,19 @@
             align-items: center;
             justify-content: center;
             font-size: 1rem;
+            flex-shrink: 0;
         }
         
         .entity-info {
             flex: 1;
+            min-width: 0;
         }
         
         .entity-name {
             font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         
         .entity-detail {
@@ -850,12 +1028,191 @@
             color: var(--text-muted);
         }
         
-        /* Quick analysis inline */
-        .quick-analysis {
+        /* ================================================================
+           INSIGHTS LIST
+           ================================================================ */
+        .insight-item {
+            padding: var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            transition: background var(--transition-fast);
+        }
+        
+        .insight-item:hover {
+            background: var(--bg-hover);
+        }
+        
+        .insight-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: var(--space-md);
+            margin-bottom: var(--space-sm);
+        }
+        
+        .insight-summary {
+            font-weight: 500;
+            flex: 1;
+        }
+        
+        .insight-score {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: var(--space-xs) var(--space-sm);
+            background: var(--accent-bg);
+            border-radius: var(--radius-md);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--accent);
+        }
+        
+        .insight-excerpt {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-sm);
+            padding-left: var(--space-md);
+            border-left: 2px solid var(--border-subtle);
+            font-style: italic;
+        }
+        
+        .insight-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+        }
+        
+        .insight-filters {
+            display: flex;
+            gap: var(--space-md);
+            padding: var(--space-md);
             background: var(--bg-elevated);
             border-radius: var(--radius-md);
+            margin-bottom: var(--space-lg);
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        
+        .insight-filters .form-group {
+            margin-bottom: 0;
+            min-width: 120px;
+        }
+        
+        /* ================================================================
+           PATTERNS LIST
+           ================================================================ */
+        .pattern-item {
             padding: var(--space-md);
-            margin-top: var(--space-md);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--space-md);
+            background: var(--bg-surface);
+        }
+        
+        .pattern-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: var(--space-md);
+            margin-bottom: var(--space-sm);
+        }
+        
+        .pattern-name {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+        
+        .pattern-strength {
+            display: flex;
+            gap: var(--space-xs);
+            align-items: center;
+        }
+        
+        .strength-bar {
+            width: 60px;
+            height: 6px;
+            background: var(--bg-base);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+        }
+        
+        .strength-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: var(--radius-full);
+        }
+        
+        .pattern-description {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-md);
+        }
+        
+        /* ================================================================
+           PROGRESS BAR
+           ================================================================ */
+        .progress-container {
+            padding: var(--space-lg);
+            background: var(--bg-elevated);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--space-lg);
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: var(--bg-base);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+            margin-bottom: var(--space-sm);
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+        
+        /* ================================================================
+           TABS
+           ================================================================ */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-subtle);
+            margin-bottom: var(--space-lg);
+        }
+        
+        .tab {
+            padding: var(--space-sm) var(--space-lg);
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+        }
+        
+        .tab:hover {
+            color: var(--text-primary);
+        }
+        
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
         }
     </style>
 </head>
@@ -868,7 +1225,7 @@
                     <div class="logo-icon">◇</div>
                     <div>
                         <div class="logo-text">ReCog</div>
-                        <div class="logo-version">v0.1.0</div>
+                        <div class="logo-version">v0.6.0</div>
                     </div>
                 </a>
             </div>
@@ -905,6 +1262,12 @@
                     <a class="nav-item" data-page="insights" onclick="showPage('insights')">
                         <span class="nav-item-icon">💡</span>
                         Insights
+                        <span class="nav-item-badge" id="insight-count">0</span>
+                    </a>
+                    <a class="nav-item" data-page="patterns" onclick="showPage('patterns')">
+                        <span class="nav-item-icon">🔮</span>
+                        Patterns
+                        <span class="nav-item-badge" id="pattern-count">0</span>
                     </a>
                 </div>
             </nav>
@@ -997,47 +1360,50 @@ Ctrl+Enter to analyse"
                             <div id="uploadStatus" style="margin-top: var(--space-lg);"></div>
                         </div>
                     </div>
-                    
-                    <div class="card">
-                        <div class="card-header">
-                            <h2 class="card-title">
-                                <span class="card-title-icon">📁</span>
-                                Recent Uploads
-                            </h2>
-                        </div>
-                        <div class="card-body" id="recentUploads">
-                            <div class="empty-state">
-                                <div class="empty-state-icon">📭</div>
-                                <div class="empty-state-text">No recent uploads</div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
                 
                 <!-- PREFLIGHT PAGE -->
                 <div class="page-view" id="page-preflight">
-                    <div class="card section">
-                        <div class="card-header">
-                            <h2 class="card-title">
-                                <span class="card-title-icon">📋</span>
-                                Preflight Review
-                            </h2>
-                            <div style="display: flex; gap: var(--space-sm);">
-                                <button class="btn btn-secondary btn-sm" id="refreshPreflight">Refresh</button>
-                            </div>
-                        </div>
-                        <div class="card-body" id="preflightContent">
-                            <div class="empty-state">
-                                <div class="empty-state-icon">📭</div>
-                                <div class="empty-state-text">No active preflight sessions</div>
-                                <button class="btn btn-secondary" onclick="showPage('upload')">Upload a file to start</button>
-                            </div>
+                    <div id="preflightContent">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <div class="empty-state-text">No active preflight sessions</div>
+                            <button class="btn btn-secondary" onclick="showPage('upload')">Upload a file to start</button>
                         </div>
                     </div>
                 </div>
                 
                 <!-- ENTITIES PAGE -->
                 <div class="page-view" id="page-entities">
+                    <div class="card section">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <span class="card-title-icon">📊</span>
+                                Entity Statistics
+                            </h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="stats-grid" id="entityStats">
+                                <div class="stat-card">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Total</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">People</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Confirmed</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Unknown</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="grid-2">
                         <div class="card">
                             <div class="card-header">
@@ -1070,23 +1436,109 @@ Ctrl+Enter to analyse"
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="card section" style="margin-top: var(--space-xl);">
+                </div>
+                
+                <!-- INSIGHTS PAGE -->
+                <div class="page-view" id="page-insights">
+                    <div class="card section">
                         <div class="card-header">
                             <h2 class="card-title">
                                 <span class="card-title-icon">📊</span>
-                                Entity Statistics
+                                Insight Statistics
                             </h2>
                         </div>
                         <div class="card-body">
-                            <div class="stats-grid" id="entityStats">
+                            <div class="stats-grid" id="insightStats">
                                 <div class="stat-card">
                                     <div class="stat-value">-</div>
                                     <div class="stat-label">Total</div>
                                 </div>
                                 <div class="stat-card">
                                     <div class="stat-value">-</div>
-                                    <div class="stat-label">People</div>
+                                    <div class="stat-label">Raw</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Surfaced</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Avg Score</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <span class="card-title-icon">💡</span>
+                                Extracted Insights
+                            </h2>
+                            <div style="display: flex; gap: var(--space-sm);">
+                                <button class="btn btn-secondary btn-sm" onclick="loadInsights()">Refresh</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="insight-filters">
+                                <div class="form-group">
+                                    <label class="form-label">Status</label>
+                                    <select class="input" id="insightFilterStatus" onchange="loadInsights()">
+                                        <option value="">All</option>
+                                        <option value="raw">Raw</option>
+                                        <option value="refined">Refined</option>
+                                        <option value="surfaced">Surfaced</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Min Significance</label>
+                                    <select class="input" id="insightFilterSig" onchange="loadInsights()">
+                                        <option value="">Any</option>
+                                        <option value="0.3">0.3+</option>
+                                        <option value="0.5">0.5+</option>
+                                        <option value="0.7">0.7+</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Type</label>
+                                    <select class="input" id="insightFilterType" onchange="loadInsights()">
+                                        <option value="">All</option>
+                                        <option value="observation">Observation</option>
+                                        <option value="pattern">Pattern</option>
+                                        <option value="relationship">Relationship</option>
+                                        <option value="emotional_state">Emotional State</option>
+                                        <option value="decision">Decision</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="insightsList">
+                                <div class="loading">
+                                    <div class="spinner"></div>
+                                    <span>Loading insights...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- PATTERNS PAGE -->
+                <div class="page-view" id="page-patterns">
+                    <div class="card section">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <span class="card-title-icon">📊</span>
+                                Synthesis Statistics
+                            </h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="stats-grid" id="synthStats">
+                                <div class="stat-card">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Patterns</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Clusters</div>
                                 </div>
                                 <div class="stat-card">
                                     <div class="stat-value">-</div>
@@ -1094,29 +1546,60 @@ Ctrl+Enter to analyse"
                                 </div>
                                 <div class="stat-card">
                                     <div class="stat-value">-</div>
-                                    <div class="stat-label">Unknown</div>
+                                    <div class="stat-label">Avg Strength</div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                
-                <!-- INSIGHTS PAGE -->
-                <div class="page-view" id="page-insights">
-                    <div class="card">
-                        <div class="card-header">
-                            <h2 class="card-title">
-                                <span class="card-title-icon">💡</span>
-                                Extracted Insights
-                            </h2>
+                    
+                    <div class="grid-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">
+                                    <span class="card-title-icon">🔮</span>
+                                    Run Synthesis
+                                </h2>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label class="form-label">Clustering Strategy</label>
+                                    <select class="input" id="synthStrategy">
+                                        <option value="auto">Auto (best fit)</option>
+                                        <option value="thematic">Thematic</option>
+                                        <option value="temporal">Temporal</option>
+                                        <option value="entity">Entity-based</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Min Cluster Size</label>
+                                        <input type="number" class="input" id="synthMinSize" value="3" min="2" max="10">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Max Clusters</label>
+                                        <input type="number" class="input" id="synthMaxClusters" value="10" min="1" max="50">
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary" id="runSynthBtn" onclick="runSynthesis()">
+                                    <span>🔮</span> Run Synthesis
+                                </button>
+                                <div id="synthStatus" style="margin-top: var(--space-md);"></div>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <div class="empty-state">
-                                <div class="empty-state-icon">💭</div>
-                                <div class="empty-state-text">No insights extracted yet</div>
-                                <p style="color: var(--text-dim); margin-top: var(--space-sm);">
-                                    Process documents through the preflight workflow to extract insights
-                                </p>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">
+                                    <span class="card-title-icon">📋</span>
+                                    Detected Patterns
+                                </h2>
+                                <button class="btn btn-secondary btn-sm" onclick="loadPatterns()">Refresh</button>
+                            </div>
+                            <div class="card-body" id="patternsList" style="max-height: 400px; overflow-y: auto;">
+                                <div class="loading">
+                                    <div class="spinner"></div>
+                                    <span>Loading patterns...</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1125,8 +1608,65 @@ Ctrl+Enter to analyse"
         </main>
     </div>
     
+    <!-- Entity Edit Modal -->
+    <div class="modal-overlay" id="entityModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Identify Entity</h3>
+                <button class="modal-close" onclick="closeEntityModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Raw Value</label>
+                    <input type="text" class="input" id="entityRawValue" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Display Name</label>
+                    <input type="text" class="input" id="entityDisplayName" placeholder="e.g. Mum, Dr Smith">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Relationship to You</label>
+                    <select class="input" id="entityRelationship">
+                        <option value="">Select...</option>
+                        <option value="self">Self</option>
+                        <option value="family">Family</option>
+                        <option value="friend">Friend</option>
+                        <option value="colleague">Colleague</option>
+                        <option value="manager">Manager</option>
+                        <option value="medical">Medical Professional</option>
+                        <option value="service">Service Provider</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea class="input" id="entityNotes" rows="2" placeholder="Any additional context..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-wrapper">
+                        <input type="checkbox" class="checkbox" id="entityAnonymise">
+                        Anonymise in prompts (use placeholder name)
+                    </label>
+                </div>
+                <div class="form-group" id="entityPlaceholderGroup" style="display: none;">
+                    <label class="form-label">Placeholder Name</label>
+                    <input type="text" class="input" id="entityPlaceholder" placeholder="e.g. Person A">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEntityModal()">Cancel</button>
+                <button class="btn btn-ghost" onclick="skipEntity()">Skip</button>
+                <button class="btn btn-primary" onclick="saveEntity()">Save</button>
+            </div>
+        </div>
+    </div>
+    
     <script>
         const API = '';
+        
+        // State
+        let currentPreflightSession = null;
+        let currentEditEntityId = null;
         
         // ================================================================
         // NAVIGATION
@@ -1138,6 +1678,7 @@ Ctrl+Enter to analyse"
             'preflight': { title: 'Preflight Review', icon: '📋' },
             'entities': { title: 'Entity Management', icon: '👤' },
             'insights': { title: 'Insights', icon: '💡' },
+            'patterns': { title: 'Patterns', icon: '🔮' },
         };
         
         function showPage(pageName) {
@@ -1158,11 +1699,20 @@ Ctrl+Enter to analyse"
                 ${config.title}
             `;
             
+            // Save to localStorage
+            localStorage.setItem('recog_current_page', pageName);
+            
             // Load page data
             if (pageName === 'entities') {
                 loadEntities();
             } else if (pageName === 'preflight') {
-                // loadPreflight();
+                loadPreflight();
+            } else if (pageName === 'insights') {
+                loadInsights();
+                loadInsightStats();
+            } else if (pageName === 'patterns') {
+                loadPatterns();
+                loadSynthStats();
             }
         }
         
@@ -1181,12 +1731,14 @@ Ctrl+Enter to analyse"
                 if (data.success) {
                     dot.className = 'status-dot online';
                     text.textContent = 'Connected';
+                    return true;
                 } else {
                     throw new Error('Unhealthy');
                 }
             } catch (e) {
                 dot.className = 'status-dot offline';
                 text.textContent = 'Offline';
+                return false;
             }
         }
         
@@ -1208,7 +1760,7 @@ Ctrl+Enter to analyse"
             }
             
             resultsEl.innerHTML = `
-                <div style="display: flex; align-items: center; gap: var(--space-sm); color: var(--text-muted);">
+                <div class="loading">
                     <div class="spinner"></div>
                     <span>Analysing...</span>
                 </div>
@@ -1336,30 +1888,6 @@ Ctrl+Enter to analyse"
                 `;
             }
             
-            // Structure
-            const structure = t0.structural || {};
-            html += `
-                <div class="results-section">
-                    <div class="results-section-title">
-                        <span>📝</span> Structure
-                    </div>
-                    <div class="results-row">
-                        <span class="results-row-label">Paragraphs</span>
-                        <span class="results-row-value">${structure.paragraph_count || 0}</span>
-                    </div>
-                    <div class="results-row">
-                        <span class="results-row-label">Avg sentence</span>
-                        <span class="results-row-value">${structure.avg_sentence_length || 0} words</span>
-                    </div>
-                    ${structure.speaker_changes ? `
-                    <div class="results-row">
-                        <span class="results-row-label">Speaker changes</span>
-                        <span class="results-row-value">${structure.speaker_changes}</span>
-                    </div>
-                    ` : ''}
-                </div>
-            `;
-            
             // Summary
             html += `
                 <div class="results-section">
@@ -1402,7 +1930,7 @@ Ctrl+Enter to analyse"
             const statusEl = document.getElementById('uploadStatus');
             
             statusEl.innerHTML = `
-                <div style="display: flex; align-items: center; gap: var(--space-sm); color: var(--text-muted);">
+                <div class="loading">
                     <div class="spinner"></div>
                     <span>Uploading ${file.name}...</span>
                 </div>
@@ -1420,6 +1948,9 @@ Ctrl+Enter to analyse"
                 
                 if (data.success && data.data.supported) {
                     const d = data.data;
+                    currentPreflightSession = d.preflight_session_id;
+                    localStorage.setItem('recog_preflight_session', currentPreflightSession);
+                    
                     statusEl.innerHTML = `
                         <div class="status-badge success" style="margin-bottom: var(--space-md);">
                             <span>✓</span> Uploaded: ${d.filename}
@@ -1464,6 +1995,234 @@ Ctrl+Enter to analyse"
         }
         
         // ================================================================
+        // PREFLIGHT
+        // ================================================================
+        
+        async function loadPreflight() {
+            const contentEl = document.getElementById('preflightContent');
+            
+            // Get session from localStorage or state
+            const sessionId = currentPreflightSession || localStorage.getItem('recog_preflight_session');
+            
+            if (!sessionId) {
+                contentEl.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div class="empty-state-text">No active preflight sessions</div>
+                        <button class="btn btn-secondary" onclick="showPage('upload')">Upload a file to start</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            contentEl.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>Loading preflight session...</span>
+                </div>
+            `;
+            
+            try {
+                // Get session summary
+                const summaryRes = await fetch(`${API}/api/preflight/${sessionId}`);
+                const summaryData = await summaryRes.json();
+                
+                if (!summaryData.success) {
+                    throw new Error(summaryData.error || 'Session not found');
+                }
+                
+                const summary = summaryData.data;
+                
+                // Get items
+                const itemsRes = await fetch(`${API}/api/preflight/${sessionId}/items`);
+                const itemsData = await itemsRes.json();
+                const items = itemsData.data?.items || [];
+                
+                renderPreflight(sessionId, summary, items);
+            } catch (e) {
+                contentEl.innerHTML = `
+                    <div class="status-badge error" style="margin-bottom: var(--space-md);">
+                        <span>✗</span> ${e.message}
+                    </div>
+                    <button class="btn btn-secondary" onclick="clearPreflightSession()">Clear Session</button>
+                `;
+            }
+        }
+        
+        function renderPreflight(sessionId, summary, items) {
+            const contentEl = document.getElementById('preflightContent');
+            const includedItems = items.filter(i => i.included);
+            
+            let html = `
+                <div class="card section">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-title-icon">📊</span>
+                            Session Summary
+                        </h2>
+                        <div style="display: flex; gap: var(--space-sm);">
+                            <span class="status-badge ${summary.status === 'confirmed' ? 'success' : 'info'}">
+                                ${summary.status}
+                            </span>
+                            <button class="btn btn-ghost btn-sm" onclick="clearPreflightSession()">Clear</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="preflight-summary">
+                            <div class="stat-card">
+                                <div class="stat-value">${summary.item_count || items.length}</div>
+                                <div class="stat-label">Items</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${(summary.total_words || 0).toLocaleString()}</div>
+                                <div class="stat-label">Words</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${summary.total_entities || 0}</div>
+                                <div class="stat-label">Entities</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value ${summary.unknown_entities > 0 ? 'warning' : ''}">${summary.unknown_entities || 0}</div>
+                                <div class="stat-label">Unknown</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">$${((summary.estimated_cost_cents || 0) / 100).toFixed(3)}</div>
+                                <div class="stat-label">Est. Cost</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-title-icon">📋</span>
+                            Items to Process (${includedItems.length}/${items.length})
+                        </h2>
+                        <div style="display: flex; gap: var(--space-sm);">
+                            <button class="btn btn-ghost btn-sm" onclick="toggleAllItems(true)">Include All</button>
+                            <button class="btn btn-ghost btn-sm" onclick="toggleAllItems(false)">Exclude All</button>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding: 0; max-height: 400px; overflow-y: auto;">
+            `;
+            
+            if (items.length === 0) {
+                html += `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div class="empty-state-text">No items in this session</div>
+                    </div>
+                `;
+            } else {
+                for (const item of items) {
+                    const flags = item.flags || {};
+                    const activeFlags = Object.entries(flags).filter(([k, v]) => v);
+                    
+                    html += `
+                        <div class="preflight-item ${item.included ? '' : 'excluded'}" data-item-id="${item.id}">
+                            <input type="checkbox" class="checkbox preflight-item-checkbox" 
+                                   ${item.included ? 'checked' : ''} 
+                                   onchange="togglePreflightItem(${sessionId}, ${item.id}, this.checked)">
+                            <div class="preflight-item-content">
+                                <div class="preflight-item-title">
+                                    ${item.title || `Item ${item.id}`}
+                                    ${item.processed ? '<span class="tag tag-flag">Processed</span>' : ''}
+                                </div>
+                                <div class="preflight-item-meta">
+                                    <span>${item.source_type}</span>
+                                    <span>${(item.word_count || 0).toLocaleString()} words</span>
+                                    <span>${item.entities_count || 0} entities</span>
+                                </div>
+                                ${activeFlags.length ? `
+                                <div class="tags" style="margin-top: var(--space-xs);">
+                                    ${activeFlags.map(([f]) => `<span class="tag tag-flag">${f.replace(/_/g, ' ')}</span>`).join('')}
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            html += `
+                    </div>
+                    <div class="card-footer">
+                        <div class="preflight-actions">
+                            <div>
+                                ${summary.unknown_entities > 0 ? `
+                                <div class="preflight-cost-warning" style="margin-bottom: var(--space-sm);">
+                                    <span>⚠️</span> ${summary.unknown_entities} unknown entities - consider identifying them first
+                                </div>
+                                ` : ''}
+                            </div>
+                            <div style="display: flex; gap: var(--space-sm);">
+                                <button class="btn btn-secondary" onclick="showPage('entities')">
+                                    Review Entities
+                                </button>
+                                <button class="btn btn-primary" onclick="confirmPreflight(${sessionId})" 
+                                        ${summary.status === 'confirmed' ? 'disabled' : ''}>
+                                    <span>✓</span> Confirm & Process
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            contentEl.innerHTML = html;
+            document.getElementById('preflight-count').textContent = includedItems.length;
+        }
+        
+        async function togglePreflightItem(sessionId, itemId, include) {
+            const endpoint = include 
+                ? `${API}/api/preflight/${sessionId}/include/${itemId}`
+                : `${API}/api/preflight/${sessionId}/exclude/${itemId}`;
+            
+            try {
+                await fetch(endpoint, { method: 'POST' });
+                // Update UI without full reload
+                const itemEl = document.querySelector(`[data-item-id="${itemId}"]`);
+                if (itemEl) {
+                    itemEl.classList.toggle('excluded', !include);
+                }
+            } catch (e) {
+                console.error('Toggle failed:', e);
+            }
+        }
+        
+        async function confirmPreflight(sessionId) {
+            const btn = document.querySelector('.preflight-actions .btn-primary');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px;"></div> Processing...';
+            
+            try {
+                const res = await fetch(`${API}/api/preflight/${sessionId}/confirm`, {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert(`✓ ${data.data.items_queued} items queued for processing.\n\nEstimated cost: $${(data.data.estimated_cost_cents / 100).toFixed(3)}`);
+                    loadPreflight();
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+                btn.disabled = false;
+                btn.innerHTML = '<span>✓</span> Confirm & Process';
+            }
+        }
+        
+        function clearPreflightSession() {
+            currentPreflightSession = null;
+            localStorage.removeItem('recog_preflight_session');
+            document.getElementById('preflight-count').textContent = '0';
+            loadPreflight();
+        }
+        
+        // ================================================================
         // ENTITIES
         // ================================================================
         
@@ -1488,7 +2247,7 @@ Ctrl+Enter to analyse"
                                 <div class="entity-name">${entity.canonical_value || entity.raw_value}</div>
                                 <div class="entity-detail">${entity.entity_type} • ${entity.occurrence_count} occurrences</div>
                             </div>
-                            <button class="btn btn-secondary btn-sm" onclick="identifyEntity(${entity.id})">Identify</button>
+                            <button class="btn btn-primary btn-sm" onclick="openEntityModal(${entity.id}, '${escape(entity.canonical_value || entity.raw_value)}')">Identify</button>
                         </div>
                     `).join('');
                     
@@ -1517,11 +2276,12 @@ Ctrl+Enter to analyse"
                 if (data.success && data.data.entities.length > 0) {
                     el.innerHTML = data.data.entities.map(entity => `
                         <div class="entity-item">
-                            <div class="entity-avatar">${entity.entity_type === 'person' ? '👤' : '📧'}</div>
+                            <div class="entity-avatar">${entity.entity_type === 'person' ? '👤' : entity.entity_type === 'email' ? '✉️' : '📞'}</div>
                             <div class="entity-info">
                                 <div class="entity-name">${entity.display_name || entity.canonical_value}</div>
                                 <div class="entity-detail">${entity.relationship || entity.entity_type}</div>
                             </div>
+                            <button class="btn btn-ghost btn-sm" onclick="openEntityModal(${entity.id}, '${escape(entity.canonical_value || entity.raw_value)}')">Edit</button>
                         </div>
                     `).join('');
                 } else {
@@ -1533,7 +2293,7 @@ Ctrl+Enter to analyse"
                     `;
                 }
             } catch (e) {
-                // Silently fail - not critical
+                // Silently fail
             }
         }
         
@@ -1558,7 +2318,7 @@ Ctrl+Enter to analyse"
                             <div class="stat-label">Confirmed</div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-value">${stats.unconfirmed || 0}</div>
+                            <div class="stat-value ${stats.unconfirmed > 0 ? 'warning' : ''}">${stats.unconfirmed || 0}</div>
                             <div class="stat-label">Unknown</div>
                         </div>
                     `;
@@ -1568,9 +2328,318 @@ Ctrl+Enter to analyse"
             }
         }
         
-        function identifyEntity(entityId) {
-            // TODO: Open modal for entity identification
-            alert('Entity identification modal coming soon. Entity ID: ' + entityId);
+        function openEntityModal(entityId, rawValue) {
+            currentEditEntityId = entityId;
+            document.getElementById('entityRawValue').value = unescape(rawValue);
+            document.getElementById('entityDisplayName').value = '';
+            document.getElementById('entityRelationship').value = '';
+            document.getElementById('entityNotes').value = '';
+            document.getElementById('entityAnonymise').checked = false;
+            document.getElementById('entityPlaceholder').value = '';
+            document.getElementById('entityPlaceholderGroup').style.display = 'none';
+            document.getElementById('entityModal').classList.add('show');
+        }
+        
+        function closeEntityModal() {
+            document.getElementById('entityModal').classList.remove('show');
+            currentEditEntityId = null;
+        }
+        
+        async function saveEntity() {
+            if (!currentEditEntityId) return;
+            
+            const payload = {
+                display_name: document.getElementById('entityDisplayName').value || null,
+                relationship: document.getElementById('entityRelationship').value || null,
+                notes: document.getElementById('entityNotes').value || null,
+                anonymise_in_prompts: document.getElementById('entityAnonymise').checked,
+                placeholder_name: document.getElementById('entityPlaceholder').value || null,
+                confirmed: true,
+            };
+            
+            try {
+                const res = await fetch(`${API}/api/entities/${currentEditEntityId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    closeEntityModal();
+                    loadEntities();
+                } else {
+                    const data = await res.json();
+                    throw new Error(data.error);
+                }
+            } catch (e) {
+                alert('Error saving: ' + e.message);
+            }
+        }
+        
+        async function skipEntity() {
+            // Just close modal without saving
+            closeEntityModal();
+        }
+        
+        // Toggle anonymise placeholder visibility
+        document.getElementById('entityAnonymise')?.addEventListener('change', function() {
+            document.getElementById('entityPlaceholderGroup').style.display = this.checked ? 'block' : 'none';
+        });
+        
+        // ================================================================
+        // INSIGHTS
+        // ================================================================
+        
+        async function loadInsights() {
+            const listEl = document.getElementById('insightsList');
+            listEl.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>Loading insights...</span>
+                </div>
+            `;
+            
+            const status = document.getElementById('insightFilterStatus').value;
+            const minSig = document.getElementById('insightFilterSig').value;
+            const type = document.getElementById('insightFilterType').value;
+            
+            let url = `${API}/api/insights?limit=50`;
+            if (status) url += `&status=${status}`;
+            if (minSig) url += `&min_significance=${minSig}`;
+            if (type) url += `&insight_type=${type}`;
+            
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (data.success && data.data.insights.length > 0) {
+                    listEl.innerHTML = data.data.insights.map(insight => `
+                        <div class="insight-item">
+                            <div class="insight-header">
+                                <div class="insight-summary">${insight.summary}</div>
+                                <div class="insight-score">
+                                    <span>★</span> ${(insight.significance * 10).toFixed(1)}
+                                </div>
+                            </div>
+                            ${insight.supporting_excerpt ? `
+                            <div class="insight-excerpt">"${truncate(insight.supporting_excerpt, 150)}"</div>
+                            ` : ''}
+                            <div class="insight-meta">
+                                <div class="tags">
+                                    <span class="tag tag-default">${insight.insight_type}</span>
+                                    <span class="tag ${insight.status === 'surfaced' ? 'tag-flag' : 'tag-default'}">${insight.status}</span>
+                                    ${(insight.themes || []).slice(0, 3).map(t => `<span class="tag tag-emotion">${t}</span>`).join('')}
+                                </div>
+                                <span style="font-size: 0.75rem; color: var(--text-dim);">
+                                    ${formatDate(insight.created_at)}
+                                </span>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    document.getElementById('insight-count').textContent = data.data.total || data.data.insights.length;
+                } else {
+                    listEl.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">💭</div>
+                            <div class="empty-state-text">No insights found</div>
+                            <p style="color: var(--text-dim);">Process documents through the preflight workflow</p>
+                        </div>
+                    `;
+                    document.getElementById('insight-count').textContent = '0';
+                }
+            } catch (e) {
+                listEl.innerHTML = `<div class="status-badge error"><span>✗</span> ${e.message}</div>`;
+            }
+        }
+        
+        async function loadInsightStats() {
+            try {
+                const res = await fetch(`${API}/api/insights/stats`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    const stats = data.data;
+                    document.getElementById('insightStats').innerHTML = `
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.total || 0}</div>
+                            <div class="stat-label">Total</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.by_status?.raw || 0}</div>
+                            <div class="stat-label">Raw</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.by_status?.surfaced || 0}</div>
+                            <div class="stat-label">Surfaced</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${(stats.avg_significance || 0).toFixed(2)}</div>
+                            <div class="stat-label">Avg Score</div>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                // Silently fail
+            }
+        }
+        
+        // ================================================================
+        // PATTERNS
+        // ================================================================
+        
+        async function loadPatterns() {
+            const listEl = document.getElementById('patternsList');
+            listEl.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>Loading patterns...</span>
+                </div>
+            `;
+            
+            try {
+                const res = await fetch(`${API}/api/synth/patterns?limit=20`);
+                const data = await res.json();
+                
+                if (data.success && data.data.patterns.length > 0) {
+                    listEl.innerHTML = data.data.patterns.map(pattern => `
+                        <div class="pattern-item">
+                            <div class="pattern-header">
+                                <div class="pattern-name">
+                                    <span class="tag tag-pattern">${pattern.pattern_type}</span>
+                                    ${pattern.name}
+                                </div>
+                                <div class="pattern-strength">
+                                    <div class="strength-bar">
+                                        <div class="strength-fill" style="width: ${(pattern.strength || 0.5) * 100}%"></div>
+                                    </div>
+                                    <span style="font-size: 0.75rem; color: var(--text-muted);">${((pattern.strength || 0.5) * 100).toFixed(0)}%</span>
+                                </div>
+                            </div>
+                            <div class="pattern-description">${pattern.description}</div>
+                            <div class="tags">
+                                <span class="tag ${pattern.status === 'confirmed' ? 'tag-flag' : 'tag-default'}">${pattern.status}</span>
+                                ${(pattern.entities_involved || []).slice(0, 3).map(e => `<span class="tag tag-entity">👤 ${e}</span>`).join('')}
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    document.getElementById('pattern-count').textContent = data.data.total || data.data.patterns.length;
+                } else {
+                    listEl.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔮</div>
+                            <div class="empty-state-text">No patterns detected yet</div>
+                            <p style="color: var(--text-dim);">Run synthesis on your insights</p>
+                        </div>
+                    `;
+                    document.getElementById('pattern-count').textContent = '0';
+                }
+            } catch (e) {
+                listEl.innerHTML = `<div class="status-badge error"><span>✗</span> ${e.message}</div>`;
+            }
+        }
+        
+        async function loadSynthStats() {
+            try {
+                const res = await fetch(`${API}/api/synth/stats`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    const stats = data.data;
+                    document.getElementById('synthStats').innerHTML = `
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.total_patterns || 0}</div>
+                            <div class="stat-label">Patterns</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.total_clusters || 0}</div>
+                            <div class="stat-label">Clusters</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.patterns_by_status?.confirmed || 0}</div>
+                            <div class="stat-label">Confirmed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${(stats.avg_strength || 0).toFixed(2)}</div>
+                            <div class="stat-label">Avg Strength</div>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                // Silently fail
+            }
+        }
+        
+        async function runSynthesis() {
+            const btn = document.getElementById('runSynthBtn');
+            const statusEl = document.getElementById('synthStatus');
+            
+            btn.disabled = true;
+            statusEl.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>Running synthesis...</span>
+                </div>
+            `;
+            
+            const payload = {
+                strategy: document.getElementById('synthStrategy').value,
+                min_cluster_size: parseInt(document.getElementById('synthMinSize').value),
+                max_clusters: parseInt(document.getElementById('synthMaxClusters').value),
+            };
+            
+            try {
+                const res = await fetch(`${API}/api/synth/run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                if (data.success && data.data.success) {
+                    const result = data.data;
+                    statusEl.innerHTML = `
+                        <div class="status-badge success" style="margin-bottom: var(--space-sm);">
+                            <span>✓</span> Synthesis complete
+                        </div>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary);">
+                            Created ${result.patterns_created} patterns from ${result.clusters_processed} clusters
+                        </p>
+                    `;
+                    loadPatterns();
+                    loadSynthStats();
+                } else {
+                    throw new Error(data.error || data.data?.errors?.join(', ') || 'Synthesis failed');
+                }
+            } catch (e) {
+                statusEl.innerHTML = `
+                    <div class="status-badge error">
+                        <span>✗</span> ${e.message}
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        
+        // ================================================================
+        // UTILITIES
+        // ================================================================
+        
+        function truncate(str, len) {
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len) + '...' : str;
+        }
+        
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        function escape(str) {
+            return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
         }
         
         // ================================================================
@@ -1581,6 +2650,15 @@ Ctrl+Enter to analyse"
             // Health check
             checkHealth();
             setInterval(checkHealth, 30000);
+            
+            // Restore page from localStorage
+            const savedPage = localStorage.getItem('recog_current_page');
+            if (savedPage && pageConfig[savedPage]) {
+                showPage(savedPage);
+            }
+            
+            // Restore preflight session
+            currentPreflightSession = localStorage.getItem('recog_preflight_session');
             
             // Analyse button
             document.getElementById('analyseBtn').addEventListener('click', runAnalysis);
@@ -1624,6 +2702,20 @@ Ctrl+Enter to analyse"
                 e.preventDefault();
                 dropZone.classList.remove('dragover');
                 if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
+            });
+            
+            // Close modal on escape
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeEntityModal();
+                }
+            });
+            
+            // Close modal on overlay click
+            document.getElementById('entityModal').addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal-overlay')) {
+                    closeEntityModal();
+                }
             });
         });
     </script>

@@ -11,6 +11,7 @@ from .markdown import MarkdownParser
 from .plaintext import PlaintextParser
 from .messages import MessagesParser
 from .json_export import JSONExportParser
+from .excel import ExcelParser
 
 __all__ = [
     "BaseParser",
@@ -22,4 +23,5 @@ __all__ = [
     "PlaintextParser",
     "MessagesParser",
     "JSONExportParser",
+    "ExcelParser",
 ]

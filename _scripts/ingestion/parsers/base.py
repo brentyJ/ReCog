@@ -50,10 +50,12 @@ def get_parser(path: Path) -> Optional[BaseParser]:
     from .plaintext import PlaintextParser
     from .messages import MessagesParser
     from .json_export import JSONExportParser
+    from .excel import ExcelParser
     
     parsers = [
         PDFParser(),
         MarkdownParser(),
+        ExcelParser(),       # Check Excel before plaintext
         JSONExportParser(),  # Check JSON before plaintext
         MessagesParser(),    # Check before plaintext (txt files might be messages)
         PlaintextParser(),
@@ -73,10 +75,12 @@ def get_all_parsers() -> List[BaseParser]:
     from .plaintext import PlaintextParser
     from .messages import MessagesParser
     from .json_export import JSONExportParser
+    from .excel import ExcelParser
     
     return [
         PDFParser(),
         MarkdownParser(),
+        ExcelParser(),
         JSONExportParser(),
         MessagesParser(),
         PlaintextParser(),

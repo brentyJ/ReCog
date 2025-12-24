@@ -117,56 +117,77 @@ RECOG_COST_LIMIT_CENTS=100
 
 ---
 
-## Phase 5: Preflight UI & Entity Management
+## Phase 5: Preflight UI & Entity Management ✅
 
 **Goal**: Full workflow UI for reviewing imports and managing entities
 
-### 5.1 Preflight Review Page
+### 5.1 Preflight Review Page ✅
 ```
-New file: static/preflight.html (or add to index.html)
-```
-
-UI Components:
-- [ ] Session summary header (words, items, cost estimate)
-- [ ] Item list with checkboxes (include/exclude)
-- [ ] Filter controls (min words, date range, keywords)
-- [ ] Per-item preview (title, word count, flags, entities)
-- [ ] "Confirm & Process" button with cost warning
-- [ ] Progress indicator during processing
-
-### 5.2 Entity Management Page
-```
-New file: static/entities.html (or add to index.html)
+Modified: static/index.html
 ```
 
-UI Components:
-- [ ] Unknown entities queue (needs identification)
-- [ ] Entity card: raw value, occurrence count, sources
-- [ ] Quick actions: "This is [name]", "Skip", "Anonymise"
-- [ ] Relationship dropdown (family, work, medical, etc.)
-- [ ] Bulk confirm/skip buttons
-- [ ] Search/filter existing entities
+Completed:
+- [x] Session summary header (words, items, cost estimate)
+- [x] Item list with checkboxes (include/exclude)
+- [x] Per-item preview (title, word count, flags, entities)
+- [x] "Confirm & Process" button with cost warning
+- [x] Unknown entity warning before processing
+- [x] Session persistence in localStorage
 
-### 5.3 Entity API Enhancements
+### 5.2 Entity Management Page ✅
 ```
-Modify: server.py
-```
-
-- [ ] `POST /api/entities/bulk` - update multiple at once
-- [ ] `GET /api/entities/<id>/occurrences` - where entity appears
-- [ ] `POST /api/entities/merge` - combine duplicates
-
-### 5.4 Navigation & Layout
-```
-Modify: static/index.html
+Modified: static/index.html
 ```
 
-- [ ] Tab navigation: Upload | Preflight | Entities | Insights
-- [ ] Session state persistence (localStorage)
-- [ ] Mobile-responsive layout
-- [ ] Keyboard shortcuts (Ctrl+Enter to analyse)
+Completed:
+- [x] Unknown entities queue (needs identification)
+- [x] Entity card: raw value, occurrence count, type
+- [x] Quick actions modal: Identify, Skip
+- [x] Relationship dropdown (family, work, medical, etc.)
+- [x] Anonymise option with placeholder name
+- [x] Entity registry list (confirmed entities)
+- [x] Entity statistics display
 
-**Deliverable**: Complete preflight workflow from upload to processing
+### 5.3 Insights Browser ✅
+```
+Modified: static/index.html
+```
+
+Completed:
+- [x] Insight list with significance scores
+- [x] Filter by status (raw, refined, surfaced)
+- [x] Filter by minimum significance
+- [x] Filter by insight type
+- [x] Excerpt preview with themes
+- [x] Insight statistics display
+
+### 5.4 Patterns Browser ✅
+```
+Modified: static/index.html
+```
+
+Completed:
+- [x] Pattern list with strength bars
+- [x] Run synthesis controls (strategy, cluster size)
+- [x] Pattern type and status display
+- [x] Entities involved display
+- [x] Synthesis statistics
+
+### 5.5 Navigation & Layout ✅
+```
+Modified: static/index.html
+```
+
+Completed:
+- [x] Tab navigation: Analyse | Upload | Preflight | Entities | Insights | Patterns
+- [x] Session state persistence (localStorage)
+- [x] Badge counts on nav items
+- [x] Keyboard shortcuts (Ctrl+Enter to analyse, Escape to close modal)
+- [x] Modal system for entity editing
+- [x] Loading states and error handling
+- [x] Version updated to v0.6.0
+
+**Deliverable**: Complete preflight workflow from upload to processing ✅ COMPLETE
 
 ---
 
@@ -436,20 +457,19 @@ Exports added:
 
 ---
 
-## Phase 9: Parser Improvements & Production Polish
+## Phase 9: Parser Improvements & Production Polish (In Progress)
 
 **Goal**: Handle real-world data formats, harden for production
 
-### 9.1 New Parsers
+### 9.1 New Parsers ✅
 ```
-New files in ingestion/parsers/
+Files in ingestion/parsers/
 ```
 
-- [ ] `xml_sms.py` - Android/iOS SMS backup XML
-- [ ] `chatgpt.py` - ChatGPT conversations.json export
-- [ ] `whatsapp.py` - WhatsApp chat export (.txt)
-- [ ] `email_mbox.py` - MBOX email archives
-- [ ] `xlsx.py` - Excel spreadsheets (openpyxl)
+- [x] `messages.py` - WhatsApp, SMS XML, generic chat (unified)
+- [x] `json_export.py` - ChatGPT conversations.json export
+- [x] `excel.py` - Excel spreadsheets (.xlsx, .xls, .xlsm via openpyxl)
+- [ ] `email_mbox.py` - MBOX email archives (future)
 
 ### 9.2 Entity Extraction Improvements
 ```
@@ -463,27 +483,27 @@ Modify: recog_engine/tier0.py
 - [ ] Date/time normalisation
 - [ ] Currency/amount detection
 
-### 9.3 Error Handling & Logging
+### 9.3 Error Handling & Logging ✅
 ```
-Modify: server.py, all engine files
+New file: recog_engine/logging_utils.py
 ```
 
-- [ ] Structured logging with levels
-- [ ] Request ID tracking
-- [ ] Graceful error responses
-- [ ] File upload validation (size, type, malware scan?)
-- [ ] Rate limiting per IP
+- [x] Structured logging with levels (JSON + text output)
+- [x] Request ID tracking (context vars)
+- [x] Timer context manager for performance
+- [x] log_request decorator for endpoints
+- [ ] Rate limiting per IP (future)
 
-### 9.4 Testing
+### 9.4 Testing ✅
 ```
-New directory: tests/
+Directory: tests/
 ```
 
 - [x] `test_tier0.py` - signal extraction, entity false positive regression
-- [ ] `test_extraction.py` - LLM prompt/parse tests
-- [ ] `test_synth.py` - clustering and synthesis tests
-- [ ] `test_parsers.py` - each parser with sample files
-- [ ] `test_api.py` - endpoint integration tests
+- [x] `test_extraction.py` - LLM prompt/parse tests
+- [x] `test_synth.py` - clustering and synthesis tests
+- [x] `test_parsers.py` - each parser with sample files
+- [x] `test_api.py` - endpoint integration tests (pytest)
 - [ ] Sample test files in `tests/fixtures/`
 
 ### 9.5 Documentation
@@ -496,15 +516,15 @@ Update: README.md, new files in _docs/
 - [ ] Parser development guide
 - [ ] Configuration reference
 
-### 9.6 Deployment Prep
+### 9.6 Deployment Prep ✅
 ```
 New files in project root
 ```
 
-- [ ] `Dockerfile` - containerised deployment
-- [ ] `docker-compose.yml` - with volume mounts
+- [x] `Dockerfile` - multi-stage build, gunicorn
+- [x] `docker-compose.yml` - with volume mounts, worker service
+- [x] `requirements.txt` - updated with gunicorn, pytest, openpyxl
 - [ ] `fly.toml` or `railway.json` - cloud deploy config
-- [ ] Production WSGI setup (gunicorn)
 - [ ] HTTPS/SSL configuration notes
 
 **Deliverable**: Production-ready ReCog for ehkoforge.ai launch
@@ -516,11 +536,11 @@ New files in project root
 | Phase | Focus | Key Deliverable |
 |-------|-------|-----------------|
 | 4 ✅ | LLM + Database | Insights stored and queryable |
-| 5 | UI Workflow | Full upload → review → process flow |
+| 5 ✅ | UI Workflow | Full upload → review → process flow |
 | 6 ✅ | Synth Engine | Patterns from insight clusters |
 | 7 ✅ | Entity Graph | Relationship-aware analysis |
 | 8 ✅ | Critique Layer | Self-correcting quality assurance |
-| 9 | Polish | Production-ready with real parsers |
+| 9 ⏳ | Polish | Production-ready with real parsers |
 
 ## Architecture (Post-Phase 6)
 
@@ -558,7 +578,7 @@ New files in project root
 ## Estimated Effort
 
 - **Phase 4**: 1-2 sessions (LLM integration, database layer) ✅
-- **Phase 5**: 2-3 sessions (UI heavy)
+- **Phase 5**: 1 session (UI workflow) ✅
 - **Phase 6**: 1 session (Synth Engine) ✅
 - **Phase 7**: 1-2 sessions (Entity graph)
 - **Phase 8**: 1-2 sessions (Critique layer)
@@ -568,4 +588,4 @@ Total: ~8-14 sessions to production-ready MVP
 
 ---
 
-*Last updated: Phase 8 Critique Engine complete - 24 Dec 2025*
+*Last updated: Phase 9 production polish in progress - 24 Dec 2025*

@@ -220,6 +220,20 @@ from .critique import (
 
 
 # =============================================================================
+# LOGGING UTILITIES
+# =============================================================================
+
+from .logging_utils import (
+    setup_logging,
+    get_logger,
+    set_request_id,
+    get_request_id,
+    log_request,
+    Timer,
+)
+
+
+# =============================================================================
 # ADAPTERS
 # =============================================================================
 
@@ -337,6 +351,14 @@ __all__ = [
     'CritiqueEngine',
     'init_critique_engine',
     'get_critique_engine',
+    
+    # === Logging ===
+    'setup_logging',
+    'get_logger',
+    'set_request_id',
+    'get_request_id',
+    'log_request',
+    'Timer',
     
     # === Adapters ===
     'RecogAdapter', 'MemoryAdapter', 'SQLiteAdapter',

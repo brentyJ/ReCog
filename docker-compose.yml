@@ -1,0 +1,48 @@
+# ReCog Docker Compose
+# Development and production deployment configuration
+
+services:
+  recog:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5100:5100"
+    volumes:
+      # Persist database and uploads
+      - recog_data:/app/_data
+      # Mount env file for API keys
+      - ./_scripts/.env:/app/.env:ro
+    environment:
+      - RECOG_DATA_DIR=/app/_data
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5100/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Worker service for background processing
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - recog_data:/app/_data
+      - ./_scripts/.env:/app/.env:ro
+    environment:
+      - RECOG_DATA_DIR=/app/_data
+      - PYTHONUNBUFFERED=1
+    command: ["python", "worker.py"]
+    restart: unless-stopped
+    depends_on:
+      recog:
+        condition: service_healthy
+
+volumes:
+  recog_data:
+    driver: local
+
+# Development override: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
