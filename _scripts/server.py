@@ -39,6 +39,9 @@ from recog_engine import (
     PreflightManager,
     # Insight Store
     InsightStore,
+    # Synth Engine
+    SynthEngine,
+    ClusterStrategy,
 )
 from recog_engine.core.providers import (
     create_provider,
@@ -99,6 +102,7 @@ if not Config.DB_PATH.exists():
 entity_registry = EntityRegistry(Config.DB_PATH)
 preflight_manager = PreflightManager(Config.DB_PATH, entity_registry)
 insight_store = InsightStore(Config.DB_PATH)
+synth_engine = SynthEngine(Config.DB_PATH, insight_store, entity_registry)
 
 
 # =============================================================================
@@ -159,7 +163,7 @@ def info():
     """Server info endpoint."""
     return api_response({
         "name": "ReCog Server",
-        "version": "0.3.0",
+        "version": "0.4.0",
         "endpoints": [
             "/api/health",
             "/api/upload",
@@ -182,6 +186,11 @@ def info():
             "/api/queue/<id>",
             "/api/queue/<id>/retry",
             "/api/queue/clear",
+            "/api/synth/clusters",
+            "/api/synth/run",
+            "/api/synth/patterns",
+            "/api/synth/patterns/<id>",
+            "/api/synth/stats",
         ],
     })
 
@@ -964,6 +973,193 @@ def clear_queue():
         })
     finally:
         conn.close()
+
+
+# =============================================================================
+# SYNTH ENGINE (Pattern Synthesis)
+# =============================================================================
+
+@app.route("/api/synth/clusters", methods=["POST"])
+def create_clusters():
+    """
+    Create insight clusters for synthesis.
+    
+    Body: {
+        "strategy": "auto|thematic|temporal|entity",
+        "min_cluster_size": 3,
+        "insight_status": "raw"
+    }
+    """
+    data = request.get_json() if request.is_json else {}
+    
+    strategy_str = data.get("strategy", "auto")
+    try:
+        strategy = ClusterStrategy(strategy_str)
+    except ValueError:
+        strategy = ClusterStrategy.AUTO
+    
+    min_size = int(data.get("min_cluster_size", 3))
+    insight_status = data.get("insight_status", "raw")
+    
+    clusters = synth_engine.create_clusters(
+        strategy=strategy,
+        min_cluster_size=min_size,
+        insight_status=insight_status,
+    )
+    
+    return api_response({
+        "clusters_created": len(clusters),
+        "clusters": [c.to_dict() for c in clusters],
+    })
+
+
+@app.route("/api/synth/clusters", methods=["GET"])
+def list_clusters():
+    """List pending clusters awaiting synthesis."""
+    limit = int(request.args.get("limit", 20))
+    
+    clusters = synth_engine.get_pending_clusters(limit=limit)
+    
+    return api_response({
+        "clusters": [c.to_dict() for c in clusters],
+        "count": len(clusters),
+    })
+
+
+@app.route("/api/synth/run", methods=["POST"])
+def run_synthesis():
+    """
+    Run a full synthesis cycle.
+    
+    Creates clusters from raw insights, synthesizes patterns via LLM.
+    
+    Body: {
+        "strategy": "auto|thematic|temporal|entity",
+        "min_cluster_size": 3,
+        "max_clusters": 10,
+        "provider": "openai|anthropic" (optional)
+    }
+    
+    Requires LLM API key configured.
+    """
+    if not Config.LLM_CONFIGURED:
+        return api_response(
+            error="LLM not configured. Set API keys in environment.",
+            status=503
+        )
+    
+    data = request.get_json() if request.is_json else {}
+    
+    strategy_str = data.get("strategy", "auto")
+    try:
+        strategy = ClusterStrategy(strategy_str)
+    except ValueError:
+        strategy = ClusterStrategy.AUTO
+    
+    min_size = int(data.get("min_cluster_size", 3))
+    max_clusters = int(data.get("max_clusters", 10))
+    provider_name = data.get("provider")
+    
+    try:
+        provider = create_provider(provider_name)
+        
+        result = synth_engine.run_synthesis(
+            provider=provider,
+            strategy=strategy,
+            min_cluster_size=min_size,
+            max_clusters=max_clusters,
+        )
+        
+        return api_response({
+            "success": result.success,
+            "patterns_created": result.patterns_created,
+            "clusters_processed": result.clusters_processed,
+            "patterns": [p.to_dict() for p in result.patterns],
+            "errors": result.errors,
+        })
+        
+    except Exception as e:
+        logger.exception("Synthesis failed")
+        return api_response(error=str(e), status=500)
+
+
+@app.route("/api/synth/patterns", methods=["GET"])
+def list_patterns():
+    """
+    List synthesized patterns.
+    
+    Query params:
+        - pattern_type: behavioral, emotional, temporal, relational, etc.
+        - status: detected, confirmed, rejected
+        - min_strength: 0.0-1.0
+        - limit: max results (default 100)
+        - offset: pagination offset
+    """
+    pattern_type = request.args.get("pattern_type")
+    status = request.args.get("status")
+    min_strength = request.args.get("min_strength")
+    limit = int(request.args.get("limit", 100))
+    offset = int(request.args.get("offset", 0))
+    
+    result = synth_engine.list_patterns(
+        pattern_type=pattern_type,
+        status=status,
+        min_strength=float(min_strength) if min_strength else None,
+        limit=limit,
+        offset=offset,
+    )
+    
+    return api_response(result)
+
+
+@app.route("/api/synth/patterns/<pattern_id>", methods=["GET"])
+def get_pattern(pattern_id: str):
+    """Get a single pattern by ID."""
+    pattern = synth_engine.get_pattern(pattern_id)
+    
+    if not pattern:
+        return api_response(error="Pattern not found", status=404)
+    
+    return api_response(pattern)
+
+
+@app.route("/api/synth/patterns/<pattern_id>", methods=["PATCH"])
+@require_json
+def update_pattern(pattern_id: str):
+    """
+    Update a pattern's status.
+    
+    Body: {"status": "confirmed|rejected"}
+    """
+    data = request.get_json()
+    new_status = data.get("status")
+    
+    if new_status not in ("detected", "confirmed", "rejected", "superseded"):
+        return api_response(error="Invalid status", status=400)
+    
+    conn = _get_db_connection()
+    try:
+        now = datetime.utcnow().isoformat() + "Z"
+        cursor = conn.execute(
+            "UPDATE patterns SET status = ?, updated_at = ? WHERE id = ?",
+            (new_status, now, pattern_id)
+        )
+        conn.commit()
+        
+        if cursor.rowcount > 0:
+            pattern = synth_engine.get_pattern(pattern_id)
+            return api_response(pattern)
+        
+        return api_response(error="Pattern not found", status=404)
+    finally:
+        conn.close()
+
+
+@app.route("/api/synth/stats", methods=["GET"])
+def synth_stats():
+    """Get Synth Engine statistics."""
+    stats = synth_engine.get_stats()
+    return api_response(stats)
 
 
 # =============================================================================

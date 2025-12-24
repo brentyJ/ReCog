@@ -30,6 +30,8 @@ from recog_engine import (
     build_extraction_prompt,
     parse_extraction_response,
     InsightStore,
+    SynthEngine,
+    ClusterStrategy,
 )
 from recog_engine.core.providers import (
     create_provider,
@@ -198,6 +200,10 @@ def get_source_content(conn: sqlite3.Connection, source_type: str, source_id: st
 # JOB PROCESSORS
 # =============================================================================
 
+# Global synth engine (initialized in run_worker)
+synth_engine: Optional[SynthEngine] = None
+
+
 def process_extract_job(
     conn: sqlite3.Connection,
     job: sqlite3.Row,
@@ -259,6 +265,84 @@ def process_extract_job(
     }
 
 
+def process_synthesize_job(
+    conn: sqlite3.Connection,
+    job: sqlite3.Row,
+    provider,
+    synth: SynthEngine,
+) -> Dict[str, Any]:
+    """
+    Process a synthesis job.
+    
+    Synthesize jobs run pattern synthesis on insight clusters.
+    The source_type should be 'cluster' and source_id is the cluster_id,
+    OR source_type is 'auto' for automatic clustering and synthesis.
+    
+    Returns dict with 'success', 'patterns_count', 'cost_cents', 'error'.
+    """
+    source_type = job["source_type"]
+    source_id = job["source_id"]
+    
+    try:
+        if source_type == "auto":
+            # Run full synthesis cycle
+            strategy_str = source_id or "auto"
+            try:
+                strategy = ClusterStrategy(strategy_str)
+            except ValueError:
+                strategy = ClusterStrategy.AUTO
+            
+            result = synth.run_synthesis(
+                provider=provider,
+                strategy=strategy,
+                min_cluster_size=3,
+                max_clusters=5,  # Limit per job
+            )
+            
+            return {
+                "success": result.success,
+                "patterns_count": result.patterns_created,
+                "clusters_processed": result.clusters_processed,
+                "cost_cents": 0,  # TODO: Track synthesis costs
+                "tokens": 0,
+            }
+        
+        elif source_type == "cluster":
+            # Synthesize specific cluster
+            clusters = synth.get_pending_clusters(limit=100)
+            target_cluster = None
+            
+            for c in clusters:
+                if c.id == source_id:
+                    target_cluster = c
+                    break
+            
+            if not target_cluster:
+                return {"success": False, "error": f"Cluster not found: {source_id}"}
+            
+            patterns = synth.synthesize_cluster(target_cluster, provider)
+            
+            if patterns:
+                save_result = synth.save_patterns_batch(patterns)
+                synth._update_cluster_status(source_id, "complete")
+                
+                return {
+                    "success": True,
+                    "patterns_count": save_result["saved"],
+                    "cost_cents": 0,
+                    "tokens": 0,
+                }
+            else:
+                synth._update_cluster_status(source_id, "failed")
+                return {"success": False, "error": "No patterns generated"}
+        
+        else:
+            return {"success": False, "error": f"Unknown synth source type: {source_type}"}
+            
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 def process_job(
     conn: sqlite3.Connection,
     job: sqlite3.Row,
@@ -281,12 +365,11 @@ def process_job(
     try:
         if op_type == "extract":
             result = process_extract_job(conn, job, provider, insight_store)
+        elif op_type == "synthesize":
+            result = process_synthesize_job(conn, job, provider, synth_engine)
         elif op_type == "correlate":
             # TODO: Implement correlation
             result = {"success": False, "error": "Correlation not yet implemented"}
-        elif op_type == "synthesize":
-            # TODO: Implement synthesis
-            result = {"success": False, "error": "Synthesis not yet implemented"}
         else:
             result = {"success": False, "error": f"Unknown operation type: {op_type}"}
         
@@ -350,8 +433,10 @@ def run_worker():
     logger.info(f"Using provider: {provider.__class__.__name__}")
     logger.info("=" * 60)
     
-    # Create insight store
+    # Create insight store and synth engine
+    global synth_engine
     insight_store = InsightStore(WorkerConfig.DB_PATH)
+    synth_engine = SynthEngine(WorkerConfig.DB_PATH, insight_store)
     
     while state.running:
         # Check budget

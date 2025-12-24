@@ -158,6 +158,29 @@ from .insight_store import (
 
 
 # =============================================================================
+# SYNTH ENGINE (Pattern Synthesis)
+# =============================================================================
+
+from .synth import (
+    # Types
+    ClusterStrategy,
+    PatternType,
+    InsightCluster,
+    SynthesizedPattern,
+    SynthResult,
+    # Clustering functions
+    cluster_by_theme,
+    cluster_by_time,
+    cluster_by_entity,
+    auto_cluster,
+    # Main engine
+    SynthEngine,
+    init_synth_engine,
+    get_synth_engine,
+)
+
+
+# =============================================================================
 # ADAPTERS
 # =============================================================================
 
@@ -241,6 +264,20 @@ __all__ = [
     
     # === Insight Store ===
     'InsightStore',
+    
+    # === Synth Engine ===
+    'ClusterStrategy',
+    'PatternType',
+    'InsightCluster',
+    'SynthesizedPattern',
+    'SynthResult',
+    'cluster_by_theme',
+    'cluster_by_time',
+    'cluster_by_entity',
+    'auto_cluster',
+    'SynthEngine',
+    'init_synth_engine',
+    'get_synth_engine',
     
     # === Adapters ===
     'RecogAdapter', 'MemoryAdapter', 'SQLiteAdapter',

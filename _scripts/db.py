@@ -20,6 +20,52 @@ def get_schema_path() -> Path:
     return Path(__file__).parent / "migrations" / "schema_v0_1.sql"
 
 
+def get_migrations_dir() -> Path:
+    """Get path to migrations directory."""
+    return Path(__file__).parent / "migrations"
+
+
+def apply_migrations(db_path: Path) -> list:
+    """
+    Apply any pending migrations to the database.
+    
+    Migrations are SQL files named migration_v*.sql in the migrations directory.
+    
+    Args:
+        db_path: Path to database
+        
+    Returns:
+        List of applied migration names
+    """
+    migrations_dir = get_migrations_dir()
+    applied = []
+    
+    # Find all migration files
+    migration_files = sorted(migrations_dir.glob("migration_v*.sql"))
+    
+    if not migration_files:
+        return applied
+    
+    conn = sqlite3.connect(str(db_path))
+    cursor = conn.cursor()
+    
+    for mig_path in migration_files:
+        try:
+            sql = mig_path.read_text(encoding="utf-8")
+            cursor.executescript(sql)
+            applied.append(mig_path.name)
+        except sqlite3.OperationalError as e:
+            # Table already exists or similar - skip silently
+            pass
+        except Exception as e:
+            print(f"Warning: Migration {mig_path.name} failed: {e}")
+    
+    conn.commit()
+    conn.close()
+    
+    return applied
+
+
 def init_database(db_path: Optional[Path] = None, force: bool = False) -> Path:
     """
     Initialize a new ReCog database.
@@ -66,6 +112,11 @@ def init_database(db_path: Optional[Path] = None, force: bool = False) -> Path:
     
     conn.commit()
     conn.close()
+    
+    # Apply any migrations
+    applied = apply_migrations(db_path)
+    if applied:
+        print(f"Applied migrations: {', '.join(applied)}")
     
     print(f"Database initialized: {db_path}")
     return db_path
@@ -145,7 +196,18 @@ def main():
     
     cmd = sys.argv[1].lower()
     
-    if cmd == "init":
+    if cmd == "migrate":
+        path = Path(sys.argv[2]) if len(sys.argv) > 2 else Path.cwd() / DEFAULT_DB_NAME
+        if not path.exists():
+            print(f"Database not found: {path}")
+            return
+        applied = apply_migrations(path)
+        if applied:
+            print(f"Applied: {', '.join(applied)}")
+        else:
+            print("No migrations to apply")
+    
+    elif cmd == "init":
         path = Path(sys.argv[2]) if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else None
         force = "--force" in sys.argv
         init_database(path, force=force)
