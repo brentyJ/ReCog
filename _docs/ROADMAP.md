@@ -39,7 +39,7 @@ Completed:
 - [x] server.py updated to use provider system
 - [x] Health endpoint shows available providers
 
-### 4.2 LLM Extraction Integration
+### 4.2 LLM Extraction Integration ✅
 ```
 Files modified:
 - server.py: /api/extract uses provider factory
@@ -49,51 +49,59 @@ Completed:
 - [x] Test extraction with real OpenAI API key
 - [x] Token/cost tracking per extraction call
 - [x] Provider selection via request body
+- [x] Store ExtractedInsight objects in `insights` table
+- [x] Store source links in `insight_sources` table
+- [x] Track extraction history in `insight_history` table
 
-Pending:
-- [ ] Store ExtractedInsight objects in `insights` table
-- [ ] Store source links in `insight_sources` table
-- [ ] Track extraction history in `insight_history` table
-
-### 4.2 Insight Database Layer
+### 4.3 Insight Database Layer ✅
 ```
 New file: recog_engine/insight_store.py
 ```
 
-Tasks:
-- [ ] InsightStore class with CRUD operations
-- [ ] `save_insight(insight)` - insert or update
-- [ ] `get_insight(id)` - retrieve by ID
-- [ ] `list_insights(filters)` - with status, significance, date filters
-- [ ] `search_insights(query)` - full-text search
-- [ ] Similarity check before insert (merge duplicates)
+Completed:
+- [x] InsightStore class with CRUD operations
+- [x] `save_insight(insight)` - insert or update with similarity check
+- [x] `save_insights_batch(insights)` - batch save with dedup
+- [x] `get_insight(id)` - retrieve by ID with sources/history
+- [x] `list_insights(filters)` - with status, significance, type filters
+- [x] `update_insight()` - update status/significance/themes
+- [x] `delete_insight()` - soft delete (sets rejected)
+- [x] `get_sources()` / `get_history()` - audit trail
+- [x] `get_stats()` - insight statistics
+- [x] Similarity check before insert (merge duplicates)
 
-### 4.3 Processing Queue Worker
+### 4.4 Processing Queue Worker ✅
 ```
 New file: worker.py
 ```
 
-Tasks:
-- [ ] Background worker that processes queue
-- [ ] Pull items from `processing_queue` table
-- [ ] Run LLM extraction on each
-- [ ] Update status (pending → processing → complete/failed)
-- [ ] Rate limiting / cost caps
+Completed:
+- [x] Background worker that polls queue
+- [x] Pull items from `processing_queue` table
+- [x] Run LLM extraction on each
+- [x] Update status (pending → processing → complete/failed)
+- [x] Rate limiting / cost caps
+- [x] Graceful shutdown on SIGINT/SIGTERM
 
-### 4.4 API Endpoints
+### 4.5 API Endpoints ✅
 ```
 Modify: server.py
 ```
 
-New endpoints:
-- [ ] `GET /api/insights` - list with filters
-- [ ] `GET /api/insights/<id>` - get single insight
-- [ ] `PATCH /api/insights/<id>` - update status/significance
-- [ ] `DELETE /api/insights/<id>` - soft delete
-- [ ] `GET /api/queue` - view processing queue
-- [ ] `POST /api/queue/<id>/retry` - retry failed item
+Completed:
+- [x] `GET /api/insights` - list with filters (status, significance, type, pagination)
+- [x] `GET /api/insights/<id>` - get single insight with sources/history
+- [x] `PATCH /api/insights/<id>` - update status/significance/themes/patterns
+- [x] `DELETE /api/insights/<id>` - soft delete (?hard=true for permanent)
+- [x] `GET /api/insights/stats` - insight statistics
+- [x] `GET /api/queue` - list queue items with filters
+- [x] `GET /api/queue/stats` - queue statistics
+- [x] `GET /api/queue/<id>` - get single queue item
+- [x] `POST /api/queue/<id>/retry` - retry failed item
+- [x] `DELETE /api/queue/<id>` - remove from queue
+- [x] `POST /api/queue/clear` - clear failed/complete items
 
-### 4.5 Environment Setup
+### 4.6 Environment Setup
 ```
 .env.example file
 ```
@@ -105,7 +113,7 @@ RECOG_LLM_MAX_TOKENS=2000
 RECOG_COST_LIMIT_CENTS=100
 ```
 
-**Deliverable**: Working LLM extraction with database persistence
+**Deliverable**: Working LLM extraction with database persistence ✅ COMPLETE
 
 ---
 
@@ -182,6 +190,7 @@ New files in ingestion/parsers/
 Modify: recog_engine/tier0.py
 ```
 
+- [x] Fix false positives ("The", "This", common verbs) - v0.2
 - [ ] Full name extraction ("Dr. Smith" not just "Dr")
 - [ ] Organisation detection
 - [ ] Location/address detection
@@ -204,7 +213,7 @@ Modify: server.py, all engine files
 New directory: tests/
 ```
 
-- [ ] `test_tier0.py` - signal extraction unit tests
+- [x] `test_tier0.py` - signal extraction, entity false positive regression
 - [ ] `test_extraction.py` - LLM prompt/parse tests
 - [ ] `test_parsers.py` - each parser with sample files
 - [ ] `test_api.py` - endpoint integration tests
@@ -253,4 +262,4 @@ Total: ~6-9 sessions to production-ready MVP
 
 ---
 
-*Last updated: Phase 4.1 LLM Provider System complete - 21 Dec 2025*
+*Last updated: Phase 4.5 Insight API complete - 24 Dec 2025*

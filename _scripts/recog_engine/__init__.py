@@ -149,6 +149,15 @@ from .preflight import (
 
 
 # =============================================================================
+# INSIGHT STORE
+# =============================================================================
+
+from .insight_store import (
+    InsightStore,
+)
+
+
+# =============================================================================
 # ADAPTERS
 # =============================================================================
 
@@ -229,6 +238,9 @@ __all__ = [
     'OVERHEAD_MULTIPLIER',
     'init_preflight',
     'get_preflight',
+    
+    # === Insight Store ===
+    'InsightStore',
     
     # === Adapters ===
     'RecogAdapter', 'MemoryAdapter', 'SQLiteAdapter',

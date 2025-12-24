@@ -37,6 +37,8 @@ from recog_engine import (
     # Entity & Preflight
     EntityRegistry,
     PreflightManager,
+    # Insight Store
+    InsightStore,
 )
 from recog_engine.core.providers import (
     create_provider,
@@ -96,6 +98,7 @@ if not Config.DB_PATH.exists():
 # Initialize managers
 entity_registry = EntityRegistry(Config.DB_PATH)
 preflight_manager = PreflightManager(Config.DB_PATH, entity_registry)
+insight_store = InsightStore(Config.DB_PATH)
 
 
 # =============================================================================
@@ -156,15 +159,29 @@ def info():
     """Server info endpoint."""
     return api_response({
         "name": "ReCog Server",
-        "version": "0.1.0",
+        "version": "0.3.0",
         "endpoints": [
             "/api/health",
             "/api/upload",
             "/api/detect",
             "/api/tier0",
-            "/api/preflight/*",
-            "/api/entities/*",
-            "/api/insights/*",
+            "/api/extract",
+            "/api/preflight/<id>",
+            "/api/preflight/<id>/items",
+            "/api/preflight/<id>/filter",
+            "/api/preflight/<id>/confirm",
+            "/api/entities",
+            "/api/entities/unknown",
+            "/api/entities/<id>",
+            "/api/entities/stats",
+            "/api/insights",
+            "/api/insights/<id>",
+            "/api/insights/stats",
+            "/api/queue",
+            "/api/queue/stats",
+            "/api/queue/<id>",
+            "/api/queue/<id>/retry",
+            "/api/queue/clear",
         ],
     })
 
@@ -584,9 +601,22 @@ def extract_insights():
         # Parse response
         result = parse_extraction_response(response.content, source_type, source_id)
         
+        # Save insights to database
+        save_results = []
+        if result.success and result.insights:
+            save_to_db = data.get("save", True)  # Default to saving
+            if save_to_db:
+                batch_result = insight_store.save_insights_batch(
+                    result.insights,
+                    check_similarity=data.get("check_similarity", True),
+                )
+                save_results = batch_result.get("results", [])
+                logger.info(f"Saved {batch_result['created']} new, merged {batch_result['merged']} insights")
+        
         return api_response({
             "success": result.success,
             "insights": [i.to_dict() for i in result.insights],
+            "saved": save_results,
             "content_quality": result.content_quality,
             "notes": result.notes,
             "provider": provider.name,
@@ -607,7 +637,7 @@ def extract_insights():
 
 
 # =============================================================================
-# INSIGHTS (Future: Database Storage)
+# INSIGHTS
 # =============================================================================
 
 @app.route("/api/insights", methods=["GET"])
@@ -616,15 +646,324 @@ def list_insights():
     List extracted insights from database.
     
     Query params:
-        - status: raw, refined, surfaced
+        - status: raw, refined, surfaced, rejected
         - min_significance: 0.0-1.0
-        - limit: max results
+        - insight_type: observation, pattern, relationship, etc.
+        - limit: max results (default 100)
+        - offset: pagination offset
+        - order_by: significance, confidence, created_at, updated_at
+        - order_dir: ASC or DESC
     """
-    # TODO: Implement database query
-    return api_response({
-        "insights": [],
-        "message": "Database insight storage coming in Phase 4",
-    })
+    status = request.args.get("status")
+    min_sig = request.args.get("min_significance")
+    insight_type = request.args.get("insight_type")
+    limit = int(request.args.get("limit", 100))
+    offset = int(request.args.get("offset", 0))
+    order_by = request.args.get("order_by", "significance")
+    order_dir = request.args.get("order_dir", "DESC")
+    
+    result = insight_store.list_insights(
+        status=status,
+        min_significance=float(min_sig) if min_sig else None,
+        insight_type=insight_type,
+        limit=limit,
+        offset=offset,
+        order_by=order_by,
+        order_dir=order_dir,
+    )
+    
+    return api_response(result)
+
+
+@app.route("/api/insights/<insight_id>", methods=["GET"])
+def get_insight(insight_id: str):
+    """Get a single insight by ID."""
+    insight = insight_store.get_insight(insight_id)
+    
+    if not insight:
+        return api_response(error="Insight not found", status=404)
+    
+    # Include sources and history
+    insight["sources"] = insight_store.get_sources(insight_id)
+    insight["history"] = insight_store.get_history(insight_id)
+    
+    return api_response(insight)
+
+
+@app.route("/api/insights/<insight_id>", methods=["PATCH"])
+@require_json
+def update_insight_status(insight_id: str):
+    """
+    Update an insight's status or significance.
+    
+    Body: {
+        "status": "surfaced",
+        "significance": 0.8,
+        "themes": ["updated", "themes"],
+        "patterns": ["new-pattern"]
+    }
+    """
+    data = request.get_json()
+    
+    success = insight_store.update_insight(
+        insight_id,
+        status=data.get("status"),
+        significance=data.get("significance"),
+        themes=data.get("themes"),
+        patterns=data.get("patterns"),
+    )
+    
+    if success:
+        insight = insight_store.get_insight(insight_id)
+        return api_response(insight)
+    
+    return api_response(error="Insight not found or update failed", status=404)
+
+
+@app.route("/api/insights/<insight_id>", methods=["DELETE"])
+def delete_insight(insight_id: str):
+    """
+    Soft-delete an insight (sets status to 'rejected').
+    
+    Query param ?hard=true for permanent deletion.
+    """
+    hard_delete = request.args.get("hard", "false").lower() == "true"
+    
+    success = insight_store.delete_insight(insight_id, soft=not hard_delete)
+    
+    if success:
+        return api_response({"deleted": True, "insight_id": insight_id})
+    
+    return api_response(error="Insight not found", status=404)
+
+
+@app.route("/api/insights/stats", methods=["GET"])
+def insight_stats():
+    """Get insight statistics."""
+    stats = insight_store.get_stats()
+    return api_response(stats)
+
+
+# =============================================================================
+# PROCESSING QUEUE
+# =============================================================================
+
+def _get_db_connection():
+    """Get raw database connection for queue operations."""
+    import sqlite3
+    conn = sqlite3.connect(str(Config.DB_PATH))
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+@app.route("/api/queue", methods=["GET"])
+def list_queue():
+    """
+    List processing queue items.
+    
+    Query params:
+        - status: pending, processing, complete, failed (default: all)
+        - limit: max results (default 50)
+        - offset: pagination offset
+    """
+    status = request.args.get("status")
+    limit = int(request.args.get("limit", 50))
+    offset = int(request.args.get("offset", 0))
+    
+    conn = _get_db_connection()
+    try:
+        # Build query
+        if status:
+            query = "SELECT * FROM processing_queue WHERE status = ? ORDER BY priority DESC, queued_at DESC LIMIT ? OFFSET ?"
+            params = (status, limit, offset)
+            count_query = "SELECT COUNT(*) FROM processing_queue WHERE status = ?"
+            count_params = (status,)
+        else:
+            query = "SELECT * FROM processing_queue ORDER BY priority DESC, queued_at DESC LIMIT ? OFFSET ?"
+            params = (limit, offset)
+            count_query = "SELECT COUNT(*) FROM processing_queue"
+            count_params = ()
+        
+        rows = conn.execute(query, params).fetchall()
+        total = conn.execute(count_query, count_params).fetchone()[0]
+        
+        items = []
+        for row in rows:
+            items.append({
+                "id": row["id"],
+                "operation_type": row["operation_type"],
+                "source_type": row["source_type"],
+                "source_id": row["source_id"],
+                "status": row["status"],
+                "priority": row["priority"],
+                "word_count": row["word_count"],
+                "pass_count": row["pass_count"],
+                "notes": row["notes"],
+                "queued_at": row["queued_at"],
+                "last_processed_at": row["last_processed_at"],
+            })
+        
+        return api_response({
+            "items": items,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        })
+    finally:
+        conn.close()
+
+
+@app.route("/api/queue/stats", methods=["GET"])
+def queue_stats():
+    """Get queue statistics."""
+    conn = _get_db_connection()
+    try:
+        # Count by status
+        status_counts = {}
+        for row in conn.execute(
+            "SELECT status, COUNT(*) as count FROM processing_queue GROUP BY status"
+        ).fetchall():
+            status_counts[row["status"]] = row["count"]
+        
+        # Count by operation type
+        op_counts = {}
+        for row in conn.execute(
+            "SELECT operation_type, COUNT(*) as count FROM processing_queue WHERE status = 'pending' GROUP BY operation_type"
+        ).fetchall():
+            op_counts[row["operation_type"]] = row["count"]
+        
+        # Total pending word count
+        pending_words = conn.execute(
+            "SELECT SUM(word_count) FROM processing_queue WHERE status = 'pending'"
+        ).fetchone()[0] or 0
+        
+        return api_response({
+            "by_status": status_counts,
+            "pending_by_type": op_counts,
+            "pending_word_count": pending_words,
+            "total": sum(status_counts.values()),
+        })
+    finally:
+        conn.close()
+
+
+@app.route("/api/queue/<int:job_id>", methods=["GET"])
+def get_queue_item(job_id: int):
+    """Get a single queue item by ID."""
+    conn = _get_db_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM processing_queue WHERE id = ?",
+            (job_id,)
+        ).fetchone()
+        
+        if not row:
+            return api_response(error="Job not found", status=404)
+        
+        return api_response({
+            "id": row["id"],
+            "operation_type": row["operation_type"],
+            "source_type": row["source_type"],
+            "source_id": row["source_id"],
+            "status": row["status"],
+            "priority": row["priority"],
+            "word_count": row["word_count"],
+            "pass_count": row["pass_count"],
+            "notes": row["notes"],
+            "queued_at": row["queued_at"],
+            "last_processed_at": row["last_processed_at"],
+            "pre_annotation": json.loads(row["pre_annotation_json"]) if row["pre_annotation_json"] else None,
+        })
+    finally:
+        conn.close()
+
+
+@app.route("/api/queue/<int:job_id>/retry", methods=["POST"])
+def retry_queue_item(job_id: int):
+    """Retry a failed queue item."""
+    conn = _get_db_connection()
+    try:
+        # Check current status
+        row = conn.execute(
+            "SELECT status FROM processing_queue WHERE id = ?",
+            (job_id,)
+        ).fetchone()
+        
+        if not row:
+            return api_response(error="Job not found", status=404)
+        
+        if row["status"] not in ("failed", "complete"):
+            return api_response(
+                error=f"Cannot retry job with status '{row['status']}'",
+                status=400
+            )
+        
+        # Reset to pending
+        now = datetime.utcnow().isoformat() + "Z"
+        conn.execute(
+            "UPDATE processing_queue SET status = 'pending', notes = 'Manual retry', last_processed_at = ? WHERE id = ?",
+            (now, job_id)
+        )
+        conn.commit()
+        
+        return api_response({"retried": True, "job_id": job_id})
+    finally:
+        conn.close()
+
+
+@app.route("/api/queue/<int:job_id>", methods=["DELETE"])
+def delete_queue_item(job_id: int):
+    """Delete a queue item."""
+    conn = _get_db_connection()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM processing_queue WHERE id = ?",
+            (job_id,)
+        )
+        conn.commit()
+        
+        if cursor.rowcount > 0:
+            return api_response({"deleted": True, "job_id": job_id})
+        
+        return api_response(error="Job not found", status=404)
+    finally:
+        conn.close()
+
+
+@app.route("/api/queue/clear", methods=["POST"])
+def clear_queue():
+    """
+    Clear queue items by status.
+    
+    Body: {"status": "failed"} or {"status": "complete"}
+    """
+    if not request.is_json:
+        return api_response(error="JSON body required", status=400)
+    
+    data = request.get_json()
+    status = data.get("status")
+    
+    if status not in ("failed", "complete"):
+        return api_response(
+            error="Can only clear 'failed' or 'complete' items",
+            status=400
+        )
+    
+    conn = _get_db_connection()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM processing_queue WHERE status = ?",
+            (status,)
+        )
+        conn.commit()
+        
+        return api_response({
+            "cleared": True,
+            "status": status,
+            "count": cursor.rowcount,
+        })
+    finally:
+        conn.close()
 
 
 # =============================================================================

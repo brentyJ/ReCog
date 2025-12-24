@@ -1,5 +1,5 @@
 """
-ReCog Engine - Tier 0 Pre-Annotation Processor v0.1
+ReCog Engine - Tier 0 Pre-Annotation Processor v0.2
 
 Copyright (c) 2025 Brent Lefebure / EhkoLabs
 Licensed under AGPLv3 - See LICENSE in repository root
@@ -126,6 +126,87 @@ PEOPLE_TITLES = [
     "Brother", "Sister", "Son", "Daughter", "Wife", "Husband",
     "Boss", "Manager", "Teacher", "Coach", "Therapist"
 ]
+
+# Words that are often capitalised but are NOT people names
+# This prevents false positives like "The", "This", "Monday" being flagged
+NON_NAME_CAPITALS = {
+    # Pronouns and articles
+    "I", "I'm", "I've", "I'll", "I'd", "The", "This", "That", "These", "Those",
+    "It", "He", "She", "We", "They", "My", "Your", "His", "Her", "Our", "Their",
+    "Me", "You", "Him", "Us", "Them", "What", "Which", "Who", "Whom", "Whose",
+    "Where", "When", "Why", "How", "Some", "Any", "All", "Each", "Every",
+    "Both", "Few", "Many", "Much", "Most", "Other", "Another", "Such",
+    
+    # Days of the week
+    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+    "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+    
+    # Months
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+    "Jan", "Feb", "Mar", "Apr", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    
+    # Common sentence starters / transition words
+    "But", "And", "Or", "So", "Yet", "For", "Nor", "If", "Then", "Because",
+    "Although", "However", "Therefore", "Moreover", "Furthermore", "Nevertheless",
+    "Meanwhile", "Otherwise", "Instead", "Besides", "Still", "Thus", "Hence",
+    "Also", "Even", "Just", "Only", "Now", "Here", "There", "Today", "Tomorrow",
+    "Yesterday", "Tonight", "After", "Before", "During", "Since", "Until",
+    
+    # Common verbs/words that appear capitalised after quotes
+    "Said", "Asked", "Told", "Replied", "Answered", "Thought", "Felt",
+    "Knew", "Wanted", "Needed", "Tried", "Started", "Began", "Ended",
+    
+    # Tech/common nouns often capitalised
+    "Internet", "Email", "Phone", "App", "Website", "Server", "Computer",
+    "Facebook", "Google", "Twitter", "Instagram", "LinkedIn", "YouTube",
+    "iPhone", "Android", "Windows", "Mac", "Linux",
+    
+    # Places (too generic to be useful as person detection)
+    "Australia", "Melbourne", "Sydney", "Brisbane", "Perth", "Adelaide",
+    "Victoria", "Queensland", "NSW", "London", "Paris", "Tokyo", "Berlin",
+    "America", "England", "France", "Germany", "Japan", "China", "India",
+    "USA", "UK", "EU", "UN", "US",
+    
+    # Common nouns that get capitalised
+    "OK", "Yes", "No", "Maybe", "Please", "Thanks", "Sorry", "Hello", "Hi",
+    "Goodbye", "Bye", "Well", "Right", "Sure", "True", "False",
+    "God", "Christmas", "Easter", "New", "Year", "Years",
+    
+    # Common verbs / modal verbs that appear capitalised
+    "Can", "Could", "Would", "Should", "Will", "Won", "Did", "Does", "Do",
+    "Was", "Were", "Is", "Are", "Am", "Been", "Being", "Be", "Has", "Have", "Had",
+    "Got", "Get", "Going", "Gone", "Go", "Went", "Come", "Came", "Coming",
+    "Made", "Make", "Making", "Take", "Took", "Taking", "Taken",
+    "See", "Saw", "Seen", "Seeing", "Look", "Looking", "Looked",
+    "Think", "Thinking", "Thought", "Know", "Knowing", "Known",
+    "Like", "Liked", "Liking", "Want", "Wanted", "Wanting",
+    "Need", "Needed", "Needing", "Let", "Put", "Set", "Keep", "Kept",
+    "Say", "Saying", "Says", "Tell", "Telling", "Tells",
+    "Give", "Gave", "Given", "Giving", "Find", "Found", "Finding",
+    "Try", "Tried", "Trying", "Leave", "Left", "Leaving",
+    "Call", "Called", "Calling", "Work", "Working", "Worked",
+    "Seem", "Seemed", "Seems", "Feel", "Felt", "Feeling",
+    "Become", "Became", "Becoming", "Show", "Showed", "Shown",
+    "Hear", "Heard", "Hearing", "Play", "Played", "Playing",
+    "Run", "Ran", "Running", "Move", "Moved", "Moving",
+    "Live", "Lived", "Living", "Believe", "Believed",
+    
+    # Negatives and qualifiers
+    "Not", "Never", "None", "Nothing", "Nobody", "Nowhere",
+    "Always", "Already", "Almost", "Again", "Away", "Anyway",
+    "Really", "Actually", "Probably", "Certainly", "Definitely",
+    "Enough", "Rather", "Quite", "Very", "Too", "More", "Less",
+    "First", "Last", "Next", "Later", "Earlier", "Soon", "Once",
+    
+    # Question words that might appear mid-sentence
+    "Whenever", "Whatever", "Whoever", "However", "Wherever",
+    
+    # Single letters / abbreviations
+    "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P",
+    "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+    "AI", "ML", "IT", "HR", "CEO", "CTO", "CFO", "PM", "AM", "PM",
+}
 
 
 # =============================================================================
@@ -385,6 +466,10 @@ def extract_email_addresses(text: str) -> List[Dict]:
     return emails
 
 
+# Pre-compute lowercase set for case-insensitive matching
+NON_NAME_CAPITALS_LOWER = {w.lower() for w in NON_NAME_CAPITALS}
+
+
 def extract_basic_entities(text: str) -> Dict:
     """
     Entity extraction: people, phone numbers, emails.
@@ -395,7 +480,8 @@ def extract_basic_entities(text: str) -> Dict:
     emails = extract_email_addresses(text)
     
     # Extract people (capitalised words, titles)
-    sentences = re.split(r"[.!?]", text)
+    # Split on sentence boundaries AND common mid-sentence breaks
+    sentences = re.split(r'[.!?]|(?<=["\'])\s+(?=[A-Z])|:\s+', text)
     people = []
     
     for sentence in sentences:
@@ -407,9 +493,17 @@ def extract_basic_entities(text: str) -> Dict:
             clean = re.sub(r"[^a-zA-Z']", "", word)
             if not clean:
                 continue
+            
+            # Skip if too short (likely abbreviation or noise)
+            if len(clean) < 3:
+                continue
                 
             # Check if capitalised
             if clean[0].isupper():
+                # Case-insensitive check against non-name words
+                if clean.lower() in NON_NAME_CAPITALS_LOWER:
+                    continue
+                
                 # Check if preceded by title
                 if i > 0:
                     prev = re.sub(r"[^a-zA-Z]", "", words[i-1])
@@ -422,10 +516,21 @@ def extract_basic_entities(text: str) -> Dict:
                     people.append(clean)
                     continue
                 
-                # Generic capitalised word - likely a name
-                # Filter out common non-name capitals
-                if clean not in ["I", "I'm", "I've", "I'll", "I'd"]:
-                    people.append(clean)
+                # Additional heuristics to reduce false positives:
+                # 1. Skip words that are ALL CAPS (likely emphasis, not names)
+                if clean.isupper():
+                    continue
+                
+                # 2. Skip words ending in common non-name suffixes
+                if clean.lower().endswith(('ing', 'tion', 'ment', 'ness', 'able', 'ible', 'ful', 'less', 'ous', 'ive')):
+                    continue
+                
+                # 3. Skip if it looks like a contraction fragment
+                if "'" in clean and not clean.endswith("'s"):
+                    continue
+                
+                # Passed all filters - likely a name
+                people.append(clean)
     
     return {
         "people": list(set(people))[:10],
@@ -622,4 +727,6 @@ __all__ = [
     "ABSOLUTES",
     "PHONE_PATTERNS",
     "EMAIL_PATTERN",
+    "NON_NAME_CAPITALS",
+    "NON_NAME_CAPITALS_LOWER",
 ]
