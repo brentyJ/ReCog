@@ -132,6 +132,25 @@ from .entity_registry import (
 
 
 # =============================================================================
+# ENTITY GRAPH (Relationship-Aware)
+# =============================================================================
+
+from .entity_graph import (
+    # Types
+    RelationshipType,
+    EntityRelationship,
+    EntitySentiment,
+    CoOccurrence,
+    EntityNetwork,
+    # Class
+    EntityGraph,
+    # Module-level access
+    init_entity_graph,
+    get_entity_graph,
+)
+
+
+# =============================================================================
 # PREFLIGHT SYSTEM
 # =============================================================================
 
@@ -177,6 +196,26 @@ from .synth import (
     SynthEngine,
     init_synth_engine,
     get_synth_engine,
+)
+
+
+# =============================================================================
+# CRITIQUE ENGINE (Validation Layer)
+# =============================================================================
+
+from .critique import (
+    # Enums
+    CritiqueResult,
+    CritiqueType,
+    StrictnessLevel,
+    # Data classes
+    CritiqueCheck,
+    CritiqueReport,
+    # Engine
+    CritiqueEngine,
+    # Module-level
+    init_critique_engine,
+    get_critique_engine,
 )
 
 
@@ -254,6 +293,16 @@ __all__ = [
     'init_registry',
     'get_registry',
     
+    # === Entity Graph ===
+    'RelationshipType',
+    'EntityRelationship',
+    'EntitySentiment',
+    'CoOccurrence',
+    'EntityNetwork',
+    'EntityGraph',
+    'init_entity_graph',
+    'get_entity_graph',
+    
     # === Preflight System ===
     'PreflightManager',
     'COST_PER_1K_INPUT',
@@ -278,6 +327,16 @@ __all__ = [
     'SynthEngine',
     'init_synth_engine',
     'get_synth_engine',
+    
+    # === Critique Engine ===
+    'CritiqueResult',
+    'CritiqueType',
+    'StrictnessLevel',
+    'CritiqueCheck',
+    'CritiqueReport',
+    'CritiqueEngine',
+    'init_critique_engine',
+    'get_critique_engine',
     
     # === Adapters ===
     'RecogAdapter', 'MemoryAdapter', 'SQLiteAdapter',

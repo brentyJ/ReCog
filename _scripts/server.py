@@ -37,11 +37,17 @@ from recog_engine import (
     # Entity & Preflight
     EntityRegistry,
     PreflightManager,
+    # Entity Graph
+    EntityGraph,
+    RelationshipType,
     # Insight Store
     InsightStore,
     # Synth Engine
     SynthEngine,
     ClusterStrategy,
+    # Critique Engine
+    CritiqueEngine,
+    StrictnessLevel,
 )
 from recog_engine.core.providers import (
     create_provider,
@@ -100,9 +106,11 @@ if not Config.DB_PATH.exists():
 
 # Initialize managers
 entity_registry = EntityRegistry(Config.DB_PATH)
+entity_graph = EntityGraph(Config.DB_PATH)  # Extended entity management
 preflight_manager = PreflightManager(Config.DB_PATH, entity_registry)
 insight_store = InsightStore(Config.DB_PATH)
-synth_engine = SynthEngine(Config.DB_PATH, insight_store, entity_registry)
+synth_engine = SynthEngine(Config.DB_PATH, insight_store, entity_graph)
+critique_engine = CritiqueEngine(Config.DB_PATH, StrictnessLevel.STANDARD)
 
 
 # =============================================================================
@@ -163,7 +171,7 @@ def info():
     """Server info endpoint."""
     return api_response({
         "name": "ReCog Server",
-        "version": "0.4.0",
+        "version": "0.6.0",
         "endpoints": [
             "/api/health",
             "/api/upload",
@@ -178,6 +186,13 @@ def info():
             "/api/entities/unknown",
             "/api/entities/<id>",
             "/api/entities/stats",
+            "/api/entities/<id>/relationships",
+            "/api/entities/<id>/network",
+            "/api/entities/<id>/timeline",
+            "/api/entities/<id>/sentiment",
+            "/api/entities/graph/stats",
+            "/api/relationships",
+            "/api/relationships/<id>",
             "/api/insights",
             "/api/insights/<id>",
             "/api/insights/stats",
@@ -191,6 +206,14 @@ def info():
             "/api/synth/patterns",
             "/api/synth/patterns/<id>",
             "/api/synth/stats",
+            "/api/critique/insight",
+            "/api/critique/pattern",
+            "/api/critique/refine",
+            "/api/critique/<id>",
+            "/api/critique/for/<type>/<id>",
+            "/api/critique",
+            "/api/critique/stats",
+            "/api/critique/strictness",
         ],
     })
 
@@ -543,6 +566,305 @@ def entity_stats():
     """Get entity registry statistics."""
     stats = entity_registry.get_stats()
     return api_response(stats)
+
+
+# =============================================================================
+# ENTITY GRAPH (Relationships & Network)
+# =============================================================================
+
+@app.route("/api/entities/<int:entity_id>/relationships", methods=["GET"])
+def get_entity_relationships(entity_id: int):
+    """
+    Get relationships for an entity.
+    
+    Query params:
+        - type: Filter by relationship type
+        - direction: 'outgoing', 'incoming', or 'both' (default)
+        - min_strength: Minimum relationship strength (0-1)
+    """
+    rel_type = request.args.get("type")
+    direction = request.args.get("direction", "both")
+    min_strength = float(request.args.get("min_strength", 0.0))
+    
+    relationships = entity_graph.get_relationships(
+        entity_id=entity_id,
+        relationship_type=rel_type,
+        direction=direction,
+        min_strength=min_strength,
+    )
+    
+    return api_response({
+        "entity_id": entity_id,
+        "relationships": [r.to_dict() for r in relationships],
+        "count": len(relationships),
+    })
+
+
+@app.route("/api/entities/<int:entity_id>/relationships", methods=["POST"])
+@require_json
+def add_entity_relationship(entity_id: int):
+    """
+    Add a relationship from this entity to another.
+    
+    Body: {
+        "target_entity_id": 123,
+        "relationship_type": "manages",
+        "strength": 0.8,
+        "bidirectional": false,
+        "context": "How we know this"
+    }
+    """
+    data = request.get_json()
+    
+    target_id = data.get("target_entity_id")
+    if not target_id:
+        return api_response(error="target_entity_id required", status=400)
+    
+    rel_type = data.get("relationship_type", "associated_with")
+    
+    rel_id, is_new = entity_graph.add_relationship(
+        source_entity_id=entity_id,
+        target_entity_id=target_id,
+        relationship_type=rel_type,
+        strength=float(data.get("strength", 0.5)),
+        bidirectional=bool(data.get("bidirectional", False)),
+        context=data.get("context"),
+    )
+    
+    return api_response({
+        "relationship_id": rel_id,
+        "is_new": is_new,
+        "source_entity_id": entity_id,
+        "target_entity_id": target_id,
+        "relationship_type": rel_type,
+    })
+
+
+@app.route("/api/entities/<int:entity_id>/network", methods=["GET"])
+def get_entity_network(entity_id: int):
+    """
+    Get the relationship network around an entity.
+    
+    Query params:
+        - depth: How many hops to traverse (default 1)
+        - min_strength: Minimum relationship strength (default 0.2)
+    """
+    depth = int(request.args.get("depth", 1))
+    min_strength = float(request.args.get("min_strength", 0.2))
+    
+    network = entity_graph.get_network(
+        entity_id=entity_id,
+        depth=depth,
+        min_strength=min_strength,
+    )
+    
+    if not network:
+        return api_response(error="Entity not found", status=404)
+    
+    return api_response({
+        "center": network.center_entity,
+        "relationships": network.relationships,
+        "connected_entities": network.connected_entities,
+        "co_occurrences": network.co_occurrences,
+        "sentiment_summary": network.sentiment_summary,
+    })
+
+
+@app.route("/api/entities/<int:entity_id>/timeline", methods=["GET"])
+def get_entity_timeline(entity_id: int):
+    """
+    Get a timeline of entity appearances and events.
+    
+    Query params:
+        - limit: Max events to return (default 100)
+    """
+    limit = int(request.args.get("limit", 100))
+    
+    events = entity_graph.get_timeline(entity_id, limit=limit)
+    
+    return api_response({
+        "entity_id": entity_id,
+        "events": events,
+        "count": len(events),
+    })
+
+
+@app.route("/api/entities/<int:entity_id>/sentiment", methods=["GET"])
+def get_entity_sentiment(entity_id: int):
+    """
+    Get sentiment summary and history for an entity.
+    
+    Query params:
+        - limit: Max history records (default 50)
+    """
+    limit = int(request.args.get("limit", 50))
+    
+    summary = entity_graph.get_sentiment_summary(entity_id)
+    history = entity_graph.get_sentiment_history(entity_id, limit=limit)
+    
+    return api_response({
+        "entity_id": entity_id,
+        "summary": summary,
+        "history": [{
+            "id": s.id,
+            "score": s.sentiment_score,
+            "label": s.sentiment_label,
+            "source_type": s.source_type,
+            "source_id": s.source_id,
+            "excerpt": s.excerpt,
+            "recorded_at": s.recorded_at,
+        } for s in history],
+    })
+
+
+@app.route("/api/entities/<int:entity_id>/sentiment", methods=["POST"])
+@require_json
+def record_entity_sentiment(entity_id: int):
+    """
+    Record sentiment for an entity.
+    
+    Body: {
+        "score": 0.5,  # -1 to 1
+        "source_type": "insight",
+        "source_id": "abc123",
+        "excerpt": "Relevant text..."
+    }
+    """
+    data = request.get_json()
+    
+    score = data.get("score")
+    if score is None:
+        return api_response(error="score required", status=400)
+    
+    sentiment_id = entity_graph.record_sentiment(
+        entity_id=entity_id,
+        sentiment_score=float(score),
+        source_type=data.get("source_type", "manual"),
+        source_id=data.get("source_id", str(uuid4())),
+        excerpt=data.get("excerpt"),
+    )
+    
+    return api_response({
+        "sentiment_id": sentiment_id,
+        "entity_id": entity_id,
+    })
+
+
+@app.route("/api/entities/<int:entity_a_id>/path/<int:entity_b_id>", methods=["GET"])
+def find_entity_path(entity_a_id: int, entity_b_id: int):
+    """
+    Find the shortest relationship path between two entities.
+    
+    Query params:
+        - max_depth: Maximum hops to search (default 4)
+    """
+    max_depth = int(request.args.get("max_depth", 4))
+    
+    path = entity_graph.find_path(
+        source_entity_id=entity_a_id,
+        target_entity_id=entity_b_id,
+        max_depth=max_depth,
+    )
+    
+    if path is None:
+        return api_response({
+            "path_exists": False,
+            "source_id": entity_a_id,
+            "target_id": entity_b_id,
+        })
+    
+    # Fetch entity details for path
+    path_entities = [entity_graph.get_entity_by_id(eid) for eid in path]
+    
+    return api_response({
+        "path_exists": True,
+        "path_ids": path,
+        "path_entities": path_entities,
+        "hops": len(path) - 1,
+    })
+
+
+@app.route("/api/entities/graph/stats", methods=["GET"])
+def entity_graph_stats():
+    """Get entity graph statistics including relationships and sentiment."""
+    stats = entity_graph.get_graph_stats()
+    return api_response(stats)
+
+
+@app.route("/api/relationships", methods=["GET"])
+def list_relationships():
+    """
+    List all relationships.
+    
+    Query params:
+        - type: Filter by relationship type
+        - min_strength: Minimum strength
+        - limit: Max results (default 100)
+    """
+    rel_type = request.args.get("type")
+    min_strength = float(request.args.get("min_strength", 0.0))
+    limit = int(request.args.get("limit", 100))
+    
+    conn = _get_db_connection()
+    try:
+        conditions = ["strength >= ?"]
+        params = [min_strength]
+        
+        if rel_type:
+            conditions.append("relationship_type = ?")
+            params.append(rel_type)
+        
+        params.append(limit)
+        
+        cursor = conn.execute(f"""
+            SELECT id, source_entity_id, target_entity_id, relationship_type,
+                   strength, bidirectional, context, occurrence_count,
+                   first_seen_at, last_seen_at
+            FROM entity_relationships
+            WHERE {' AND '.join(conditions)}
+            ORDER BY strength DESC, occurrence_count DESC
+            LIMIT ?
+        """, params)
+        
+        relationships = []
+        for row in cursor.fetchall():
+            relationships.append({
+                "id": row["id"],
+                "source_entity_id": row["source_entity_id"],
+                "target_entity_id": row["target_entity_id"],
+                "relationship_type": row["relationship_type"],
+                "strength": row["strength"],
+                "bidirectional": bool(row["bidirectional"]),
+                "context": row["context"],
+                "occurrence_count": row["occurrence_count"],
+                "first_seen_at": row["first_seen_at"],
+                "last_seen_at": row["last_seen_at"],
+            })
+        
+        return api_response({
+            "relationships": relationships,
+            "count": len(relationships),
+        })
+    finally:
+        conn.close()
+
+
+@app.route("/api/relationships/<int:relationship_id>", methods=["DELETE"])
+def delete_relationship(relationship_id: int):
+    """Delete a relationship."""
+    success = entity_graph.remove_relationship(relationship_id)
+    
+    if success:
+        return api_response({"deleted": True, "relationship_id": relationship_id})
+    
+    return api_response(error="Relationship not found", status=404)
+
+
+@app.route("/api/relationships/types", methods=["GET"])
+def list_relationship_types():
+    """List available relationship types."""
+    types = [t.value for t in RelationshipType]
+    return api_response({"types": types})
 
 
 # =============================================================================
@@ -1160,6 +1482,338 @@ def synth_stats():
     """Get Synth Engine statistics."""
     stats = synth_engine.get_stats()
     return api_response(stats)
+
+
+# =============================================================================
+# CRITIQUE ENGINE (Validation Layer)
+# =============================================================================
+
+@app.route("/api/critique/insight", methods=["POST"])
+@require_json
+def critique_insight():
+    """
+    Run critique validation on an insight.
+    
+    Body: {
+        "insight_id": "abc123",  # OR provide insight object directly
+        "insight": {...},         # Direct insight object
+        "provider": "openai|anthropic" (optional)
+    }
+    
+    Returns critique report with pass/fail/warn/refine verdict.
+    """
+    if not Config.LLM_CONFIGURED:
+        return api_response(
+            error="LLM not configured. Set API keys in environment.",
+            status=503
+        )
+    
+    data = request.get_json()
+    
+    # Get insight either by ID or from body
+    insight = data.get("insight")
+    if not insight:
+        insight_id = data.get("insight_id")
+        if insight_id:
+            insight = insight_store.get_insight(insight_id)
+            if not insight:
+                return api_response(error="Insight not found", status=404)
+        else:
+            return api_response(error="insight or insight_id required", status=400)
+    
+    provider_name = data.get("provider")
+    
+    try:
+        provider = create_provider(provider_name)
+        report = critique_engine.critique_insight(insight, provider)
+        
+        # Optionally save critique
+        if data.get("save", True):
+            critique_engine.save_critique(report)
+        
+        return api_response({
+            "critique_id": report.id,
+            "target_type": report.target_type,
+            "target_id": report.target_id,
+            "overall_result": report.overall_result,
+            "overall_score": report.overall_score,
+            "passed": report.passed,
+            "needs_refinement": report.needs_refinement,
+            "checks": [{
+                "check_type": c.check_type,
+                "result": c.result,
+                "score": c.score,
+                "reason": c.reason,
+                "suggestions": c.suggestions,
+            } for c in report.checks],
+            "recommendation": report.recommendation,
+            "refinement_prompt": report.refinement_prompt,
+            "model_used": report.model_used,
+        })
+        
+    except Exception as e:
+        logger.exception("Critique failed")
+        return api_response(error=str(e), status=500)
+
+
+@app.route("/api/critique/pattern", methods=["POST"])
+@require_json
+def critique_pattern():
+    """
+    Run critique validation on a synthesised pattern.
+    
+    Body: {
+        "pattern_id": "pat_123",
+        "provider": "openai|anthropic" (optional)
+    }
+    
+    Fetches pattern and supporting insights, then validates.
+    """
+    if not Config.LLM_CONFIGURED:
+        return api_response(
+            error="LLM not configured. Set API keys in environment.",
+            status=503
+        )
+    
+    data = request.get_json()
+    pattern_id = data.get("pattern_id")
+    
+    if not pattern_id:
+        return api_response(error="pattern_id required", status=400)
+    
+    # Get pattern
+    pattern = synth_engine.get_pattern(pattern_id)
+    if not pattern:
+        return api_response(error="Pattern not found", status=404)
+    
+    # Get supporting insights
+    supporting_insight_ids = pattern.get("supporting_insight_ids", [])
+    supporting_insights = []
+    for iid in supporting_insight_ids[:10]:  # Cap at 10
+        ins = insight_store.get_insight(iid)
+        if ins:
+            supporting_insights.append(ins)
+    
+    provider_name = data.get("provider")
+    
+    try:
+        provider = create_provider(provider_name)
+        report = critique_engine.critique_pattern(pattern, supporting_insights, provider)
+        
+        # Optionally save critique
+        if data.get("save", True):
+            critique_engine.save_critique(report)
+        
+        return api_response({
+            "critique_id": report.id,
+            "target_type": report.target_type,
+            "target_id": report.target_id,
+            "overall_result": report.overall_result,
+            "overall_score": report.overall_score,
+            "passed": report.passed,
+            "needs_refinement": report.needs_refinement,
+            "checks": [{
+                "check_type": c.check_type,
+                "result": c.result,
+                "score": c.score,
+                "reason": c.reason,
+                "suggestions": c.suggestions,
+            } for c in report.checks],
+            "recommendation": report.recommendation,
+            "refinement_prompt": report.refinement_prompt,
+            "model_used": report.model_used,
+        })
+        
+    except Exception as e:
+        logger.exception("Pattern critique failed")
+        return api_response(error=str(e), status=500)
+
+
+@app.route("/api/critique/refine", methods=["POST"])
+@require_json
+def critique_and_refine():
+    """
+    Run critique with automatic refinement loop.
+    
+    Body: {
+        "insight_id": "abc123",
+        "max_iterations": 2,
+        "provider": "openai|anthropic" (optional)
+    }
+    
+    Attempts to refine insight if critique suggests it, up to max_iterations.
+    """
+    if not Config.LLM_CONFIGURED:
+        return api_response(
+            error="LLM not configured. Set API keys in environment.",
+            status=503
+        )
+    
+    data = request.get_json()
+    insight_id = data.get("insight_id")
+    
+    if not insight_id:
+        return api_response(error="insight_id required", status=400)
+    
+    insight = insight_store.get_insight(insight_id)
+    if not insight:
+        return api_response(error="Insight not found", status=404)
+    
+    max_iterations = int(data.get("max_iterations", 2))
+    critique_engine.max_refinements = max_iterations
+    
+    provider_name = data.get("provider")
+    
+    try:
+        provider = create_provider(provider_name)
+        
+        final_insight, report, refinement_count = critique_engine.critique_with_refinement(
+            insight, provider
+        )
+        
+        # Save critique report
+        critique_engine.save_critique(report)
+        
+        # Update insight if refined and passed
+        insight_updated = False
+        if refinement_count > 0 and report.passed:
+            # Update the insight in the database with refined content
+            insight_store.update_insight(
+                insight_id,
+                status="refined",
+                significance=final_insight.get("significance"),
+                themes=final_insight.get("themes"),
+            )
+            insight_updated = True
+        
+        return api_response({
+            "critique_id": report.id,
+            "overall_result": report.overall_result,
+            "overall_score": report.overall_score,
+            "passed": report.passed,
+            "refinement_count": refinement_count,
+            "insight_updated": insight_updated,
+            "final_insight": final_insight,
+            "checks": [{
+                "check_type": c.check_type,
+                "result": c.result,
+                "score": c.score,
+                "reason": c.reason,
+            } for c in report.checks],
+            "recommendation": report.recommendation,
+        })
+        
+    except Exception as e:
+        logger.exception("Critique refinement failed")
+        return api_response(error=str(e), status=500)
+
+
+@app.route("/api/critique/<critique_id>", methods=["GET"])
+def get_critique(critique_id: str):
+    """Get a critique report by ID."""
+    critique = critique_engine.get_critique(critique_id)
+    
+    if not critique:
+        return api_response(error="Critique not found", status=404)
+    
+    return api_response(critique)
+
+
+@app.route("/api/critique/for/<target_type>/<target_id>", methods=["GET"])
+def get_critiques_for_target(target_type: str, target_id: str):
+    """
+    Get all critiques for a specific insight or pattern.
+    
+    target_type: 'insight' or 'pattern'
+    target_id: The ID of the target
+    """
+    if target_type not in ("insight", "pattern"):
+        return api_response(error="target_type must be 'insight' or 'pattern'", status=400)
+    
+    critiques = critique_engine.get_critiques_for_target(target_type, target_id)
+    
+    return api_response({
+        "target_type": target_type,
+        "target_id": target_id,
+        "critiques": critiques,
+        "count": len(critiques),
+    })
+
+
+@app.route("/api/critique", methods=["GET"])
+def list_critiques():
+    """
+    List critique reports.
+    
+    Query params:
+        - target_type: 'insight' or 'pattern'
+        - result: 'pass', 'fail', 'warn', 'refine'
+        - limit: max results (default 100)
+        - offset: pagination offset
+    """
+    target_type = request.args.get("target_type")
+    result = request.args.get("result")
+    limit = int(request.args.get("limit", 100))
+    offset = int(request.args.get("offset", 0))
+    
+    data = critique_engine.list_critiques(
+        target_type=target_type,
+        result=result,
+        limit=limit,
+        offset=offset,
+    )
+    
+    return api_response(data)
+
+
+@app.route("/api/critique/stats", methods=["GET"])
+def critique_stats():
+    """Get critique statistics."""
+    stats = critique_engine.get_stats()
+    return api_response(stats)
+
+
+@app.route("/api/critique/strictness", methods=["GET"])
+def get_critique_strictness():
+    """Get current critique strictness level."""
+    return api_response({
+        "strictness": critique_engine.strictness.value,
+        "thresholds": {
+            "min_overall_score": critique_engine.min_overall_score,
+            "min_check_score": critique_engine.min_check_score,
+            "require_all_pass": critique_engine.require_all_pass,
+        },
+    })
+
+
+@app.route("/api/critique/strictness", methods=["POST"])
+@require_json
+def set_critique_strictness():
+    """
+    Set critique strictness level.
+    
+    Body: {"strictness": "lenient|standard|strict"}
+    """
+    data = request.get_json()
+    level = data.get("strictness", "standard")
+    
+    try:
+        critique_engine.strictness = StrictnessLevel(level)
+        critique_engine._set_thresholds()
+        
+        return api_response({
+            "strictness": critique_engine.strictness.value,
+            "thresholds": {
+                "min_overall_score": critique_engine.min_overall_score,
+                "min_check_score": critique_engine.min_check_score,
+                "require_all_pass": critique_engine.require_all_pass,
+            },
+        })
+    except ValueError:
+        return api_response(
+            error=f"Invalid strictness level. Use: lenient, standard, strict",
+            status=400
+        )
 
 
 # =============================================================================
