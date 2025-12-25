@@ -471,7 +471,19 @@ Files in ingestion/parsers/
 - [x] `excel.py` - Excel spreadsheets (.xlsx, .xls, .xlsm via openpyxl)
 - [ ] `email_mbox.py` - MBOX email archives (future)
 
-### 9.2 Entity Extraction Improvements
+### 9.2 Entity Context Injection ✅
+```
+Modify: server.py /api/extract endpoint
+```
+
+Completed:
+- [x] Resolve Tier 0 entities against registry during extraction
+- [x] Inject resolved entity context into LLM prompts (display names, relationships)
+- [x] Return entity_resolution in API response (resolved vs unknown counts)
+- [x] Support anonymization (use placeholder_name if anonymise_in_prompts=True)
+- [x] Updated endpoint docstring documenting entity_resolution field
+
+### 9.3 Entity Extraction Improvements
 ```
 Modify: recog_engine/tier0.py
 ```
@@ -483,7 +495,7 @@ Modify: recog_engine/tier0.py
 - [ ] Date/time normalisation
 - [ ] Currency/amount detection
 
-### 9.3 Error Handling & Logging ✅
+### 9.4 Error Handling & Logging ✅
 ```
 New file: recog_engine/logging_utils.py
 ```
@@ -494,7 +506,7 @@ New file: recog_engine/logging_utils.py
 - [x] log_request decorator for endpoints
 - [ ] Rate limiting per IP (future)
 
-### 9.4 Testing ✅
+### 9.5 Testing ✅
 ```
 Directory: tests/
 ```
@@ -506,7 +518,7 @@ Directory: tests/
 - [x] `test_api.py` - endpoint integration tests (pytest)
 - [ ] Sample test files in `tests/fixtures/`
 
-### 9.5 Documentation
+### 9.6 Documentation
 ```
 Update: README.md, new files in _docs/
 ```
@@ -516,7 +528,7 @@ Update: README.md, new files in _docs/
 - [ ] Parser development guide
 - [ ] Configuration reference
 
-### 9.6 Deployment Prep ✅
+### 9.7 Deployment Prep ✅
 ```
 New files in project root
 ```
@@ -588,4 +600,4 @@ Total: ~8-14 sessions to production-ready MVP
 
 ---
 
-*Last updated: Phase 9 production polish in progress - 24 Dec 2025*
+*Last updated: Phase 9.2 Entity Context Injection complete - 25 Dec 2025*

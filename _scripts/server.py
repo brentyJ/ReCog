@@ -882,8 +882,18 @@ def extract_insights():
         "source_type": "document",
         "source_id": "optional-id",
         "is_chat": false,
-        "provider": "openai|anthropic" (optional)
+        "provider": "openai|anthropic" (optional),
+        "save": true (default, save insights to DB),
+        "check_similarity": true (default, merge similar insights)
     }
+    
+    Response includes:
+        - insights: Extracted insight objects
+        - tier0: Flags and emotion signals from signal extraction
+        - entity_resolution: Results of matching entities against registry
+            - resolved: Entities matched to known people (context injected to LLM)
+            - unknown: Entities not yet identified (for user review)
+            - context_injected: Whether entity context was added to the prompt
     
     Requires LLM API key(s) configured via environment variables.
     """
@@ -906,13 +916,25 @@ def extract_insights():
     # Run Tier 0
     pre_annotation = preprocess_text(text)
     
-    # Build prompt
+    # Resolve entities against registry for context injection (Phase 5)
+    entity_context = ""
+    entity_resolution = None
+    if pre_annotation.get("entities"):
+        entity_resolution = entity_registry.resolve_for_prompt(pre_annotation["entities"])
+        entity_context = entity_resolution.get("prompt_context", "")
+        if entity_resolution.get("resolved"):
+            logger.info(f"Resolved {len(entity_resolution['resolved'])} entities for extraction")
+        if entity_resolution.get("unknown"):
+            logger.debug(f"Found {len(entity_resolution['unknown'])} unknown entities")
+    
+    # Build prompt with entity context
     prompt = build_extraction_prompt(
         content=text,
         source_type=source_type,
         source_description=source_id,
         pre_annotation=pre_annotation,
         is_chat=is_chat,
+        additional_context=entity_context,
     )
     
     # Call LLM via provider
@@ -944,6 +966,17 @@ def extract_insights():
                 save_results = batch_result.get("results", [])
                 logger.info(f"Saved {batch_result['created']} new, merged {batch_result['merged']} insights")
         
+        # Build entity resolution summary for response
+        entity_resolution_summary = None
+        if entity_resolution:
+            entity_resolution_summary = {
+                "resolved_count": len(entity_resolution.get("resolved", [])),
+                "unknown_count": len(entity_resolution.get("unknown", [])),
+                "resolved": entity_resolution.get("resolved", []),
+                "unknown": entity_resolution.get("unknown", []),
+                "context_injected": bool(entity_context),
+            }
+        
         return api_response({
             "success": result.success,
             "insights": [i.to_dict() for i in result.insights],
@@ -957,6 +990,7 @@ def extract_insights():
                 "flags": pre_annotation.get("flags", {}),
                 "emotion_categories": pre_annotation.get("emotion_signals", {}).get("categories", []),
             },
+            "entity_resolution": entity_resolution_summary,
         })
     
     except ValueError as e:
