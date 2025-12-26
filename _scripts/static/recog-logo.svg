@@ -1,0 +1,245 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 257 115" width="257" height="115">
+  <defs>
+    <linearGradient id="mt_43912_grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a8c8f0"/>
+      <stop offset="40%" stop-color="#6b8cce"/>
+      <stop offset="100%" stop-color="#3a4a7e"/>
+    </linearGradient>
+    <filter id="mt_43912_bevel" x="-20%" y="-20%" width="140%" height="140%">
+      <!-- Create alpha for lighting -->
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="blur"/>
+      
+      <!-- Specular lighting for top highlight -->
+      <feSpecularLighting in="blur" surfaceScale="3" specularConstant="0.8" 
+          specularExponent="25" lighting-color="#a8c8f0" result="spec">
+        <fePointLight x="-5000" y="-5000" z="10000"/>
+      </feSpecularLighting>
+      <feComposite in="spec" in2="SourceAlpha" operator="in" result="specOut"/>
+      
+      <!-- Combine with original -->
+      <feComposite in="SourceGraphic" in2="specOut" operator="arithmetic" 
+          k1="0" k2="1" k3="1" k4="0"/>
+    </filter>
+    <filter id="mt_43912_glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur"/>
+      <feFlood flood-color="#6b8cce" flood-opacity="0.5"/>
+      <feComposite in2="blur" operator="in"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="mt_24945_grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a8c8f0"/>
+      <stop offset="40%" stop-color="#6b8cce"/>
+      <stop offset="100%" stop-color="#3a4a7e"/>
+    </linearGradient>
+    <filter id="mt_24945_bevel" x="-20%" y="-20%" width="140%" height="140%">
+      <!-- Create alpha for lighting -->
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="blur"/>
+      
+      <!-- Specular lighting for top highlight -->
+      <feSpecularLighting in="blur" surfaceScale="3" specularConstant="0.8" 
+          specularExponent="25" lighting-color="#a8c8f0" result="spec">
+        <fePointLight x="-5000" y="-5000" z="10000"/>
+      </feSpecularLighting>
+      <feComposite in="spec" in2="SourceAlpha" operator="in" result="specOut"/>
+      
+      <!-- Combine with original -->
+      <feComposite in="SourceGraphic" in2="specOut" operator="arithmetic" 
+          k1="0" k2="1" k3="1" k4="0"/>
+    </filter>
+    <filter id="mt_24945_glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur"/>
+      <feFlood flood-color="#6b8cce" flood-opacity="0.5"/>
+      <feComposite in2="blur" operator="in"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="100%" height="100%" fill="#0c1018"/>
+  <g filter="url(#mt_43912_glow)" opacity="0.6">
+  <path d="M615 0 406 249H609L775 53V0ZM56 0V719H627Q668 719 701.5 699.0Q735 679 755.5 645.0Q776 611 776 571V385Q776 345 755.5 311.0Q735 277 701.5 257.0Q668 237 627 237L211 236V0ZM211 393H619Q619 393 619.0 393.0Q619 393 619 393V564Q619 564 619.0 564.0Q619 564 619 564H211Q211 564 211.0 564.0Q211 564 211 564V393Q211 393 211.0 393.0Q211 393 211 393Z" fill="#6b8cce" transform="translate(15.00, 73.00) scale(0.058000, -0.058000)"/>
+  <path d="M196 0Q157 0 124.0 20.0Q91 40 71.0 73.0Q51 106 51 145V435Q51 474 71.0 507.0Q91 540 124.0 560.0Q157 580 196 580H494Q534 580 567.0 560.0Q600 540 619.5 507.0Q639 474 639 435V213H204V153Q204 153 204.0 153.0Q204 153 204 153H639V0H196ZM204 347H486V427Q486 427 486.0 427.0Q486 427 486 427H204Q204 427 204.0 427.0Q204 427 204 427Z" fill="#6b8cce" transform="translate(59.85, 73.00) scale(0.058000, -0.058000)"/>
+  </g>
+  <g opacity="0.3">
+  <path d="M615 0 406 249H609L775 53V0ZM56 0V719H627Q668 719 701.5 699.0Q735 679 755.5 645.0Q776 611 776 571V385Q776 345 755.5 311.0Q735 277 701.5 257.0Q668 237 627 237L211 236V0ZM211 393H619Q619 393 619.0 393.0Q619 393 619 393V564Q619 564 619.0 564.0Q619 564 619 564H211Q211 564 211.0 564.0Q211 564 211 564V393Q211 393 211.0 393.0Q211 393 211 393Z" fill="#000000" transform="translate(17.00, 75.00) scale(0.058000, -0.058000)"/>
+  <path d="M196 0Q157 0 124.0 20.0Q91 40 71.0 73.0Q51 106 51 145V435Q51 474 71.0 507.0Q91 540 124.0 560.0Q157 580 196 580H494Q534 580 567.0 560.0Q600 540 619.5 507.0Q639 474 639 435V213H204V153Q204 153 204.0 153.0Q204 153 204 153H639V0H196ZM204 347H486V427Q486 427 486.0 427.0Q486 427 486 427H204Q204 427 204.0 427.0Q204 427 204 427Z" fill="#000000" transform="translate(61.85, 75.00) scale(0.058000, -0.058000)"/>
+  </g>
+  <g filter="url(#mt_43912_bevel)">
+  <path d="M615 0 406 249H609L775 53V0ZM56 0V719H627Q668 719 701.5 699.0Q735 679 755.5 645.0Q776 611 776 571V385Q776 345 755.5 311.0Q735 277 701.5 257.0Q668 237 627 237L211 236V0ZM211 393H619Q619 393 619.0 393.0Q619 393 619 393V564Q619 564 619.0 564.0Q619 564 619 564H211Q211 564 211.0 564.0Q211 564 211 564V393Q211 393 211.0 393.0Q211 393 211 393Z" fill="url(#mt_43912_grad)" transform="translate(15.00, 73.00) scale(0.058000, -0.058000)"/>
+  <path d="M196 0Q157 0 124.0 20.0Q91 40 71.0 73.0Q51 106 51 145V435Q51 474 71.0 507.0Q91 540 124.0 560.0Q157 580 196 580H494Q534 580 567.0 560.0Q600 540 619.5 507.0Q639 474 639 435V213H204V153Q204 153 204.0 153.0Q204 153 204 153H639V0H196ZM204 347H486V427Q486 427 486.0 427.0Q486 427 486 427H204Q204 427 204.0 427.0Q204 427 204 427Z" fill="url(#mt_43912_grad)" transform="translate(59.85, 73.00) scale(0.058000, -0.058000)"/>
+  </g>
+  <g id="holoCog">
+      <animate 
+          attributeName="opacity" 
+          values="1;0.94;1;0.97;1;0.92;1" 
+          dur="2.5s" 
+          repeatCount="indefinite"/>
+      <defs>
+      <filter id="holoGlow" x="-100%" y="-100%" width="300%" height="300%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+        <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.5 0"/>
+      </filter>
+      <pattern id="holoScanlines" patternUnits="userSpaceOnUse" width="4" height="6">
+        <rect width="4" height="3" fill="black" opacity="0.25"/>
+      </pattern>
+      <linearGradient id="holoGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#ff9955" stop-opacity="0.95"/>
+        <stop offset="50%" stop-color="#d97e4a" stop-opacity="0.8"/>
+        <stop offset="100%" stop-color="#d97e4a" stop-opacity="0.5"/>
+      </linearGradient>
+      <clipPath id="teethClip">
+        <path d="M 161.3,68.6 
+        A 37.5,37.5 0 1,1 161.3,19.4
+        L 144.7,33.8
+        A 15.5,15.5 0 1,0 144.7,54.2
+        Z" fill="white"/>
+      </clipPath>
+      <filter id="holoNoise" x="0%" y="0%" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" result="noise"/>
+        <feColorMatrix in="noise" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.12 0" result="monoNoise"/>
+        <feBlend in="SourceGraphic" in2="monoNoise" mode="overlay"/>
+      </filter>
+    </defs>
+    <g filter="url(#holoGlow)" opacity="0.4">
+      <path d="M 154.5,62.7 
+      A 28.5,28.5 0 1,1 154.5,25.3
+      L 146.2,32.5
+      A 17.5,17.5 0 1,0 146.2,55.5
+      Z" fill="#ff9955"/>
+      <circle cx="132.986" cy="44" r="7" fill="#ff9955"/>
+      <circle cx="132.986" cy="44" r="2.4499999999999997" fill="#0c1018"/>
+    </g>
+    <g transform="translate(-1.5, -1)" opacity="0.35">
+      <path d="M 154.5,62.7 
+      A 28.5,28.5 0 1,1 154.5,25.3
+      L 146.2,32.5
+      A 17.5,17.5 0 1,0 146.2,55.5
+      Z" fill="#00ffff"/>
+      <circle cx="132.986" cy="44" r="7" fill="#00ffff"/>
+      <circle cx="132.986" cy="44" r="2.4499999999999997" fill="#0c1018"/>
+    </g>
+    <g transform="translate(1.5, 1)" opacity="0.35">
+      <path d="M 154.5,62.7 
+      A 28.5,28.5 0 1,1 154.5,25.3
+      L 146.2,32.5
+      A 17.5,17.5 0 1,0 146.2,55.5
+      Z" fill="#ff00ff"/>
+      <circle cx="132.986" cy="44" r="7" fill="#ff00ff"/>
+      <circle cx="132.986" cy="44" r="2.4499999999999997" fill="#0c1018"/>
+    </g>
+    <g filter="url(#holoNoise)" opacity="0.9">
+      <path d="M 154.5,62.7 
+      A 28.5,28.5 0 1,1 154.5,25.3
+      L 146.2,32.5
+      A 17.5,17.5 0 1,0 146.2,55.5
+      Z" fill="url(#holoGradient)"/>
+      <circle cx="132.986" cy="44" r="7" fill="url(#holoGradient)"/>
+      <circle cx="132.986" cy="44" r="2.4499999999999997" fill="#0c1018"/>
+    </g>
+    <g clip-path="url(#teethClip)">
+      <g filter="url(#holoNoise)" opacity="0.9">
+        <g>
+          <animateTransform 
+            attributeName="transform" 
+            type="rotate" 
+            from="0 132.986 44" 
+            to="360 132.986 44" 
+            dur="15s" 
+            repeatCount="indefinite"/>
+          <!-- Teeth glow -->
+          <g filter="url(#holoGlow)" opacity="0.3">
+            <polygon points="161.5,46.5 168.5,45.7 168.5,42.3 161.5,41.5" fill="#ff9955"/>
+          <polygon points="156.4,60.4 162.9,63.2 164.6,60.3 158.9,56.1" fill="#ff9955"/>
+          <polygon points="145.1,69.9 149.3,75.6 152.2,73.9 149.4,67.4" fill="#ff9955"/>
+          <polygon points="130.5,72.5 131.3,79.5 134.7,79.5 135.5,72.5" fill="#ff9955"/>
+          <polygon points="116.6,67.4 113.8,73.9 116.7,75.6 120.9,69.9" fill="#ff9955"/>
+          <polygon points="107.1,56.1 101.4,60.3 103.1,63.2 109.6,60.4" fill="#ff9955"/>
+          <polygon points="104.5,41.5 97.5,42.3 97.5,45.7 104.5,46.5" fill="#ff9955"/>
+          <polygon points="109.6,27.6 103.1,24.8 101.4,27.7 107.1,31.9" fill="#ff9955"/>
+          <polygon points="120.9,18.1 116.7,12.4 113.8,14.1 116.6,20.6" fill="#ff9955"/>
+          <polygon points="135.5,15.5 134.7,8.5 131.3,8.5 130.5,15.5" fill="#ff9955"/>
+          <polygon points="149.4,20.6 152.2,14.1 149.3,12.4 145.1,18.1" fill="#ff9955"/>
+          <polygon points="158.9,31.9 164.6,27.7 162.9,24.8 156.4,27.6" fill="#ff9955"/>
+          </g>
+          <!-- Cyan fringe -->
+          <g transform="translate(-1, -0.5)" opacity="0.3">
+            <polygon points="161.5,46.5 168.5,45.7 168.5,42.3 161.5,41.5" fill="#00ffff"/>
+          <polygon points="156.4,60.4 162.9,63.2 164.6,60.3 158.9,56.1" fill="#00ffff"/>
+          <polygon points="145.1,69.9 149.3,75.6 152.2,73.9 149.4,67.4" fill="#00ffff"/>
+          <polygon points="130.5,72.5 131.3,79.5 134.7,79.5 135.5,72.5" fill="#00ffff"/>
+          <polygon points="116.6,67.4 113.8,73.9 116.7,75.6 120.9,69.9" fill="#00ffff"/>
+          <polygon points="107.1,56.1 101.4,60.3 103.1,63.2 109.6,60.4" fill="#00ffff"/>
+          <polygon points="104.5,41.5 97.5,42.3 97.5,45.7 104.5,46.5" fill="#00ffff"/>
+          <polygon points="109.6,27.6 103.1,24.8 101.4,27.7 107.1,31.9" fill="#00ffff"/>
+          <polygon points="120.9,18.1 116.7,12.4 113.8,14.1 116.6,20.6" fill="#00ffff"/>
+          <polygon points="135.5,15.5 134.7,8.5 131.3,8.5 130.5,15.5" fill="#00ffff"/>
+          <polygon points="149.4,20.6 152.2,14.1 149.3,12.4 145.1,18.1" fill="#00ffff"/>
+          <polygon points="158.9,31.9 164.6,27.7 162.9,24.8 156.4,27.6" fill="#00ffff"/>
+          </g>
+          <!-- Magenta fringe -->
+          <g transform="translate(1, 0.5)" opacity="0.3">
+            <polygon points="161.5,46.5 168.5,45.7 168.5,42.3 161.5,41.5" fill="#ff00ff"/>
+          <polygon points="156.4,60.4 162.9,63.2 164.6,60.3 158.9,56.1" fill="#ff00ff"/>
+          <polygon points="145.1,69.9 149.3,75.6 152.2,73.9 149.4,67.4" fill="#ff00ff"/>
+          <polygon points="130.5,72.5 131.3,79.5 134.7,79.5 135.5,72.5" fill="#ff00ff"/>
+          <polygon points="116.6,67.4 113.8,73.9 116.7,75.6 120.9,69.9" fill="#ff00ff"/>
+          <polygon points="107.1,56.1 101.4,60.3 103.1,63.2 109.6,60.4" fill="#ff00ff"/>
+          <polygon points="104.5,41.5 97.5,42.3 97.5,45.7 104.5,46.5" fill="#00ffff"/>
+          <polygon points="109.6,27.6 103.1,24.8 101.4,27.7 107.1,31.9" fill="#ff00ff"/>
+          <polygon points="120.9,18.1 116.7,12.4 113.8,14.1 116.6,20.6" fill="#ff00ff"/>
+          <polygon points="135.5,15.5 134.7,8.5 131.3,8.5 130.5,15.5" fill="#ff00ff"/>
+          <polygon points="149.4,20.6 152.2,14.1 149.3,12.4 145.1,18.1" fill="#ff00ff"/>
+          <polygon points="158.9,31.9 164.6,27.7 162.9,24.8 156.4,27.6" fill="#ff00ff"/>
+          </g>
+          <!-- Main teeth -->
+          <polygon points="161.5,46.5 168.5,45.7 168.5,42.3 161.5,41.5" fill="url(#holoGradient)"/>
+          <polygon points="156.4,60.4 162.9,63.2 164.6,60.3 158.9,56.1" fill="url(#holoGradient)"/>
+          <polygon points="145.1,69.9 149.3,75.6 152.2,73.9 149.4,67.4" fill="url(#holoGradient)"/>
+          <polygon points="130.5,72.5 131.3,79.5 134.7,79.5 135.5,72.5" fill="url(#holoGradient)"/>
+          <polygon points="116.6,67.4 113.8,73.9 116.7,75.6 120.9,69.9" fill="url(#holoGradient)"/>
+          <polygon points="107.1,56.1 101.4,60.3 103.1,63.2 109.6,60.4" fill="url(#holoGradient)"/>
+          <polygon points="104.5,41.5 97.5,42.3 97.5,45.7 104.5,46.5" fill="url(#holoGradient)"/>
+          <polygon points="109.6,27.6 103.1,24.8 101.4,27.7 107.1,31.9" fill="url(#holoGradient)"/>
+          <polygon points="120.9,18.1 116.7,12.4 113.8,14.1 116.6,20.6" fill="url(#holoGradient)"/>
+          <polygon points="135.5,15.5 134.7,8.5 131.3,8.5 130.5,15.5" fill="url(#holoGradient)"/>
+          <polygon points="149.4,20.6 152.2,14.1 149.3,12.4 145.1,18.1" fill="url(#holoGradient)"/>
+          <polygon points="158.9,31.9 164.6,27.7 162.9,24.8 156.4,27.6" fill="url(#holoGradient)"/>
+        </g>
+      </g>
+    </g>
+    <g opacity="0.5">
+      <clipPath id="fullCogClip">
+        <path d="M 161.3,68.6 
+        A 37.5,37.5 0 1,1 161.3,19.4
+        L 144.7,33.8
+        A 15.5,15.5 0 1,0 144.7,54.2
+        Z" fill="white"/>
+      </clipPath>
+      <rect x="87.48599999999999" y="-1.5" 
+            width="91.0" height="91.0" 
+            fill="url(#holoScanlines)" clip-path="url(#fullCogClip)"/>
+    </g>
+    <g opacity="0.5">
+      <path d="M 154.5,62.7 A 28.5,28.5 0 1,1 154.5,25.3" fill="none" stroke="#ff9955" stroke-width="1" stroke-linecap="round"/>
+    </g>
+    </g>
+  <g filter="url(#mt_24945_glow)" opacity="0.6">
+  <path d="M196 0Q157 0 124.0 20.0Q91 40 71.0 73.0Q51 106 51 145V435Q51 474 71.0 507.0Q91 540 124.0 560.0Q157 580 196 580H494Q534 580 567.0 560.0Q600 540 619.5 507.0Q639 474 639 435V145Q639 106 619.5 73.0Q600 40 567.0 20.0Q534 0 494 0H196ZM204 153H486Q486 153 486.0 153.0Q486 153 486 153V427Q486 427 486.0 427.0Q486 427 486 427H204Q204 427 204.0 427.0Q204 427 204 427V153Q204 153 204.0 153.0Q204 153 204 153Z" fill="#6b8cce" transform="translate(160.99, 73.00) scale(0.058000, -0.058000)"/>
+  <path d="M133 -229V-75H477Q477 -75 477.0 -75.0Q477 -75 477 -75V0H187Q147 0 114.0 20.0Q81 40 61.0 73.0Q41 106 41 145V435Q41 474 61.0 507.0Q81 540 114.0 560.0Q147 580 187 580H485Q525 580 558.0 560.0Q591 540 610.5 507.0Q630 474 630 435V-84Q630 -124 610.5 -157.0Q591 -190 558.0 -209.5Q525 -229 485 -229ZM194 153H477Q477 153 477.0 153.0Q477 153 477 153V427Q477 427 477.0 427.0Q477 427 477 427H194Q194 427 194.0 427.0Q194 427 194 427V153Q194 153 194.0 153.0Q194 153 194 153Z" fill="#6b8cce" transform="translate(198.12, 73.00) scale(0.058000, -0.058000)"/>
+  </g>
+  <g opacity="0.3">
+  <path d="M196 0Q157 0 124.0 20.0Q91 40 71.0 73.0Q51 106 51 145V435Q51 474 71.0 507.0Q91 540 124.0 560.0Q157 580 196 580H494Q534 580 567.0 560.0Q600 540 619.5 507.0Q639 474 639 435V145Q639 106 619.5 73.0Q600 40 567.0 20.0Q534 0 494 0H196ZM204 153H486Q486 153 486.0 153.0Q486 153 486 153V427Q486 427 486.0 427.0Q486 427 486 427H204Q204 427 204.0 427.0Q204 427 204 427V153Q204 153 204.0 153.0Q204 153 204 153Z" fill="#000000" transform="translate(162.99, 75.00) scale(0.058000, -0.058000)"/>
+  <path d="M133 -229V-75H477Q477 -75 477.0 -75.0Q477 -75 477 -75V0H187Q147 0 114.0 20.0Q81 40 61.0 73.0Q41 106 41 145V435Q41 474 61.0 507.0Q81 540 114.0 560.0Q147 580 187 580H485Q525 580 558.0 560.0Q591 540 610.5 507.0Q630 474 630 435V-84Q630 -124 610.5 -157.0Q591 -190 558.0 -209.5Q525 -229 485 -229ZM194 153H477Q477 153 477.0 153.0Q477 153 477 153V427Q477 427 477.0 427.0Q477 427 477 427H194Q194 427 194.0 427.0Q194 427 194 427V153Q194 153 194.0 153.0Q194 153 194 153Z" fill="#000000" transform="translate(200.12, 75.00) scale(0.058000, -0.058000)"/>
+  </g>
+  <g filter="url(#mt_24945_bevel)">
+  <path d="M196 0Q157 0 124.0 20.0Q91 40 71.0 73.0Q51 106 51 145V435Q51 474 71.0 507.0Q91 540 124.0 560.0Q157 580 196 580H494Q534 580 567.0 560.0Q600 540 619.5 507.0Q639 474 639 435V145Q639 106 619.5 73.0Q600 40 567.0 20.0Q534 0 494 0H196ZM204 153H486Q486 153 486.0 153.0Q486 153 486 153V427Q486 427 486.0 427.0Q486 427 486 427H204Q204 427 204.0 427.0Q204 427 204 427V153Q204 153 204.0 153.0Q204 153 204 153Z" fill="url(#mt_24945_grad)" transform="translate(160.99, 73.00) scale(0.058000, -0.058000)"/>
+  <path d="M133 -229V-75H477Q477 -75 477.0 -75.0Q477 -75 477 -75V0H187Q147 0 114.0 20.0Q81 40 61.0 73.0Q41 106 41 145V435Q41 474 61.0 507.0Q81 540 114.0 560.0Q147 580 187 580H485Q525 580 558.0 560.0Q591 540 610.5 507.0Q630 474 630 435V-84Q630 -124 610.5 -157.0Q591 -190 558.0 -209.5Q525 -229 485 -229ZM194 153H477Q477 153 477.0 153.0Q477 153 477 153V427Q477 427 477.0 427.0Q477 427 477 427H194Q194 427 194.0 427.0Q194 427 194 427V153Q194 153 194.0 153.0Q194 153 194 153Z" fill="url(#mt_24945_grad)" transform="translate(198.12, 73.00) scale(0.058000, -0.058000)"/>
+  </g>
+  <text x="15" y="97" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="500" fill="#4a6fa5" letter-spacing="3">RECURSIVE COGNITION ENGINE</text>
+  <line x1="15" y1="82" x2="95" y2="82" stroke="#6b8cce" stroke-width="1" opacity="0.25"/>
+  <line x1="147.736" y1="82" x2="237.736" y2="82" stroke="#6b8cce" stroke-width="1" opacity="0.25"/>
+</svg>

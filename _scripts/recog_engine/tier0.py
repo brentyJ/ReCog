@@ -1,5 +1,5 @@
 """
-ReCog Engine - Tier 0 Pre-Annotation Processor v0.2
+ReCog Engine - Tier 0 Pre-Annotation Processor v0.3
 
 Copyright (c) 2025 Brent Lefebure / EhkoLabs
 Licensed under AGPLv3 - See LICENSE in repository root
@@ -10,12 +10,17 @@ Runs on every document/chunk to flag emotion markers, intensity,
 entities, temporal references, and question patterns.
 
 This is the FREE processing tier - no API calls required.
+
+v0.3 Changes:
+- Added confidence scoring for person entities (HIGH/MEDIUM/LOW)
+- Added blacklist support for rejected entities
+- Added common English words filter for better false positive reduction
 """
 
 import re
 import json
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Set
 
 
 # =============================================================================
@@ -119,12 +124,13 @@ SELF_INQUIRY_PATTERNS = [
     r"do I (really|actually|even)",
 ]
 
-# Common titles/indicators for people
+# Common titles/indicators for people - these BOOST confidence
 PEOPLE_TITLES = [
     "Mr", "Mrs", "Ms", "Dr", "Mum", "Mom", "Dad", "Father", "Mother",
     "Uncle", "Aunt", "Grandma", "Grandpa", "Gran", "Pop", "Nan",
     "Brother", "Sister", "Son", "Daughter", "Wife", "Husband",
-    "Boss", "Manager", "Teacher", "Coach", "Therapist"
+    "Boss", "Manager", "Teacher", "Coach", "Therapist", "Professor",
+    "Officer", "Detective", "Sergeant", "Captain", "Pastor", "Reverend"
 ]
 
 # Words that are often capitalised but are NOT people names
@@ -208,17 +214,178 @@ NON_NAME_CAPITALS = {
     "AI", "ML", "IT", "HR", "CEO", "CTO", "CFO", "PM", "AM", "PM",
 }
 
+# =============================================================================
+# COMMON ENGLISH WORDS - Words that are valid English but unlikely to be names
+# These get flagged as LOW confidence when capitalised mid-sentence
+# =============================================================================
+
+COMMON_ENGLISH_WORDS = {
+    # Emotions/states as nouns (often in titles like "Monday Morning Dread")
+    "dread", "fear", "hope", "love", "hate", "joy", "grief", "rage", "calm",
+    "peace", "stress", "anxiety", "panic", "bliss", "pain", "ache", "relief",
+    
+    # Abstract nouns commonly capitalised in titles
+    "point", "break", "change", "shift", "start", "end", "rise", "fall",
+    "truth", "lies", "life", "death", "time", "space", "light", "dark",
+    "power", "force", "mind", "body", "soul", "spirit", "heart", "dream",
+    
+    # Actions/verbs that appear capitalised
+    "woke", "wake", "broke", "break", "spoke", "speak", "wrote", "write",
+    "drove", "drive", "chose", "choose", "froze", "freeze", "rose", "rise",
+    "fell", "fall", "grew", "grow", "knew", "know", "threw", "throw",
+    "flew", "fly", "drew", "draw", "wore", "wear", "tore", "tear",
+    "bit", "bite", "hit", "quit", "split", "cut", "shut", "hurt",
+    
+    # Common words that get capitalised in informal writing
+    "yay", "wow", "ooh", "ahh", "ugh", "hmm", "huh", "meh", "nah", "yep",
+    "nope", "yeah", "okay", "alright", "whatever", "anyway", "besides",
+    
+    # Food/drink that might appear capitalised
+    "pinot", "merlot", "shiraz", "champagne", "prosecco", "whiskey", "bourbon",
+    "coffee", "latte", "mocha", "espresso", "chai", "matcha",
+    
+    # Days/time words
+    "morning", "afternoon", "evening", "night", "noon", "midnight", "dawn", "dusk",
+    "weekend", "weekday", "holiday", "vacation",
+    
+    # Directions and positions
+    "north", "south", "east", "west", "left", "right", "up", "down",
+    "front", "back", "top", "bottom", "side", "middle", "center",
+    
+    # Common adjectives that appear capitalised
+    "big", "small", "old", "young", "new", "good", "bad", "best", "worst",
+    "great", "grand", "major", "minor", "prime", "chief", "main",
+    
+    # Misc common words
+    "just", "only", "even", "still", "yet", "already", "always", "never",
+    "ever", "often", "sometimes", "usually", "rarely", "perhaps", "maybe",
+    "probably", "possibly", "certainly", "definitely", "absolutely",
+}
+
+# Pre-compute lowercase sets for case-insensitive matching
+NON_NAME_CAPITALS_LOWER = {w.lower() for w in NON_NAME_CAPITALS}
+COMMON_ENGLISH_WORDS_LOWER = {w.lower() for w in COMMON_ENGLISH_WORDS}
+PEOPLE_TITLES_LOWER = {t.lower() for t in PEOPLE_TITLES}
+
+# =============================================================================
+# BLACKLIST SUPPORT
+# =============================================================================
+
+# Runtime blacklist - loaded from database
+_entity_blacklist: Set[str] = set()
+
+
+def load_blacklist_from_db(db_path) -> Set[str]:
+    """
+    Load blacklisted entity values from database.
+    Call this at startup or when blacklist changes.
+    """
+    global _entity_blacklist
+    import sqlite3
+    
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT normalised_value FROM entity_blacklist 
+            WHERE entity_type = 'person'
+        """)
+        _entity_blacklist = {row[0].lower() for row in cursor.fetchall()}
+        conn.close()
+    except Exception:
+        _entity_blacklist = set()
+    
+    return _entity_blacklist
+
+
+def add_to_blacklist(value: str) -> None:
+    """Add a value to the runtime blacklist."""
+    _entity_blacklist.add(value.lower())
+
+
+def is_blacklisted(value: str) -> bool:
+    """Check if a value is in the blacklist."""
+    return value.lower() in _entity_blacklist
+
+
+def get_blacklist() -> Set[str]:
+    """Get current blacklist."""
+    return _entity_blacklist.copy()
+
+
+# =============================================================================
+# CONFIDENCE SCORING
+# =============================================================================
+
+class Confidence:
+    """Entity confidence levels."""
+    HIGH = "high"      # Very likely a name (preceded by title, or known pattern)
+    MEDIUM = "medium"  # Probably a name (capitalised mid-sentence, passes filters)
+    LOW = "low"        # Uncertain (common word, short, suspicious pattern)
+
+
+def score_person_confidence(
+    word: str,
+    preceded_by_title: bool = False,
+    is_title: bool = False,
+    context_words: List[str] = None
+) -> str:
+    """
+    Score confidence that a word is a person's name.
+    
+    Returns: 'high', 'medium', or 'low'
+    """
+    word_lower = word.lower()
+    
+    # HIGH confidence indicators
+    if preceded_by_title or is_title:
+        return Confidence.HIGH
+    
+    # Check for name-like patterns (e.g., followed by possessive or relational verb)
+    if context_words:
+        next_words = [w.lower() for w in context_words[:3]]
+        # "Marcus said", "Sarah's", "John told me"
+        if any(w in ["said", "says", "told", "asked", "replied", "'s", "is", "was", "has", "had"] for w in next_words):
+            return Confidence.HIGH
+    
+    # LOW confidence indicators
+    
+    # Too short (2-3 chars after cleaning)
+    if len(word) < 4:
+        return Confidence.LOW
+    
+    # Is a common English word
+    if word_lower in COMMON_ENGLISH_WORDS_LOWER:
+        return Confidence.LOW
+    
+    # Ends in common non-name suffixes
+    non_name_suffixes = ('ing', 'tion', 'ment', 'ness', 'able', 'ible', 'ful', 'less', 'ous', 'ive', 'ity', 'ism')
+    if word_lower.endswith(non_name_suffixes):
+        return Confidence.LOW
+    
+    # Is blacklisted
+    if is_blacklisted(word):
+        return Confidence.LOW
+    
+    # Contains numbers (unlikely for names)
+    if any(c.isdigit() for c in word):
+        return Confidence.LOW
+    
+    # All remaining cases - MEDIUM confidence
+    return Confidence.MEDIUM
+
 
 # =============================================================================
 # PROCESSING FUNCTIONS
 # =============================================================================
 
-def preprocess_text(text: str) -> Dict[str, Any]:
+def preprocess_text(text: str, include_low_confidence: bool = True) -> Dict[str, Any]:
     """
     Run Tier 0 pre-annotation on raw text.
     
     Args:
         text: Raw text to analyse
+        include_low_confidence: If False, exclude LOW confidence entities from results
         
     Returns:
         JSON-serialisable dict with extracted signals
@@ -227,7 +394,7 @@ def preprocess_text(text: str) -> Dict[str, Any]:
         return _empty_result()
     
     result = {
-        "version": "0.1",
+        "version": "0.3",
         "processed_at": datetime.utcnow().isoformat() + "Z",
         "word_count": 0,
         "char_count": len(text),
@@ -249,7 +416,7 @@ def preprocess_text(text: str) -> Dict[str, Any]:
     result["intensity_markers"] = extract_intensity_markers(text)
     result["question_analysis"] = analyse_questions(text, len(words))
     result["temporal_references"] = extract_temporal_refs(text)
-    result["entities"] = extract_basic_entities(text)
+    result["entities"] = extract_basic_entities(text, include_low_confidence=include_low_confidence)
     result["structural"] = analyse_structure(text)
     
     # Compute composite flags
@@ -261,7 +428,7 @@ def preprocess_text(text: str) -> Dict[str, Any]:
 def _empty_result() -> Dict[str, Any]:
     """Return empty result structure for empty/null input."""
     return {
-        "version": "0.1",
+        "version": "0.3",
         "processed_at": datetime.utcnow().isoformat() + "Z",
         "word_count": 0,
         "char_count": 0,
@@ -466,29 +633,31 @@ def extract_email_addresses(text: str) -> List[Dict]:
     return emails
 
 
-# Pre-compute lowercase set for case-insensitive matching
-NON_NAME_CAPITALS_LOWER = {w.lower() for w in NON_NAME_CAPITALS}
-
-
-def extract_basic_entities(text: str) -> Dict:
+def extract_basic_entities(text: str, include_low_confidence: bool = True) -> Dict:
     """
     Entity extraction: people, phone numbers, emails.
-    No NLP library required.
+    Now with confidence scoring for people.
+    
+    Args:
+        text: Text to extract from
+        include_low_confidence: If False, exclude LOW confidence people
+    
+    Returns:
+        Dict with people (now includes confidence), phone_numbers, email_addresses
     """
     # Extract phones and emails
     phones = extract_phone_numbers(text)
     emails = extract_email_addresses(text)
     
-    # Extract people (capitalised words, titles)
-    # Split on sentence boundaries AND common mid-sentence breaks
+    # Extract people (capitalised words, titles) with confidence
     sentences = re.split(r'[.!?]|(?<=["\'])\s+(?=[A-Z])|:\s+', text)
-    people = []
+    people = []  # Now list of dicts with 'name' and 'confidence'
+    seen_names = set()
     
     for sentence in sentences:
         words = sentence.split()
         for i, word in enumerate(words):
-            if i == 0:
-                continue  # Skip sentence starters
+            at_sentence_start = (i == 0)
             
             clean = re.sub(r"[^a-zA-Z']", "", word)
             if not clean:
@@ -497,6 +666,10 @@ def extract_basic_entities(text: str) -> Dict:
             # Skip if too short (likely abbreviation or noise)
             if len(clean) < 3:
                 continue
+            
+            # Skip if already seen
+            if clean.lower() in seen_names:
+                continue
                 
             # Check if capitalised
             if clean[0].isupper():
@@ -504,36 +677,59 @@ def extract_basic_entities(text: str) -> Dict:
                 if clean.lower() in NON_NAME_CAPITALS_LOWER:
                     continue
                 
+                # Skip if ALL CAPS (likely emphasis, not names)
+                if clean.isupper():
+                    continue
+                
+                # Skip if it looks like a contraction fragment
+                if "'" in clean and not clean.endswith("'s"):
+                    continue
+                
+                # Determine confidence boosters
+                preceded_by_title = False
+                is_title = False
+                context_words = words[i+1:i+4] if i+1 < len(words) else []
+                
                 # Check if preceded by title
                 if i > 0:
                     prev = re.sub(r"[^a-zA-Z]", "", words[i-1])
                     if prev in PEOPLE_TITLES:
-                        people.append(clean)
-                        continue
+                        preceded_by_title = True
                 
-                # Check if it IS a title
+                # Check if it IS a title (Mum, Dad, etc.)
                 if clean in PEOPLE_TITLES:
-                    people.append(clean)
+                    is_title = True
+                
+                # Score confidence
+                confidence = score_person_confidence(
+                    clean,
+                    preceded_by_title=preceded_by_title,
+                    is_title=is_title,
+                    context_words=context_words
+                )
+                
+                # Sentence-start names get downgraded (could just be capitalised word)
+                if at_sentence_start and confidence == Confidence.MEDIUM:
+                    confidence = Confidence.LOW
+                
+                # Skip low confidence if requested
+                if not include_low_confidence and confidence == Confidence.LOW:
                     continue
                 
-                # Additional heuristics to reduce false positives:
-                # 1. Skip words that are ALL CAPS (likely emphasis, not names)
-                if clean.isupper():
-                    continue
-                
-                # 2. Skip words ending in common non-name suffixes
-                if clean.lower().endswith(('ing', 'tion', 'ment', 'ness', 'able', 'ible', 'ful', 'less', 'ous', 'ive')):
-                    continue
-                
-                # 3. Skip if it looks like a contraction fragment
-                if "'" in clean and not clean.endswith("'s"):
-                    continue
-                
-                # Passed all filters - likely a name
-                people.append(clean)
+                # Add to results
+                seen_names.add(clean.lower())
+                people.append({
+                    'name': clean,
+                    'confidence': confidence,
+                })
+    
+    # Sort by confidence (high first) and limit
+    confidence_order = {Confidence.HIGH: 0, Confidence.MEDIUM: 1, Confidence.LOW: 2}
+    people.sort(key=lambda p: confidence_order.get(p['confidence'], 2))
+    people = people[:15]  # Increased limit since we have confidence now
     
     return {
-        "people": list(set(people))[:10],
+        "people": people,
         "phone_numbers": phones[:20],
         "email_addresses": emails[:20],
         "places": [],  # Would need NER for reliable place detection
@@ -634,10 +830,14 @@ def summarise_for_prompt(pre_annotation: Dict) -> str:
         past_refs = pre_annotation["temporal_references"]["past"][:3]
         parts.append(f"Past references: {', '.join(past_refs)}")
     
-    # People
-    if pre_annotation.get("entities", {}).get("people"):
-        people = pre_annotation["entities"]["people"][:5]
-        parts.append(f"People mentioned: {', '.join(people)}")
+    # People - now with confidence
+    people = pre_annotation.get("entities", {}).get("people", [])
+    if people:
+        # Filter to HIGH/MEDIUM for prompt summary
+        good_people = [p['name'] if isinstance(p, dict) else p for p in people 
+                       if not isinstance(p, dict) or p.get('confidence') != 'low'][:5]
+        if good_people:
+            parts.append(f"People mentioned: {', '.join(good_people)}")
     
     # Phone numbers
     phones = pre_annotation.get("entities", {}).get("phone_numbers", [])
@@ -669,6 +869,16 @@ def summarise_for_prompt(pre_annotation: Dict) -> str:
     return "\n".join(f"- {p}" for p in parts)
 
 
+def get_low_confidence_entities(pre_annotation: Dict) -> List[Dict]:
+    """
+    Extract entities that need LLM validation (LOW confidence).
+    
+    Returns list of entities for Tier 0.5 validation.
+    """
+    people = pre_annotation.get("entities", {}).get("people", [])
+    return [p for p in people if isinstance(p, dict) and p.get('confidence') == 'low']
+
+
 def to_json(pre_annotation: Dict) -> str:
     """Serialise pre-annotation to JSON string for database storage."""
     return json.dumps(pre_annotation, ensure_ascii=False)
@@ -692,14 +902,19 @@ class Tier0Processor:
     """Wrapper class for Tier 0 processing (stateless)."""
     
     @staticmethod
-    def process(text: str) -> Dict[str, Any]:
+    def process(text: str, include_low_confidence: bool = True) -> Dict[str, Any]:
         """Process text and return pre-annotation."""
-        return preprocess_text(text)
+        return preprocess_text(text, include_low_confidence=include_low_confidence)
     
     @staticmethod
     def summarise(pre_annotation: Dict) -> str:
         """Summarise pre-annotation for prompts."""
         return summarise_for_prompt(pre_annotation)
+    
+    @staticmethod
+    def get_entities_for_validation(pre_annotation: Dict) -> List[Dict]:
+        """Get LOW confidence entities that need LLM validation."""
+        return get_low_confidence_entities(pre_annotation)
 
 
 # =============================================================================
@@ -707,11 +922,16 @@ class Tier0Processor:
 # =============================================================================
 
 __all__ = [
+    # Classes
     "Tier0Processor",
+    "Confidence",
+    # Main functions
     "preprocess_text",
     "summarise_for_prompt",
+    "get_low_confidence_entities",
     "to_json",
     "from_json",
+    # Extraction functions
     "extract_phone_numbers",
     "extract_email_addresses",
     "extract_basic_entities",
@@ -721,6 +941,13 @@ __all__ = [
     "extract_temporal_refs",
     "analyse_structure",
     "compute_flags",
+    "score_person_confidence",
+    # Blacklist functions
+    "load_blacklist_from_db",
+    "add_to_blacklist",
+    "is_blacklisted",
+    "get_blacklist",
+    # Constants
     "EMOTION_KEYWORDS",
     "INTENSIFIERS",
     "HEDGES",
@@ -729,4 +956,7 @@ __all__ = [
     "EMAIL_PATTERN",
     "NON_NAME_CAPITALS",
     "NON_NAME_CAPITALS_LOWER",
+    "COMMON_ENGLISH_WORDS",
+    "COMMON_ENGLISH_WORDS_LOWER",
+    "PEOPLE_TITLES",
 ]
