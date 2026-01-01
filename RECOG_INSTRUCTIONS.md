@@ -40,7 +40,7 @@
 
 ## 3. VAULT STRUCTURE
 
-**Root:** `G:\Other computers\Ehko\Obsidian\ReCog\`
+**Root:** `C:\EhkoVaults\ReCog\`
 
 ```
 ReCog/

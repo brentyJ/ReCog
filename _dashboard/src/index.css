@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ReCog Clinical Green Theme - Data-focused aesthetic */
+    --background: 216 20% 12%;        /* Dark slate background */
+    --foreground: 150 10% 95%;        /* Off-white text */
+    
+    --primary: 150 45% 60%;            /* ReCog green #7ed99b */
+    --primary-foreground: 216 20% 12%;
+    
+    --secondary: 216 20% 18%;          /* Darker slate */
+    --secondary-foreground: 150 10% 95%;
+    
+    --success: 150 45% 60%;            /* Green for confirmed */
+    --success-foreground: 216 20% 12%;
+    
+    --warning: 45 90% 60%;             /* Amber for pending */
+    --warning-foreground: 216 20% 12%;
+    
+    --destructive: 0 65% 55%;          /* Red for errors */
+    --destructive-foreground: 150 10% 95%;
+    
+    --muted: 216 20% 18%;
+    --muted-foreground: 150 5% 55%;
+    
+    --border: 216 20% 22%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Clinical data table styles */
+.data-table {
+  @apply w-full border-collapse;
+}
+
+.data-table th {
+  @apply bg-secondary text-left px-4 py-3 text-sm font-semibold text-muted-foreground border-b border-border;
+}
+
+.data-table td {
+  @apply px-4 py-3 text-sm border-b border-border;
+}
+
+.data-table tr:hover {
+  @apply bg-secondary/50;
+}
+
+/* Status badges */
+.status-confirmed {
+  @apply bg-success/20 text-success border border-success/30;
+}
+
+.status-pending {
+  @apply bg-warning/20 text-warning border border-warning/30;
+}
+
+.status-unknown {
+  @apply bg-muted text-muted-foreground border border-border;
+}
+
+/* Card styles - clean, data-focused */
+.recog-card {
+  @apply bg-secondary/40 border border-border rounded-lg p-6;
+}
+
+.recog-card-header {
+  @apply mb-4 pb-3 border-b border-border;
+}
+
+.recog-card-title {
+  @apply text-lg font-semibold text-foreground;
+}
+
+.recog-card-description {
+  @apply text-sm text-muted-foreground mt-1;
+}
