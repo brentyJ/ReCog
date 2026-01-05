@@ -1,0 +1,360 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =============================================================================
+   RECOG DESIGN SYSTEM v1.0
+   Terminal aesthetic for cognitive processing
+   ============================================================================= */
+
+@layer base {
+  :root {
+    /* =========================================================================
+       COLOR SYSTEM - ReCog Holographic Theme
+       ========================================================================= */
+    
+    /* Backgrounds - Deep void layers */
+    --background: 218 28% 5%;        /* #080a0e - Deep void */
+    --foreground: 220 50% 93%;       /* #e8eef8 - Primary text */
+    
+    --card: 218 25% 7%;              /* #0c1018 - Surface */
+    --card-foreground: 220 50% 93%;
+    
+    --popover: 218 25% 7%;
+    --popover-foreground: 220 50% 93%;
+    
+    /* Primary - Orange (Cognitive Operations) */
+    --primary: 24 100% 67%;          /* #ff9955 - Orange light */
+    --primary-foreground: 218 28% 5%;
+    
+    /* Secondary - Blue (Structural Data) */
+    --secondary: 220 20% 10%;        /* #111620 - Elevated */
+    --secondary-foreground: 220 50% 93%;
+    
+    /* Muted */
+    --muted: 220 20% 10%;
+    --muted-foreground: 217 33% 57%; /* #8aa4d6 - Text secondary */
+    
+    /* Accent - Orange mid */
+    --accent: 24 58% 57%;            /* #d97e4a - Orange mid */
+    --accent-foreground: 218 28% 5%;
+    
+    /* Destructive */
+    --destructive: 0 54% 65%;        /* #d97373 - Error */
+    --destructive-foreground: 220 50% 93%;
+    
+    /* Border */
+    --border: 220 25% 13%;           /* #1a2030 - Subtle */
+    --input: 220 20% 17%;            /* #2a3448 - Default */
+    --ring: 24 58% 57%;              /* Orange mid for focus */
+    
+    --radius: 0.5rem;
+    
+    /* =========================================================================
+       RECOG EXTENDED COLORS - Terminal & Effects
+       ========================================================================= */
+    
+    /* Background Layers */
+    --bg-void: #080a0e;
+    --bg-surface: #0c1018;
+    --bg-tertiary: #111620;
+    --bg-elevated: #161c28;
+    
+    /* Orange Palette - Cognition */
+    --orange-light: #ff9955;
+    --orange-mid: #d97e4a;
+    --orange-dark: #a55d35;
+    
+    /* Blue Palette - Structure */
+    --blue-light: #8aa4d6;
+    --blue-mid: #6b8cce;
+    --blue-dark: #4a6fa5;
+    --blue-muted: #5879b0;
+    
+    /* Tether States */
+    --tether-active: #5fb3a1;        /* Teal - connected */
+    --tether-pending: #f39c12;       /* Amber - verifying */
+    --tether-inactive: #718096;      /* Gray - disconnected */
+    --tether-error: #e74c3c;         /* Red - error */
+    
+    /* Processing States */
+    --processing: #d97e9b;           /* Magenta - LLM thinking */
+    
+    /* Glow Effects */
+    --glow-orange: rgba(255, 153, 85, 0.4);
+    --glow-blue: rgba(107, 140, 206, 0.3);
+    --glow-teal: rgba(95, 179, 161, 0.4);
+    --glow-magenta: rgba(217, 126, 155, 0.4);
+    
+    /* Terminal Effects */
+    --scanline-subtle: rgba(107, 140, 206, 0.02);
+    --border-accent: rgba(107, 140, 206, 0.3);
+    --border-focus: rgba(107, 140, 206, 0.6);
+    
+    /* Typography */
+    --font-mono: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+  }
+}
+
+/* =============================================================================
+   BASE STYLES
+   ============================================================================= */
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.5;
+    
+    /* Subtle room glow - terminal in dark space */
+    background-image:
+      radial-gradient(circle at 50% -10%, rgba(107, 140, 206, 0.15), transparent 55%);
+    background-attachment: fixed;
+  }
+}
+
+/* =============================================================================
+   RECOG COMPONENT UTILITIES
+   ============================================================================= */
+
+@layer utilities {
+  /* Terminal Card - Base card with corner brackets */
+  .recog-card {
+    @apply bg-card border border-border rounded-lg p-5 relative transition-all duration-200;
+  }
+  
+  /* Terminal corners */
+  .terminal-corners::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 12px;
+    height: 12px;
+    border-left: 2px solid var(--blue-mid);
+    border-top: 2px solid var(--blue-mid);
+    opacity: 0.4;
+    pointer-events: none;
+  }
+  
+  .terminal-corners::after {
+    content: '';
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 12px;
+    height: 12px;
+    border-right: 2px solid var(--blue-mid);
+    border-bottom: 2px solid var(--blue-mid);
+    opacity: 0.4;
+    pointer-events: none;
+  }
+  
+  /* Glow Effects */
+  .glow-orange {
+    box-shadow: 0 0 8px var(--glow-orange);
+  }
+  
+  .glow-blue {
+    box-shadow: 0 0 8px var(--glow-blue);
+  }
+  
+  .glow-teal {
+    box-shadow: 0 0 8px var(--glow-teal);
+  }
+  
+  .glow-magenta {
+    box-shadow: 0 0 8px var(--glow-magenta);
+  }
+  
+  .glow-cyan {
+    box-shadow: 0 0 12px rgba(0, 255, 255, 0.4);
+  }
+  
+  /* Hover glow variants */
+  .glow-orange-hover {
+    transition: box-shadow 0.25s ease;
+  }
+  
+  .glow-orange-hover:hover {
+    box-shadow: 0 0 12px var(--glow-orange);
+  }
+  
+  .glow-blue-hover {
+    transition: box-shadow 0.25s ease;
+  }
+  
+  .glow-blue-hover:hover {
+    box-shadow: 0 0 12px var(--glow-blue);
+  }
+  
+  /* Text Effects */
+  .text-glow {
+    text-shadow: 0 0 6px var(--glow-blue);
+  }
+  
+  .text-glow-orange {
+    text-shadow: 0 0 6px var(--glow-orange);
+  }
+  
+  /* Processing Indicator */
+  .processing-pulse {
+    animation: processing-pulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes processing-pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+  
+  /* Tether Status Colors */
+  .tether-active {
+    color: var(--tether-active);
+  }
+  
+  .tether-pending {
+    color: var(--tether-pending);
+  }
+  
+  .tether-inactive {
+    color: var(--tether-inactive);
+  }
+  
+  .tether-error {
+    color: var(--tether-error);
+  }
+}
+
+/* =============================================================================
+   CUSTOM SCROLLBAR
+   ============================================================================= */
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+    border-radius: 4px;
+    transition: background 0.15s ease;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
+
+/* =============================================================================
+   SCANLINES OVERLAY - Very Subtle CRT Effect
+   ============================================================================= */
+
+.scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  
+  /* Very subtle scanlines - barely visible */
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      var(--scanline-subtle) 2px,
+      var(--scanline-subtle) 4px
+    );
+  
+  mix-blend-mode: soft-light;
+  opacity: 0.6;
+}
+
+/* Screen edge darkening - very subtle */
+.scanlines::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center,
+      transparent 0%,
+      transparent 70%,
+      rgba(0, 0, 0, 0.3) 100%);
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+}
+
+/* =============================================================================
+   RECOG CARD VARIANTS
+   ============================================================================= */
+
+@layer components {
+  /* Card with hover effect */
+  .recog-card-interactive {
+    @apply recog-card terminal-corners cursor-pointer;
+    transition: all 0.25s ease;
+  }
+  
+  .recog-card-interactive:hover {
+    @apply border-orange-mid glow-orange-hover;
+    transform: translateY(-2px);
+    background: var(--bg-tertiary);
+  }
+  
+  /* Card with top accent line */
+  .recog-card-accent::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, 
+      transparent 0%, 
+      var(--orange-mid) 50%, 
+      transparent 100%);
+    opacity: 0.4;
+    pointer-events: none;
+  }
+  
+  /* Processing state card */
+  .recog-card-processing {
+    @apply recog-card terminal-corners;
+    border-color: var(--processing);
+  }
+  
+  .recog-card-processing::before {
+    border-color: var(--processing);
+    animation: processing-pulse 2s ease-in-out infinite;
+  }
+}
+
+/* =============================================================================
+   RESPONSIVE - Reduced Motion
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .scanlines {
+    display: none;
+  }
+  
+  .processing-pulse {
+    animation: none;
+  }
+}

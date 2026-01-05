@@ -282,9 +282,9 @@ RECOG_DEBUG=true python server.py
 ### Project Structure
 
 ```
-ReCog/
+ReCog/ (Backend - This Repository)
 ├── _scripts/
-│   ├── server.py              # Flask API server
+│   ├── server.py              # Flask API server (localhost:5100)
 │   ├── worker.py              # Background queue processor
 │   ├── recog_cli.py           # Command-line interface
 │   ├── recog_engine/          # Core engine modules
@@ -297,15 +297,25 @@ ReCog/
 │   │   ├── insight_store.py   # Insight persistence
 │   │   └── core/providers/    # LLM provider adapters
 │   ├── ingestion/             # File parsers
-│   ├── db.py                  # Database utilities
-│   └── static/                # Web UI
+│   └── db.py                  # Database utilities
 ├── _data/                     # Database and uploads
 ├── _docs/                     # Documentation
+├── _archive/                  # Deprecated UI versions
 ├── tests/                     # Test suite
 ├── Dockerfile
 ├── docker-compose.yml
 └── requirements.txt
+
+C:\EhkoDev\recog-ui/ (Frontend - Separate Repository)
+├── src/
+│   ├── components/            # shadcn/ui components
+│   ├── pages/                 # 6 main pages (Signal, Upload, etc.)
+│   └── lib/                   # API client, utilities
+├── public/                    # Static assets
+└── package.json               # React + Vite (port 3101)
 ```
+
+**Note:** The React UI is developed separately in `C:\EhkoDev\recog-ui`. Old UI versions have been archived in `_archive/`.
 
 ## License
 

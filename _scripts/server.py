@@ -42,6 +42,10 @@ from recog_engine import (
     RelationshipType,
     # Insight Store
     InsightStore,
+    # Case Architecture
+    CaseStore,
+    FindingsStore,
+    TimelineStore,
     # Synth Engine
     SynthEngine,
     ClusterStrategy,
@@ -112,6 +116,11 @@ insight_store = InsightStore(Config.DB_PATH)
 synth_engine = SynthEngine(Config.DB_PATH, insight_store, entity_graph)
 critique_engine = CritiqueEngine(Config.DB_PATH, StrictnessLevel.STANDARD)
 
+# Case architecture stores
+case_store = CaseStore(Config.DB_PATH)
+findings_store = FindingsStore(Config.DB_PATH)
+timeline_store = TimelineStore(Config.DB_PATH)
+
 # Load entity blacklist into tier0 module at startup
 try:
     from recog_engine.tier0 import load_blacklist_from_db
@@ -179,7 +188,7 @@ def info():
     """Server info endpoint."""
     return api_response({
         "name": "ReCog Server",
-        "version": "0.6.0",
+        "version": "0.7.0",
         "endpoints": [
             "/api/health",
             "/api/upload",
@@ -222,6 +231,22 @@ def info():
             "/api/critique",
             "/api/critique/stats",
             "/api/critique/strictness",
+            "/api/cases",
+            "/api/cases/<id>",
+            "/api/cases/<id>/documents",
+            "/api/cases/<id>/stats",
+            "/api/cases/<id>/context",
+            "/api/cases/<id>/findings",
+            "/api/cases/<id>/findings/auto-promote",
+            "/api/cases/<id>/findings/stats",
+            "/api/cases/<id>/timeline",
+            "/api/cases/<id>/timeline/summary",
+            "/api/cases/<id>/timeline/daily",
+            "/api/cases/<id>/activity",
+            "/api/findings",
+            "/api/findings/<id>",
+            "/api/findings/<id>/note",
+            "/api/timeline/<id>/annotate",
         ],
     })
 
@@ -2089,6 +2114,500 @@ def set_critique_strictness():
             error=f"Invalid strictness level. Use: lenient, standard, strict",
             status=400
         )
+
+
+# =============================================================================
+# CASE MANAGEMENT
+# =============================================================================
+
+@app.route("/api/cases", methods=["POST"])
+@require_json
+def create_case():
+    """
+    Create a new case.
+    
+    Body: {
+        "title": "Q3 Sales Investigation",
+        "context": "Revenue dropped 15%, need root cause",
+        "focus_areas": ["pricing", "competition", "market"]
+    }
+    """
+    data = request.get_json()
+    
+    title = data.get("title")
+    if not title:
+        return api_response(error="title required", status=400)
+    
+    case = case_store.create_case(
+        title=title,
+        context=data.get("context", ""),
+        focus_areas=data.get("focus_areas"),
+    )
+    
+    return api_response(case.to_dict())
+
+
+@app.route("/api/cases", methods=["GET"])
+def list_cases():
+    """
+    List all cases.
+    
+    Query params:
+        - status: active, archived
+        - limit: max results (default 100)
+        - offset: pagination offset
+        - order_by: created_at, updated_at, title, document_count
+        - order_dir: ASC or DESC
+    """
+    status = request.args.get("status")
+    limit = int(request.args.get("limit", 100))
+    offset = int(request.args.get("offset", 0))
+    order_by = request.args.get("order_by", "updated_at")
+    order_dir = request.args.get("order_dir", "DESC")
+    
+    result = case_store.list_cases(
+        status=status,
+        limit=limit,
+        offset=offset,
+        order_by=order_by,
+        order_dir=order_dir,
+    )
+    
+    return api_response(result)
+
+
+@app.route("/api/cases/<case_id>", methods=["GET"])
+def get_case(case_id: str):
+    """Get case details by ID."""
+    case = case_store.get_case(case_id)
+    
+    if not case:
+        return api_response(error="Case not found", status=404)
+    
+    return api_response(case.to_dict())
+
+
+@app.route("/api/cases/<case_id>", methods=["PATCH"])
+@require_json
+def update_case(case_id: str):
+    """
+    Update case fields.
+    
+    Body: {
+        "title": "Updated title",
+        "context": "Updated context",
+        "focus_areas": ["new", "areas"],
+        "status": "archived"
+    }
+    """
+    data = request.get_json()
+    
+    success = case_store.update_case(
+        case_id,
+        title=data.get("title"),
+        context=data.get("context"),
+        focus_areas=data.get("focus_areas"),
+        status=data.get("status"),
+    )
+    
+    if success:
+        case = case_store.get_case(case_id)
+        return api_response(case.to_dict())
+    
+    return api_response(error="Case not found or update failed", status=404)
+
+
+@app.route("/api/cases/<case_id>", methods=["DELETE"])
+def delete_case(case_id: str):
+    """Delete a case and all related data (cascade)."""
+    success = case_store.delete_case(case_id)
+    
+    if success:
+        return api_response({"deleted": True, "case_id": case_id})
+    
+    return api_response(error="Case not found", status=404)
+
+
+@app.route("/api/cases/<case_id>/documents", methods=["GET"])
+def list_case_documents(case_id: str):
+    """List all documents in a case."""
+    docs = case_store.list_documents(case_id)
+    return api_response({
+        "case_id": case_id,
+        "documents": docs,
+        "count": len(docs),
+    })
+
+
+@app.route("/api/cases/<case_id>/documents", methods=["POST"])
+@require_json
+def add_case_document(case_id: str):
+    """
+    Add a document to a case.
+    
+    Body: {
+        "document_id": "preflight_item_123",
+        "impact_notes": "This document contains key financial data"
+    }
+    """
+    data = request.get_json()
+    
+    document_id = data.get("document_id")
+    if not document_id:
+        return api_response(error="document_id required", status=400)
+    
+    doc = case_store.add_document(
+        case_id,
+        document_id,
+        impact_notes=data.get("impact_notes", ""),
+    )
+    
+    if doc:
+        return api_response(doc.to_dict())
+    
+    return api_response(error="Case not found or document already linked", status=400)
+
+
+@app.route("/api/cases/<case_id>/documents/<document_id>", methods=["DELETE"])
+def remove_case_document(case_id: str, document_id: str):
+    """Remove a document from a case."""
+    success = case_store.remove_document(case_id, document_id)
+    
+    if success:
+        return api_response({"removed": True, "document_id": document_id})
+    
+    return api_response(error="Document not found in case", status=404)
+
+
+@app.route("/api/cases/<case_id>/stats", methods=["GET"])
+def get_case_stats(case_id: str):
+    """Get detailed statistics for a case."""
+    stats = case_store.get_stats(case_id)
+    
+    if stats:
+        return api_response(stats)
+    
+    return api_response(error="Case not found", status=404)
+
+
+@app.route("/api/cases/<case_id>/context", methods=["GET"])
+def get_case_context(case_id: str):
+    """
+    Get case context formatted for prompt injection.
+    
+    Returns the context string that would be injected into extraction prompts.
+    """
+    context = case_store.get_context(case_id)
+    
+    if context:
+        return api_response({
+            "case_id": case_id,
+            "title": context.title,
+            "context": context.context,
+            "focus_areas": context.focus_areas,
+            "prompt_string": context.to_prompt_string(),
+        })
+    
+    return api_response(error="Case not found", status=404)
+
+
+# =============================================================================
+# FINDINGS MANAGEMENT
+# =============================================================================
+
+@app.route("/api/findings", methods=["POST"])
+@require_json
+def promote_to_finding():
+    """
+    Promote an insight to a finding.
+    
+    Body: {
+        "case_id": "case_uuid",
+        "insight_id": "insight_uuid",
+        "auto_verify": false,
+        "tags": ["important", "key-evidence"],
+        "user_notes": "This is crucial for the investigation"
+    }
+    """
+    data = request.get_json()
+    
+    case_id = data.get("case_id")
+    insight_id = data.get("insight_id")
+    
+    if not case_id or not insight_id:
+        return api_response(error="case_id and insight_id required", status=400)
+    
+    finding = findings_store.promote_insight(
+        case_id,
+        insight_id,
+        auto_verify=data.get("auto_verify", False),
+        tags=data.get("tags"),
+        user_notes=data.get("user_notes", ""),
+    )
+    
+    if finding:
+        return api_response(finding.to_dict())
+    
+    return api_response(error="Case/insight not found or already promoted", status=400)
+
+
+@app.route("/api/cases/<case_id>/findings", methods=["GET"])
+def list_case_findings(case_id: str):
+    """
+    List findings for a case.
+    
+    Query params:
+        - status: verified, needs_verification, rejected
+        - tags: comma-separated tag filter
+        - limit: max results (default 100)
+        - offset: pagination offset
+    """
+    status = request.args.get("status")
+    tags_str = request.args.get("tags")
+    tags = tags_str.split(",") if tags_str else None
+    limit = int(request.args.get("limit", 100))
+    offset = int(request.args.get("offset", 0))
+    
+    result = findings_store.list_findings(
+        case_id,
+        status=status,
+        tags=tags,
+        limit=limit,
+        offset=offset,
+    )
+    
+    return api_response(result)
+
+
+@app.route("/api/findings/<finding_id>", methods=["GET"])
+def get_finding(finding_id: str):
+    """Get a finding by ID."""
+    finding = findings_store.get_finding(finding_id)
+    
+    if not finding:
+        return api_response(error="Finding not found", status=404)
+    
+    return api_response(finding.to_dict())
+
+
+@app.route("/api/findings/<finding_id>", methods=["PATCH"])
+@require_json
+def update_finding(finding_id: str):
+    """
+    Update finding status or tags.
+    
+    Body: {
+        "status": "verified|needs_verification|rejected",
+        "tags": ["updated", "tags"]
+    }
+    """
+    data = request.get_json()
+    
+    status = data.get("status")
+    tags = data.get("tags")
+    
+    if status:
+        success = findings_store.update_status(
+            finding_id,
+            status,
+            verified_by="user",
+        )
+        if not success:
+            return api_response(error="Finding not found", status=404)
+    
+    if tags is not None:
+        findings_store.update_tags(finding_id, tags)
+    
+    finding = findings_store.get_finding(finding_id)
+    return api_response(finding.to_dict() if finding else {"updated": True})
+
+
+@app.route("/api/findings/<finding_id>/note", methods=["POST"])
+@require_json
+def add_finding_note(finding_id: str):
+    """
+    Add or update user notes on a finding.
+    
+    Body: {"note": "My analysis notes..."}
+    """
+    data = request.get_json()
+    note = data.get("note", "")
+    
+    success = findings_store.add_note(finding_id, note)
+    
+    if success:
+        return api_response({"noted": True, "finding_id": finding_id})
+    
+    return api_response(error="Finding not found", status=404)
+
+
+@app.route("/api/findings/<finding_id>", methods=["DELETE"])
+def delete_finding(finding_id: str):
+    """Delete a finding (demote insight back to standalone)."""
+    success = findings_store.delete_finding(finding_id)
+    
+    if success:
+        return api_response({"deleted": True, "finding_id": finding_id})
+    
+    return api_response(error="Finding not found", status=404)
+
+
+@app.route("/api/cases/<case_id>/findings/auto-promote", methods=["POST"])
+@require_json
+def auto_promote_findings(case_id: str):
+    """
+    Auto-promote high-quality insights to findings.
+    
+    Body: {
+        "insight_ids": ["id1", "id2", ...],
+        "min_confidence": 0.7,
+        "min_significance": 0.6
+    }
+    """
+    data = request.get_json()
+    
+    insight_ids = data.get("insight_ids", [])
+    if not insight_ids:
+        return api_response(error="insight_ids required", status=400)
+    
+    result = findings_store.auto_promote_insights(
+        case_id,
+        insight_ids,
+        min_confidence=data.get("min_confidence", 0.7),
+        min_significance=data.get("min_significance", 0.6),
+    )
+    
+    return api_response(result)
+
+
+@app.route("/api/cases/<case_id>/findings/stats", methods=["GET"])
+def get_findings_stats(case_id: str):
+    """Get findings statistics for a case."""
+    stats = findings_store.get_stats(case_id)
+    return api_response(stats)
+
+
+# =============================================================================
+# CASE TIMELINE
+# =============================================================================
+
+@app.route("/api/cases/<case_id>/timeline", methods=["GET"])
+def get_case_timeline(case_id: str):
+    """
+    Get timeline events for a case.
+    
+    Query params:
+        - event_types: comma-separated filter (case_created,doc_added,finding_verified,...)
+        - since: ISO datetime filter (events after)
+        - until: ISO datetime filter (events before)
+        - limit: max results (default 100)
+        - offset: pagination offset
+        - order: ASC (oldest first) or DESC (newest first, default)
+    """
+    event_types_str = request.args.get("event_types")
+    event_types = event_types_str.split(",") if event_types_str else None
+    
+    since = request.args.get("since")
+    until = request.args.get("until")
+    limit = int(request.args.get("limit", 100))
+    offset = int(request.args.get("offset", 0))
+    order = request.args.get("order", "DESC")
+    
+    result = timeline_store.get_timeline(
+        case_id,
+        event_types=event_types,
+        since=since,
+        until=until,
+        limit=limit,
+        offset=offset,
+        order=order,
+    )
+    
+    return api_response(result)
+
+
+@app.route("/api/cases/<case_id>/timeline", methods=["POST"])
+@require_json
+def add_timeline_annotation(case_id: str):
+    """
+    Add a human annotation/note to the timeline.
+    
+    Body: {
+        "note": "Key discovery: This contradicts our initial hypothesis"
+    }
+    """
+    data = request.get_json()
+    note = data.get("note", "")
+    
+    if not note:
+        return api_response(error="note required", status=400)
+    
+    event = timeline_store.log_event(
+        case_id,
+        "note_added",
+        {"note": note},
+        human_annotation=note,
+    )
+    
+    return api_response(event.to_dict())
+
+
+@app.route("/api/timeline/<event_id>/annotate", methods=["POST"])
+@require_json
+def annotate_timeline_event(event_id: str):
+    """
+    Add human annotation to an existing timeline event.
+    
+    Body: {"annotation": "This was a turning point in the investigation"}
+    """
+    data = request.get_json()
+    annotation = data.get("annotation", "")
+    
+    success = timeline_store.add_annotation(event_id, annotation)
+    
+    if success:
+        return api_response({"annotated": True, "event_id": event_id})
+    
+    return api_response(error="Event not found", status=404)
+
+
+@app.route("/api/cases/<case_id>/timeline/summary", methods=["GET"])
+def get_timeline_summary(case_id: str):
+    """Get timeline summary statistics."""
+    summary = timeline_store.get_summary(case_id)
+    return api_response(summary)
+
+
+@app.route("/api/cases/<case_id>/timeline/daily", methods=["GET"])
+def get_daily_timeline(case_id: str):
+    """
+    Get daily event counts.
+    
+    Query params:
+        - days: Number of days to summarize (default 7)
+    """
+    days = int(request.args.get("days", 7))
+    daily = timeline_store.get_daily_summary(case_id, days=days)
+    return api_response({
+        "case_id": case_id,
+        "daily": daily,
+    })
+
+
+@app.route("/api/cases/<case_id>/activity", methods=["GET"])
+def get_case_activity(case_id: str):
+    """
+    Get recent activity for a case (convenience endpoint).
+    
+    Query params:
+        - limit: Number of recent events (default 10)
+    """
+    limit = int(request.args.get("limit", 10))
+    activity = timeline_store.get_recent_activity(case_id, limit=limit)
+    return api_response({
+        "case_id": case_id,
+        "recent_activity": activity,
+    })
 
 
 # =============================================================================

@@ -177,6 +177,33 @@ from .insight_store import (
 
 
 # =============================================================================
+# CASE ARCHITECTURE
+# =============================================================================
+
+from .case_store import (
+    Case,
+    CaseDocument,
+    CaseContext,
+    CaseStore,
+)
+
+from .findings_store import (
+    Finding,
+    FindingsStore,
+)
+
+from .timeline_store import (
+    TimelineEvent,
+    TimelineStore,
+    VALID_EVENT_TYPES,
+    create_case_created_event,
+    create_doc_added_event,
+    create_finding_verified_event,
+    create_pattern_found_event,
+)
+
+
+# =============================================================================
 # SYNTH ENGINE (Pattern Synthesis)
 # =============================================================================
 
@@ -327,6 +354,21 @@ __all__ = [
     
     # === Insight Store ===
     'InsightStore',
+    
+    # === Case Architecture ===
+    'Case',
+    'CaseDocument',
+    'CaseContext',
+    'CaseStore',
+    'Finding',
+    'FindingsStore',
+    'TimelineEvent',
+    'TimelineStore',
+    'VALID_EVENT_TYPES',
+    'create_case_created_event',
+    'create_doc_added_event',
+    'create_finding_verified_event',
+    'create_pattern_found_event',
     
     # === Synth Engine ===
     'ClusterStrategy',
