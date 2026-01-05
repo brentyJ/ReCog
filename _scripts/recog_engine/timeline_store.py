@@ -61,6 +61,7 @@ class TimelineEvent:
             "note_added": lambda d: f"Note: {d.get('note', '')[:50]}...",
             "context_updated": lambda d: "Case context updated",
             "status_changed": lambda d: f"Status changed to: {d.get('status', 'unknown')}",
+            "insights_extracted": lambda d: f"Extracted {d.get('count', 0)} insights from {d.get('source_type', 'document')}",
         }
         
         formatter = descriptions.get(self.event_type, lambda d: self.event_type)
@@ -94,6 +95,7 @@ VALID_EVENT_TYPES = [
     "note_added",
     "context_updated",
     "status_changed",
+    "insights_extracted",
 ]
 
 

@@ -622,6 +622,87 @@ Completed:
 
 ---
 
+## Phase 10.5: Case Architecture Backend ✅
+
+**Goal**: Transform ReCog from analysis tool → document intelligence platform with case-centric workflows
+
+### 10.5.1 Database Schema ✅
+```
+New file: migrations/migration_v0_5_cases.sql
+```
+
+Tables added:
+- [x] `cases` - case containers with title, context, focus_areas, status
+- [x] `case_documents` - links documents to cases
+- [x] `findings` - validated insights promoted from raw insights
+- [x] `case_timeline` - auto-generated case evolution log
+- [x] FK columns: `insights.case_id`, `patterns.case_id`, `preflight_sessions.case_id`
+
+### 10.5.2 Store Classes ✅
+```
+New files in recog_engine/
+```
+
+Completed:
+- [x] `case_store.py` - CaseStore class with full CRUD
+- [x] `findings_store.py` - FindingsStore for insight promotion
+- [x] `timeline_store.py` - TimelineStore for event logging
+- [x] CaseContext, CaseDocument, Finding, TimelineEvent dataclasses
+- [x] Auto-promotion logic for high-confidence insights
+- [x] Statistics and summary methods
+
+### 10.5.3 Context Injection ✅
+```
+Modify: recog_engine/extraction.py, server.py
+```
+
+Completed:
+- [x] CASE_CONTEXT_TEMPLATE for prompt injection
+- [x] `build_extraction_prompt()` accepts `case_context` parameter
+- [x] `/api/extract` accepts `case_id` parameter
+- [x] Case context fetched and injected into LLM prompts
+- [x] Timeline event logged when insights extracted
+- [x] `insight_store.save_insights_batch()` accepts `case_id`
+
+### 10.5.4 API Endpoints ✅
+```
+Modify: server.py (v0.7.0)
+```
+
+Case Management:
+- [x] `POST /api/cases` - create new case
+- [x] `GET /api/cases` - list cases with filters
+- [x] `GET /api/cases/<id>` - get case details
+- [x] `PATCH /api/cases/<id>` - update case
+- [x] `DELETE /api/cases/<id>` - delete with cascade
+- [x] `GET /api/cases/<id>/documents` - list case documents
+- [x] `POST /api/cases/<id>/documents` - add document to case
+- [x] `DELETE /api/cases/<id>/documents/<doc_id>` - remove document
+- [x] `GET /api/cases/<id>/stats` - case statistics
+- [x] `GET /api/cases/<id>/context` - get prompt injection context
+
+Findings Management:
+- [x] `POST /api/findings` - promote insight to finding
+- [x] `GET /api/cases/<id>/findings` - list case findings
+- [x] `GET /api/findings/<id>` - get finding details
+- [x] `PATCH /api/findings/<id>` - update status/tags
+- [x] `POST /api/findings/<id>/note` - add annotation
+- [x] `DELETE /api/findings/<id>` - demote finding
+- [x] `POST /api/cases/<id>/findings/auto-promote` - batch promotion
+- [x] `GET /api/cases/<id>/findings/stats` - findings statistics
+
+Timeline Management:
+- [x] `GET /api/cases/<id>/timeline` - timeline with filters
+- [x] `POST /api/cases/<id>/timeline` - add human annotation
+- [x] `POST /api/timeline/<id>/annotate` - annotate existing event
+- [x] `GET /api/cases/<id>/timeline/summary` - timeline stats
+- [x] `GET /api/cases/<id>/timeline/daily` - daily event counts
+- [x] `GET /api/cases/<id>/activity` - recent activity
+
+**Deliverable**: Complete case-centric backend for document intelligence ✅ COMPLETE
+
+---
+
 ## Phase 11: EhkoLabs Website Modernization 📋
 
 **Goal**: Convert marketing website to React + shadcn/ui with consistent branding
@@ -672,6 +753,7 @@ Completed:
 | 8 ✅ | Critique Layer | Self-correcting quality assurance |
 | 9 ⏳ | Polish | Production-ready with real parsers |
 | 10 ✅ | React UI | Modern interface with shadcn/ui |
+| 10.5 ✅ | Case Architecture | Case-centric document intelligence |
 | 11 📋 | Website | Marketing site modernization |
 
 ## Architecture (Post-Phase 6)
@@ -720,4 +802,4 @@ Total: ~8-14 sessions to production-ready MVP
 
 ---
 
-*Last updated: Phase 10 React UI COMPLETE (all pages built) - 01 Jan 2026*
+*Last updated: Phase 10.5 Case Architecture Backend COMPLETE - 05 Jan 2026*

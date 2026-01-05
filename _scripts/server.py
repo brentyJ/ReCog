@@ -1148,6 +1148,7 @@ def extract_insights():
         "source_type": "document",
         "source_id": "optional-id",
         "is_chat": false,
+        "case_id": "optional-case-uuid" (for case context injection),
         "provider": "openai|anthropic" (optional),
         "save": true (default, save insights to DB),
         "check_similarity": true (default, merge similar insights)
@@ -1160,6 +1161,7 @@ def extract_insights():
             - resolved: Entities matched to known people (context injected to LLM)
             - unknown: Entities not yet identified (for user review)
             - context_injected: Whether entity context was added to the prompt
+        - case_context_injected: Whether case context was added to the prompt
     
     Requires LLM API key(s) configured via environment variables.
     """
@@ -1174,6 +1176,7 @@ def extract_insights():
     source_type = data.get("source_type", "unknown")
     source_id = data.get("source_id", str(uuid4()))
     is_chat = data.get("is_chat", False)
+    case_id = data.get("case_id")  # Optional case for context injection
     provider_name = data.get("provider")  # Optional override
     
     if not text:
@@ -1193,7 +1196,23 @@ def extract_insights():
         if entity_resolution.get("unknown"):
             logger.debug(f"Found {len(entity_resolution['unknown'])} unknown entities")
     
-    # Build prompt with entity context
+    # Get case context if case_id provided
+    case_context_dict = None
+    case_context_injected = False
+    if case_id:
+        case_obj = case_store.get_case(case_id)
+        if case_obj:
+            case_context_dict = {
+                "title": case_obj.title,
+                "context": case_obj.context,
+                "focus_areas": case_obj.focus_areas or [],
+            }
+            case_context_injected = True
+            logger.info(f"Injecting case context: {case_obj.title}")
+        else:
+            logger.warning(f"Case {case_id} not found, proceeding without case context")
+    
+    # Build prompt with entity and case context
     prompt = build_extraction_prompt(
         content=text,
         source_type=source_type,
@@ -1201,6 +1220,7 @@ def extract_insights():
         pre_annotation=pre_annotation,
         is_chat=is_chat,
         additional_context=entity_context,
+        case_context=case_context_dict,
     )
     
     # Call LLM via provider
@@ -1228,9 +1248,22 @@ def extract_insights():
                 batch_result = insight_store.save_insights_batch(
                     result.insights,
                     check_similarity=data.get("check_similarity", True),
+                    case_id=case_id,  # Associate insights with case
                 )
                 save_results = batch_result.get("results", [])
                 logger.info(f"Saved {batch_result['created']} new, merged {batch_result['merged']} insights")
+                
+                # Log timeline event if case_id provided
+                if case_id and batch_result.get("created", 0) > 0:
+                    timeline_store.log_event(
+                        case_id,
+                        "insights_extracted",
+                        {
+                            "count": batch_result.get("created", 0),
+                            "source_type": source_type,
+                            "source_id": source_id,
+                        },
+                    )
         
         # Build entity resolution summary for response
         entity_resolution_summary = None
@@ -1257,6 +1290,8 @@ def extract_insights():
                 "emotion_categories": pre_annotation.get("emotion_signals", {}).get("categories", []),
             },
             "entity_resolution": entity_resolution_summary,
+            "case_id": case_id,
+            "case_context_injected": case_context_injected,
         })
     
     except ValueError as e:

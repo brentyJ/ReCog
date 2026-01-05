@@ -62,6 +62,7 @@ class InsightStore:
         insight: ExtractedInsight,
         check_similarity: bool = True,
         similarity_threshold: float = 0.7,
+        case_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Save an insight to the database.
@@ -118,7 +119,7 @@ class InsightStore:
                 }
             
             # Create new insight
-            self._insert_insight(conn, insight)
+            self._insert_insight(conn, insight, case_id=case_id)
             self._add_source(conn, insight.id, insight.source_type, insight.source_id)
             self._log_history(conn, insight.id, "created", {
                 "source_type": insight.source_type,
@@ -140,6 +141,7 @@ class InsightStore:
         self,
         insights: List[ExtractedInsight],
         check_similarity: bool = True,
+        case_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Save multiple insights in a batch.
@@ -147,6 +149,7 @@ class InsightStore:
         Args:
             insights: List of ExtractedInsight objects
             check_similarity: Whether to check for duplicates
+            case_id: Optional case UUID to associate insights with
             
         Returns:
             Dict with counts and results
@@ -156,7 +159,7 @@ class InsightStore:
         merged = 0
         
         for insight in insights:
-            result = self.save_insight(insight, check_similarity=check_similarity)
+            result = self.save_insight(insight, check_similarity=check_similarity, case_id=case_id)
             results.append(result)
             if result["action"] == "created":
                 created += 1
@@ -483,7 +486,12 @@ class InsightStore:
     # INTERNAL HELPERS
     # =========================================================================
     
-    def _insert_insight(self, conn: sqlite3.Connection, insight: ExtractedInsight) -> None:
+    def _insert_insight(
+        self,
+        conn: sqlite3.Connection,
+        insight: ExtractedInsight,
+        case_id: Optional[str] = None,
+    ) -> None:
         """Insert a new insight."""
         now = datetime.utcnow().isoformat() + "Z"
         
@@ -491,8 +499,8 @@ class InsightStore:
             INSERT INTO insights (
                 id, summary, themes_json, emotional_tags_json, patterns_json,
                 significance, confidence, insight_type, status,
-                source_count, excerpt, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                source_count, excerpt, created_at, updated_at, case_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             insight.id,
             insight.summary,
@@ -507,6 +515,7 @@ class InsightStore:
             insight.excerpt,
             insight.created_at or now,
             now,
+            case_id,
         ))
     
     def _update_insight(self, conn: sqlite3.Connection, insight: ExtractedInsight) -> None:
@@ -652,6 +661,7 @@ class InsightStore:
             "excerpt": row["excerpt"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
+            "case_id": row["case_id"] if "case_id" in row.keys() else None,
         }
 
 

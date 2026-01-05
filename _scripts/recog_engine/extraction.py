@@ -419,6 +419,27 @@ def prepare_document_content(text: str, max_chars: int = 8000) -> str:
 # PROMPT BUILDER
 # =============================================================================
 
+# Case context template for prompt injection
+CASE_CONTEXT_TEMPLATE = """## Case Context
+You are extracting insights for a specific investigation case.
+
+**Case Title:** {title}
+**Investigation Context:** {context}
+**Focus Areas:** {focus_areas}
+
+Prioritise insights that:
+1. Are directly relevant to the case context and focus areas
+2. Have explicit supporting evidence from the text (cite excerpts)
+3. Are factual observations, not speculation or assumptions
+4. Could advance understanding of the investigation
+
+Do NOT:
+- Infer causation without explicit evidence
+- Speculate beyond what the text supports
+- Include tangential observations unrelated to the case
+"""
+
+
 def build_extraction_prompt(
     content: str,
     source_type: str,
@@ -426,6 +447,7 @@ def build_extraction_prompt(
     pre_annotation: Optional[Dict] = None,
     is_chat: bool = False,
     additional_context: str = "",
+    case_context: Optional[Dict] = None,
 ) -> str:
     """
     Build the complete extraction prompt for LLM.
@@ -437,6 +459,7 @@ def build_extraction_prompt(
         pre_annotation: Optional Tier 0 pre-annotation results
         is_chat: Whether content has speaker attribution
         additional_context: Any extra context to include
+        case_context: Optional case context dict with title, context, focus_areas
         
     Returns:
         Complete prompt string
@@ -458,6 +481,25 @@ def build_extraction_prompt(
         speaker_attribution = SPEAKER_ATTRIBUTION_NONE
         attribution_warning = ATTRIBUTION_WARNING_NONE
     
+    # Build combined additional context (entity + case)
+    context_parts = []
+    
+    # Add case context if provided
+    if case_context:
+        focus_areas_str = ", ".join(case_context.get("focus_areas", [])) or "Not specified"
+        case_section = CASE_CONTEXT_TEMPLATE.format(
+            title=case_context.get("title", "Untitled Case"),
+            context=case_context.get("context", "No context provided"),
+            focus_areas=focus_areas_str,
+        )
+        context_parts.append(case_section)
+    
+    # Add entity context if provided
+    if additional_context:
+        context_parts.append(additional_context)
+    
+    combined_context = "\n\n".join(context_parts) if context_parts else "None"
+    
     # Truncate content if needed
     content = prepare_document_content(content)
     
@@ -467,7 +509,7 @@ def build_extraction_prompt(
         word_count=word_count,
         speaker_attribution=speaker_attribution,
         pre_annotation_summary=pre_summary,
-        additional_context=additional_context or "None",
+        additional_context=combined_context,
         content=content,
         attribution_warning=attribution_warning,
     )
