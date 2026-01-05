@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ReCog Holographic Theme - Deep void with blue/orange accents */
+    
+    /* Background layers */
+    --background: 218 28% 5%;        /* #080a0e - Deep void */
+    --foreground: 220 50% 93%;       /* #e8eef8 - Primary text */
+    
+    --card: 218 25% 7%;              /* #0c1018 - Surface */
+    --card-foreground: 220 50% 93%;
+    
+    --popover: 218 25% 7%;
+    --popover-foreground: 220 50% 93%;
+    
+    /* Primary - Orange (Cognitive) */
+    --primary: 24 100% 67%;          /* #ff9955 - Orange light */
+    --primary-foreground: 218 28% 5%;
+    
+    /* Secondary - Blue (Structure) */
+    --secondary: 220 20% 10%;        /* #111620 - Elevated */
+    --secondary-foreground: 220 50% 93%;
+    
+    /* Muted */
+    --muted: 220 20% 10%;
+    --muted-foreground: 217 33% 57%; /* #8aa4d6 - Text secondary */
+    
+    /* Accent - Orange mid */
+    --accent: 24 58% 57%;            /* #d97e4a - Orange mid */
+    --accent-foreground: 218 28% 5%;
+    
+    /* Destructive */
+    --destructive: 0 54% 65%;        /* #d97373 - Error */
+    --destructive-foreground: 220 50% 93%;
+    
+    /* Border */
+    --border: 220 25% 13%;           /* #1a2030 - Subtle */
+    --input: 220 20% 17%;            /* #2a3448 - Default */
+    --ring: 24 58% 57%;              /* Orange mid for focus */
+    
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+/* Holographic glow effects */
+@layer utilities {
+  .glow-orange {
+    box-shadow: 0 0 8px rgba(255, 153, 85, 0.3);
+  }
+  
+  .glow-blue {
+    box-shadow: 0 0 8px rgba(107, 140, 206, 0.3);
+  }
+  
+  .glow-cyan {
+    box-shadow: 0 0 12px rgba(0, 255, 255, 0.4);
+  }
+}
+
+/* Custom scrollbar */
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+    border-radius: 4px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
