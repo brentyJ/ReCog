@@ -171,12 +171,23 @@ def require_json(f):
 def health():
     """Health check endpoint."""
     db_status = check_database(Config.DB_PATH)
+    
+    # Get cases count
+    cases_count = 0
+    try:
+        conn = _get_db_connection()
+        cases_count = conn.execute("SELECT COUNT(*) FROM cases WHERE status = 'active'").fetchone()[0]
+        conn.close()
+    except:
+        pass
+    
     return api_response({
         "status": "healthy",
         "database": {
             "path": str(Config.DB_PATH),
             "tables": db_status.get("total_tables", 0),
             "rows": db_status.get("total_rows", 0),
+            "cases": cases_count,
         },
         "llm_configured": Config.LLM_CONFIGURED,
         "available_providers": Config.AVAILABLE_PROVIDERS,
