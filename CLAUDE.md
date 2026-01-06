@@ -45,9 +45,11 @@ pytest tests/ --cov=recog_engine
 cd _ui
 
 npm install
-npm run dev      # Dev server at http://localhost:3101
+npm run dev      # Dev server at http://localhost:3100 (strictPort enabled)
 npm run build    # Production build to dist/
 ```
+
+Note: The UI uses hash-based routing (e.g., `#upload`, `#preflight/123`). State persists to localStorage.
 
 ### CLI Operations
 

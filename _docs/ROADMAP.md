@@ -774,6 +774,69 @@ Completed:
 
 ---
 
+## Phase 10.7: UI Navigation & State Persistence ✅
+
+**Goal**: Improve UI navigation, state persistence, and batch operations
+
+**Session Date**: 2026-01-06 (Claude Code CLI)
+
+### 10.7.1 Hash-Based Routing ✅
+```
+Modify: _ui/src/App.jsx
+```
+
+Completed:
+- [x] Hash routing for all pages (#upload, #preflight/123, etc.)
+- [x] Listen for hashchange events for browser back/forward
+- [x] Default to analyse page when hash empty or invalid
+- [x] Sidebar navigation updates URL hash
+
+### 10.7.2 Upload Page Improvements ✅
+```
+Modify: _ui/src/components/pages/UploadPage.jsx
+```
+
+Completed:
+- [x] Checkboxes to select uploaded files
+- [x] Select All / Deselect All buttons
+- [x] "Review Selected" button for batch preflight review
+- [x] Clear button to remove upload history
+- [x] Persist uploads to localStorage (survives navigation)
+- [x] Visual highlighting for selected files
+
+### 10.7.3 Preflight Page Improvements ✅
+```
+Modify: _ui/src/components/pages/PreflightPage.jsx
+```
+
+Completed:
+- [x] Select All / Deselect All buttons for items
+- [x] Listen for hash changes to support session switching
+- [x] Fall back to localStorage if no session ID in URL
+- [x] Proper state reset when session changes
+
+### 10.7.4 Vite Configuration ✅
+```
+Modify: _ui/vite.config.js
+```
+
+Completed:
+- [x] strictPort: true - fail if port 3100 in use (no silent fallback)
+- [x] Prevents port drift (3100 → 3101 → 3102)
+
+### 10.7.5 Backend Fixes ✅
+```
+Modify: _scripts/server.py
+```
+
+Completed:
+- [x] Fix datetime.utcnow() deprecation warning
+- [x] Use timezone-aware datetime.now(timezone.utc)
+
+**Deliverable**: Improved UX with persistent state and batch operations ✅ COMPLETE
+
+---
+
 ## Phase 11: EhkoLabs Website Modernization 📋
 
 **Goal**: Convert marketing website to React + shadcn/ui with consistent branding
@@ -826,6 +889,7 @@ Completed:
 | 10 ✅ | React UI | Modern interface with shadcn/ui |
 | 10.5 ✅ | Case Architecture | Case-centric document intelligence |
 | 10.6 ✅ | Code Quality | Tests, indexes, shared components |
+| 10.7 ✅ | UI Navigation | Hash routing, state persistence, batch ops |
 | 11 📋 | Website | Marketing site modernization |
 
 ## Architecture (Post-Phase 6)
@@ -874,4 +938,4 @@ Total: ~8-14 sessions to production-ready MVP
 
 ---
 
-*Last updated: Phase 10.6 Code Quality & Developer Experience COMPLETE - 06 Jan 2026*
+*Last updated: Phase 10.7 UI Navigation & State Persistence COMPLETE - 06 Jan 2026*
