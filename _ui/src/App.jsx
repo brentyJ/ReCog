@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Zap, FileUp, Clipboard, Users, Lightbulb, Waypoints, FolderOpen, Activity, FileText } from 'lucide-react'
 
+// Cypher - Conversational Analysis Interface
+import { CypherProvider } from './contexts/CypherContext'
+import { Cypher } from './components/cypher'
+
 // Import all page components
 import { SignalExtraction } from './components/pages/SignalExtraction'
 import { UploadPage } from './components/pages/UploadPage'
@@ -124,6 +128,7 @@ function App() {
   const PageIcon = currentPage.icon
 
   return (
+    <CypherProvider caseId={null}>
     <div className="flex min-h-screen bg-background">
       {/* Sidebar */}
       <aside className="w-[260px] bg-card border-r border-border flex flex-col fixed top-0 left-0 bottom-0 z-50">
@@ -207,18 +212,21 @@ function App() {
             <PageIcon className="w-5 h-5 text-orange-light" />
             {currentPage.title}
           </h1>
-          <div className="flex items-center gap-2">
-            <a 
-              href="https://ehkolabs.io" 
-              target="_blank" 
+          <div className="flex items-center gap-3">
+            {/* Cypher trigger */}
+            <Cypher />
+            <span className="text-muted-foreground">|</span>
+            <a
+              href="https://ehkolabs.io"
+              target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               EhkoLabs
             </a>
             <span className="text-muted-foreground">•</span>
-            <a 
-              href="/api/info" 
+            <a
+              href="/api/info"
               target="_blank"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -241,6 +249,7 @@ function App() {
         </div>
       </main>
     </div>
+    </CypherProvider>
   )
 }
 

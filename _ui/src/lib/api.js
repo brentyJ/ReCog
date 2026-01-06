@@ -463,3 +463,22 @@ export async function extractWithCase(text, sourceType, caseId, options = {}) {
     }),
   })
 }
+
+// =============================================================================
+// CYPHER - Conversational Analysis Interface
+// =============================================================================
+
+export async function sendCypherMessage(message, caseId, context = {}) {
+  return fetchAPI('/cypher/message', {
+    method: 'POST',
+    body: JSON.stringify({
+      message,
+      case_id: caseId,
+      context,
+    }),
+  })
+}
+
+export async function getExtractionStatus(caseId) {
+  return fetchAPI(`/extraction/status/${caseId}`)
+}

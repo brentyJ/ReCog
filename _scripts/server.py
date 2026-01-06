@@ -2943,6 +2943,210 @@ def get_case_activity(case_id: str):
 
 
 # =============================================================================
+# CYPHER - Conversational Analysis Interface
+# =============================================================================
+
+# Initialize Anthropic client for Cypher (optional - for LLM fallback)
+_anthropic_client = None
+try:
+    import anthropic
+    _api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("RECOG_ANTHROPIC_API_KEY")
+    if _api_key:
+        _anthropic_client = anthropic.Anthropic(api_key=_api_key)
+        logger.info("Cypher: Anthropic client initialized for LLM fallback")
+except ImportError:
+    logger.warning("Cypher: anthropic package not installed, LLM fallback disabled")
+except Exception as e:
+    logger.warning(f"Cypher: Could not initialize Anthropic client: {e}")
+
+
+@app.route("/api/cypher/message", methods=["POST"])
+def cypher_message():
+    """
+    Handle Cypher conversational interface messages.
+
+    Request body:
+        - message: User's message text
+        - case_id: Optional case context
+        - context: Additional context (current_view, processing_status, etc.)
+
+    Response:
+        - reply: Cypher's response text
+        - actions: Backend actions executed
+        - ui_updates: Frontend UI updates needed
+        - suggestions: Contextual action buttons
+        - metadata: Intent classification info
+    """
+    import time
+    start_time = time.time()
+
+    try:
+        data = request.json or {}
+        message = data.get("message", "").strip()
+        case_id = data.get("case_id")
+        context = data.get("context", {})
+
+        if not message:
+            return api_response(error="Message required", status=400)
+
+        # Import Cypher modules
+        from recog_engine.cypher import (
+            classify_intent,
+            CypherActionRouter,
+            format_cypher_response,
+        )
+
+        # Add case context if we have a case_id
+        if case_id:
+            try:
+                case = case_store.get(case_id)
+                if case:
+                    context["case_title"] = case.get("title", "Unknown")
+                    context["case_context"] = case.get("context_summary", "")
+            except Exception as e:
+                logger.warning(f"Could not load case context: {e}")
+
+        # Classify intent
+        intent, entities, confidence = classify_intent(
+            message,
+            context,
+            _anthropic_client
+        )
+
+        # Route to action handler
+        router = CypherActionRouter(
+            db_path=str(Config.DB_PATH),
+            entity_registry=entity_registry,
+            insight_store=insight_store,
+            case_store=case_store
+        )
+
+        result = router.execute(intent, entities, context)
+
+        # Format response in Cypher voice
+        result = format_cypher_response(
+            intent,
+            result,
+            context,
+            _anthropic_client
+        )
+
+        # Add metadata
+        processing_time_ms = int((time.time() - start_time) * 1000)
+        result["metadata"] = {
+            "intent": intent,
+            "confidence": confidence,
+            "entities": entities,
+            "processing_time_ms": processing_time_ms,
+        }
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        logger.error(f"Cypher message failed: {e}", exc_info=True)
+        return jsonify({
+            "reply": "Communication error. System malfunction logged.",
+            "actions": [],
+            "ui_updates": {},
+            "suggestions": [],
+            "metadata": {"error": str(e)}
+        }), 500
+
+
+@app.route("/api/extraction/status/<case_id>", methods=["GET"])
+def extraction_status(case_id: str):
+    """
+    Get current extraction/processing status for a case.
+    Used by Cypher for real-time progress updates.
+
+    Returns:
+        - status: "idle" | "processing" | "complete" | "error"
+        - current: Current document number (if processing)
+        - total: Total documents (if processing)
+        - current_doc: Current document name (if processing)
+        - insights_extracted: Count of insights
+        - entities_identified: Count of entities
+        - recent_event: Most recent processing event
+    """
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(Config.DB_PATH))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Check processing queue for this case
+        cursor.execute("""
+            SELECT status, COUNT(*) as count
+            FROM processing_queue
+            WHERE case_id = ?
+            GROUP BY status
+        """, (case_id,))
+
+        queue_status = {row["status"]: row["count"] for row in cursor.fetchall()}
+
+        pending = queue_status.get("pending", 0)
+        processing = queue_status.get("processing", 0)
+        completed = queue_status.get("completed", 0)
+        failed = queue_status.get("failed", 0)
+
+        total = pending + processing + completed + failed
+
+        # Determine overall status
+        if processing > 0:
+            status = "processing"
+        elif pending > 0:
+            status = "pending"
+        elif failed > 0 and completed == 0:
+            status = "error"
+        elif total > 0:
+            status = "complete"
+        else:
+            status = "idle"
+
+        # Get current processing item
+        current_doc = None
+        if status == "processing":
+            cursor.execute("""
+                SELECT source_name FROM processing_queue
+                WHERE case_id = ? AND status = 'processing'
+                LIMIT 1
+            """, (case_id,))
+            row = cursor.fetchone()
+            if row:
+                current_doc = row["source_name"]
+
+        # Get insight/entity counts for this case
+        cursor.execute("""
+            SELECT COUNT(*) FROM insights WHERE case_id = ? AND deleted_at IS NULL
+        """, (case_id,))
+        insights_count = cursor.fetchone()[0]
+
+        # Entity count is trickier - we'd need to join through documents
+        # For now, get total unconfirmed entities as a proxy
+        cursor.execute("""
+            SELECT COUNT(*) FROM entity_registry WHERE confirmed = 0
+        """)
+        entities_count = cursor.fetchone()[0]
+
+        conn.close()
+
+        return api_response({
+            "case_id": case_id,
+            "status": status,
+            "current": completed + 1 if status == "processing" else completed,
+            "total": total,
+            "current_doc": current_doc,
+            "insights_extracted": insights_count,
+            "entities_identified": entities_count,
+            "queue_breakdown": queue_status,
+        })
+
+    except Exception as e:
+        logger.error(f"Extraction status failed: {e}")
+        return api_response(error=str(e), status=500)
+
+
+# =============================================================================
 # STATIC FILES (for future frontend)
 # =============================================================================
 
