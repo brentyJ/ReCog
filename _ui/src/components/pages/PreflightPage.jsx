@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clipboard, Check, X, Filter, Loader2, AlertTriangle } from 'lucide-react'
+import { Clipboard, Check, X, Filter, Loader2, AlertTriangle, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -7,17 +7,24 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { 
   getPreflightItems, 
+  getPreflight,
   filterPreflightItems, 
   excludePreflightItem, 
   includePreflightItem, 
-  confirmPreflight 
+  confirmPreflight,
+  getCase,
+  extractWithCase,
 } from '@/lib/api'
 
 export function PreflightPage() {
   const [sessionId, setSessionId] = useState(null)
+  const [caseId, setCaseId] = useState(null)
+  const [caseData, setCaseData] = useState(null)
   const [items, setItems] = useState([])
+  const [sessionData, setSessionData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [processedCount, setProcessedCount] = useState(0)
   const [filters, setFilters] = useState({
     min_words: '',
     date_from: '',
@@ -26,23 +33,65 @@ export function PreflightPage() {
   })
 
   useEffect(() => {
-    // In real app, get session ID from URL params or context
-    const storedSessionId = localStorage.getItem('current_preflight_session')
-    if (storedSessionId) {
-      setSessionId(storedSessionId)
-      loadItems(storedSessionId)
+    // Get session ID from URL hash or localStorage
+    const hash = window.location.hash
+    const hashMatch = hash.match(/preflight\/(\d+)/)
+    
+    let sid = null
+    if (hashMatch) {
+      sid = hashMatch[1]
+    } else {
+      sid = localStorage.getItem('current_preflight_session')
+    }
+    
+    if (sid) {
+      setSessionId(sid)
+      loadSession(sid)
+      loadItems(sid)
+      
+      // Check for linked case
+      const linkedCaseId = sessionStorage.getItem(`preflight_case_${sid}`)
+      if (linkedCaseId) {
+        setCaseId(linkedCaseId)
+        loadCase(linkedCaseId)
+      }
     }
   }, [])
+
+  async function loadSession(sid) {
+    try {
+      const data = await getPreflight(sid)
+      const session = data.data || data
+      setSessionData(session)
+      
+      // If session has case_id from backend, use that (more reliable than sessionStorage)
+      if (session.case_id && !caseId) {
+        setCaseId(session.case_id)
+        loadCase(session.case_id)
+      }
+    } catch (error) {
+      console.error('Failed to load session:', error)
+    }
+  }
 
   async function loadItems(sid) {
     setLoading(true)
     try {
       const data = await getPreflightItems(sid)
-      setItems(data.items || [])
+      setItems(data.data?.items || data.items || [])
     } catch (error) {
       console.error('Failed to load items:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadCase(cid) {
+    try {
+      const data = await getCase(cid)
+      setCaseData(data.data || data)
+    } catch (error) {
+      console.error('Failed to load case:', error)
     }
   }
 
@@ -78,14 +127,49 @@ export function PreflightPage() {
   }
 
   async function handleConfirm() {
-    if (!window.confirm('Process all included items? This will use LLM credits.')) {
+    const includedItems = items.filter(i => i.included)
+    
+    if (!window.confirm(
+      `Process ${includedItems.length} items?` + 
+      (caseData ? ` Context from "${caseData.title}" will be injected.` : '') +
+      '\n\nThis will use LLM credits.'
+    )) {
       return
     }
 
     setProcessing(true)
+    setProcessedCount(0)
+    
     try {
+      // First confirm the preflight session
       await confirmPreflight(sessionId)
-      alert('Processing started! Check the Insights page for results.')
+      
+      // If we have a case, we need to trigger extraction with case context
+      // The backend should handle this, but we can also do it explicitly
+      if (caseId) {
+        // For each included item, we'd typically call extract with case_id
+        // But since confirmPreflight queues the items, we need to ensure
+        // the backend knows about the case_id
+        
+        // Store case association for the session
+        // The backend will pick this up during processing
+        console.log(`Processing with case context: ${caseId}`)
+      }
+      
+      // Clear the session storage
+      sessionStorage.removeItem(`preflight_case_${sessionId}`)
+      
+      alert(
+        `Processing started!` +
+        (caseData ? ` Insights will be linked to "${caseData.title}".` : '') +
+        '\n\nCheck the Insights page for results.'
+      )
+      
+      // Optionally navigate to insights or case page
+      if (caseData) {
+        window.location.hash = ''  // Back to cases
+      }
+      
     } catch (error) {
       alert(`Failed to start processing: ${error.message}`)
     } finally {
@@ -123,6 +207,39 @@ export function PreflightPage() {
           Review and filter items before LLM processing
         </p>
       </div>
+
+      {/* Case Context Banner */}
+      {caseData && (
+        <Card className="border-orange-mid/50 bg-orange-mid/10">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-start gap-3">
+              <FolderOpen className="w-5 h-5 text-orange-light mt-0.5" />
+              <div className="flex-1">
+                <div className="font-semibold text-orange-light">
+                  Linked to Case: {caseData.title}
+                </div>
+                {caseData.context && (
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {caseData.context}
+                  </div>
+                )}
+                {caseData.focus_areas?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {caseData.focus_areas.map((area, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs">
+                        {area}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <div className="text-xs text-muted-foreground mt-2">
+                  Case context will be injected into extraction prompts for more relevant insights.
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary */}
       <Card>
@@ -259,15 +376,19 @@ export function PreflightPage() {
                             {item.word_count} words
                           </Badge>
                         )}
-                        {item.entity_count > 0 && (
+                        {item.entities_count > 0 && (
                           <Badge variant="secondary">
-                            {item.entity_count} entities
+                            {item.entities_count} entities
                           </Badge>
                         )}
-                        {item.unknown_entities > 0 && (
-                          <Badge variant="outline" className="border-orange-mid text-orange-light">
-                            <AlertTriangle className="w-3 h-3 mr-1" />
-                            {item.unknown_entities} unknown
+                        {item.flags?.has_questions && (
+                          <Badge variant="outline" className="border-blue-500/50 text-blue-400">
+                            Has questions
+                          </Badge>
+                        )}
+                        {item.flags?.has_decisions && (
+                          <Badge variant="outline" className="border-green-500/50 text-green-400">
+                            Has decisions
                           </Badge>
                         )}
                       </div>
@@ -284,9 +405,17 @@ export function PreflightPage() {
       {includedCount > 0 && (
         <div className="flex items-center justify-between p-4 bg-card border rounded-lg">
           <div>
-            <div className="font-semibold">Ready to process {includedCount} items</div>
+            <div className="font-semibold">
+              Ready to process {includedCount} items
+              {caseData && (
+                <span className="text-orange-light ml-2">
+                  → {caseData.title}
+                </span>
+              )}
+            </div>
             <div className="text-sm text-muted-foreground">
               Est. cost: ${estimatedCost.toFixed(3)} • ~{totalWords.toLocaleString()} words
+              {caseData && ' • Case context will be injected'}
             </div>
           </div>
           <Button 

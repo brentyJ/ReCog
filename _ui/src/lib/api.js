@@ -60,9 +60,12 @@ export async function analyzeTier0(text) {
 }
 
 // File Upload & Detection
-export async function uploadFile(file) {
+export async function uploadFile(file, caseId = null) {
   const formData = new FormData()
   formData.append('file', file)
+  if (caseId) {
+    formData.append('case_id', caseId)
+  }
 
   const response = await fetch(`${API_BASE}/upload`, {
     method: 'POST',

@@ -1,15 +1,36 @@
-import { useState, useRef } from 'react'
-import { FileUp, Upload, File, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { FileUp, Upload, File, CheckCircle, AlertCircle, Loader2, FolderOpen, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { uploadFile, detectFileFormat } from '@/lib/api'
+import { uploadFile, detectFileFormat, getCases, createCase } from '@/lib/api'
 
 export function UploadPage() {
   const [dragging, setDragging] = useState(false)
   const [files, setFiles] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [cases, setCases] = useState([])
+  const [selectedCaseId, setSelectedCaseId] = useState('')
+  const [loadingCases, setLoadingCases] = useState(true)
+  const [showQuickCreate, setShowQuickCreate] = useState(false)
+  const [quickCaseTitle, setQuickCaseTitle] = useState('')
+  const [creatingCase, setCreatingCase] = useState(false)
   const fileInputRef = useRef(null)
+
+  // Load cases on mount
+  useEffect(() => {
+    async function loadCases() {
+      try {
+        const response = await getCases({ status: 'active' })
+        setCases(response.data?.cases || [])
+      } catch (err) {
+        console.error('Failed to load cases:', err)
+      } finally {
+        setLoadingCases(false)
+      }
+    }
+    loadCases()
+  }, [])
 
   const handleDragOver = (e) => {
     e.preventDefault()
@@ -43,16 +64,19 @@ export function UploadPage() {
         // Detect format first
         const detection = await detectFileFormat(file)
         
-        // Upload file
-        const upload = await uploadFile(file)
+        // Upload file with case_id for context injection
+        const upload = await uploadFile(file, selectedCaseId || null)
         
         newFiles.push({
           name: file.name,
           size: file.size,
           type: file.type,
-          format: detection.format,
-          sessionId: upload.session_id,
+          format: detection.data?.file_type || 'unknown',
+          sessionId: upload.data?.preflight_session_id,
+          caseId: selectedCaseId || null,
           status: 'success',
+          items: upload.data?.items || 0,
+          words: upload.data?.words || 0,
         })
       } catch (error) {
         newFiles.push({
@@ -69,11 +93,32 @@ export function UploadPage() {
     setUploading(false)
   }
 
+  async function handleQuickCreateCase() {
+    if (!quickCaseTitle.trim()) return
+    
+    setCreatingCase(true)
+    try {
+      const response = await createCase({ title: quickCaseTitle.trim() })
+      const newCase = response.data
+      setCases(prev => [newCase, ...prev])
+      setSelectedCaseId(newCase.id)
+      setQuickCaseTitle('')
+      setShowQuickCreate(false)
+    } catch (err) {
+      console.error('Failed to create case:', err)
+      alert('Failed to create case: ' + err.message)
+    } finally {
+      setCreatingCase(false)
+    }
+  }
+
   function formatFileSize(bytes) {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
+
+  const selectedCase = cases.find(c => c.id === selectedCaseId)
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -87,6 +132,94 @@ export function UploadPage() {
           Upload documents for batch processing. Supported: text, PDF, Excel, email, chat exports.
         </p>
       </div>
+
+      {/* Case Selector */}
+      <Card className="border-orange-mid/30 bg-orange-mid/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <FolderOpen className="w-4 h-4 text-orange-light" />
+            Assign to Case (Optional)
+          </CardTitle>
+          <CardDescription>
+            Link documents to a case for context-aware extraction
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-3">
+            <select
+              value={selectedCaseId}
+              onChange={(e) => setSelectedCaseId(e.target.value)}
+              disabled={loadingCases}
+              className="flex-1 px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-orange-mid/50 focus:border-orange-mid"
+            >
+              <option value="">No case (standalone upload)</option>
+              {cases.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+            
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowQuickCreate(!showQuickCreate)}
+              title="Create new case"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {/* Quick Create Case */}
+          {showQuickCreate && (
+            <div className="mt-3 flex gap-2">
+              <input
+                type="text"
+                value={quickCaseTitle}
+                onChange={(e) => setQuickCaseTitle(e.target.value)}
+                placeholder="New case title..."
+                className="flex-1 px-3 py-2 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-orange-mid/50"
+                onKeyDown={(e) => e.key === 'Enter' && handleQuickCreateCase()}
+              />
+              <Button
+                onClick={handleQuickCreateCase}
+                disabled={!quickCaseTitle.trim() || creatingCase}
+                size="sm"
+              >
+                {creatingCase ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  'Create'
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Selected Case Info */}
+          {selectedCase && (
+            <div className="mt-3 p-3 bg-background rounded-md border border-border">
+              <div className="font-medium text-sm">{selectedCase.title}</div>
+              {selectedCase.context && (
+                <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                  {selectedCase.context}
+                </div>
+              )}
+              {selectedCase.focus_areas?.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {selectedCase.focus_areas.map((area, i) => (
+                    <Badge key={i} variant="secondary" className="text-xs">
+                      {area}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground mt-2">
+                {selectedCase.document_count || 0} docs • {selectedCase.findings_count || 0} findings
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Drop Zone */}
       <Card
@@ -115,6 +248,11 @@ export function UploadPage() {
               <div className="text-sm text-muted-foreground">
                 or click to browse
               </div>
+              {selectedCase && (
+                <div className="text-sm text-orange-light mt-2">
+                  → Will be added to "{selectedCase.title}"
+                </div>
+              )}
             </div>
 
             <Button 
@@ -180,7 +318,14 @@ export function UploadPage() {
                     <div className="text-sm text-muted-foreground">
                       {formatFileSize(file.size)}
                       {file.format && ` • ${file.format}`}
+                      {file.items > 0 && ` • ${file.items} items`}
+                      {file.words > 0 && ` • ${file.words.toLocaleString()} words`}
                     </div>
+                    {file.caseId && (
+                      <div className="text-xs text-orange-light mt-0.5">
+                        → {cases.find(c => c.id === file.caseId)?.title || 'Case'}
+                      </div>
+                    )}
                     {file.error && (
                       <div className="text-sm text-destructive mt-1">{file.error}</div>
                     )}
@@ -191,8 +336,11 @@ export function UploadPage() {
                       size="sm" 
                       variant="outline"
                       onClick={() => {
-                        // Navigate to preflight page (we'll implement this)
-                        console.log('Navigate to preflight:', file.sessionId)
+                        // Store case_id for preflight, then navigate
+                        if (file.caseId) {
+                          sessionStorage.setItem(`preflight_case_${file.sessionId}`, file.caseId)
+                        }
+                        window.location.hash = `preflight/${file.sessionId}`
                       }}
                     >
                       Review

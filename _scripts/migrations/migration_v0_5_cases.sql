@@ -113,7 +113,8 @@ CREATE TABLE IF NOT EXISTS case_timeline (
         'pattern_found', 
         'note_added',
         'context_updated',
-        'status_changed'
+        'status_changed',
+        'insights_extracted'
     )),
     event_data_json TEXT,                   -- Flexible payload {doc_id, count, etc}
     

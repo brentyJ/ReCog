@@ -303,6 +303,10 @@ def upload_file():
     """
     Upload file and create preflight session.
     
+    Accepts multipart form data:
+        - file: The file to upload
+        - case_id: Optional case UUID to link for context injection
+    
     Returns preflight session ID for review workflow.
     """
     if "file" not in request.files:
@@ -312,13 +316,16 @@ def upload_file():
     if file.filename == "":
         return api_response(error="No file selected", status=400)
     
+    # Get optional case_id from form data
+    case_id = request.form.get("case_id")
+    
     # Save file
     filename = secure_filename(file.filename)
     file_id = uuid4().hex[:8]
     saved_path = Config.UPLOAD_DIR / f"{file_id}_{filename}"
     file.save(str(saved_path))
     
-    logger.info(f"Uploaded: {saved_path}")
+    logger.info(f"Uploaded: {saved_path}" + (f" (case: {case_id})" if case_id else ""))
     
     # Detect format
     detection = detect_file(str(saved_path))
@@ -333,11 +340,12 @@ def upload_file():
             "suggestions": detection.suggestions,
         })
     
-    # Create preflight session
+    # Create preflight session with optional case link
     try:
         session_id = preflight_manager.create_session(
             session_type="single_file",
             source_files=[str(saved_path)],
+            case_id=case_id,
         )
         
         # Ingest and add to preflight

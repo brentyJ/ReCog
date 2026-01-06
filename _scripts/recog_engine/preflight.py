@@ -70,6 +70,7 @@ class PreflightManager:
         self,
         session_type: str,
         source_files: List[str] = None,
+        case_id: str = None,
     ) -> int:
         """
         Create a new preflight session.
@@ -77,6 +78,7 @@ class PreflightManager:
         Args:
             session_type: 'single_file', 'batch', 'chatgpt_import', etc.
             source_files: List of file paths being processed
+            case_id: Optional case UUID to link documents for context injection
             
         Returns:
             session_id
@@ -89,12 +91,13 @@ class PreflightManager:
             cursor.execute("""
                 INSERT INTO preflight_sessions (
                     session_type, status, source_files_json, source_count,
-                    created_at, updated_at
-                ) VALUES (?, 'pending', ?, ?, ?, ?)
+                    case_id, created_at, updated_at
+                ) VALUES (?, 'pending', ?, ?, ?, ?, ?)
             """, (
                 session_type,
                 json.dumps(source_files or []),
                 len(source_files or []),
+                case_id,
                 now, now
             ))
             conn.commit()
@@ -112,7 +115,7 @@ class PreflightManager:
                        total_word_count, total_entities_found, unknown_entities_count,
                        estimated_tokens, estimated_cost_cents, filters_json,
                        items_after_filter, entity_questions_json, entity_answers_json,
-                       started_at, completed_at, operations_created,
+                       case_id, started_at, completed_at, operations_created,
                        created_at, updated_at
                 FROM preflight_sessions
                 WHERE id = ?
@@ -134,6 +137,7 @@ class PreflightManager:
                     'items_after_filter': row['items_after_filter'],
                     'entity_questions': json.loads(row['entity_questions_json']) if row['entity_questions_json'] else [],
                     'entity_answers': json.loads(row['entity_answers_json']) if row['entity_answers_json'] else {},
+                    'case_id': row['case_id'],
                     'started_at': row['started_at'],
                     'completed_at': row['completed_at'],
                     'operations_created': row['operations_created'],
@@ -427,6 +431,7 @@ class PreflightManager:
             'session_type': session['session_type'],
             'status': session['status'],
             'source_count': session['source_count'],
+            'case_id': session.get('case_id'),
             'items': {
                 'total': len(items),
                 'included': len(included),
