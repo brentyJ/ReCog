@@ -34,3 +34,6 @@ Thumbs.db
 
 # Private (roadmaps, proprietary mod planning, sensitive docs)
 _private/
+
+# Claude Code local config
+.claude/
