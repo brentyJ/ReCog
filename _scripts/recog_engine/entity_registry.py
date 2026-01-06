@@ -378,10 +378,22 @@ class EntityRegistry:
             results['email'].append((entity_id, is_new))
         
         # People (from name detection)
+        # Handle both old format (list of strings) and new format (list of dicts with 'name' and 'confidence')
         for person in tier0_entities.get('people', []):
+            # Extract name - handle both dict format and legacy string format
+            if isinstance(person, dict):
+                name = person.get('name', '')
+                confidence = person.get('confidence', 'medium')
+            else:
+                name = person
+                confidence = 'medium'
+            
+            if not name or not name.strip():
+                continue
+                
             entity_id, is_new = self.register_entity(
                 entity_type='person',
-                raw_value=person,
+                raw_value=name,
                 source_type=source_type,
             )
             results['person'].append((entity_id, is_new))

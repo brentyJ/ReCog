@@ -351,7 +351,17 @@ class PreflightManager:
         # Dedupe
         unique_phones = list({p.get('normalised', p.get('raw', '')): p for p in all_phones}.values())
         unique_emails = list({e.get('normalised', e.get('raw', '')): e for e in all_emails}.values())
-        unique_people = list(set(all_people))
+        # Handle both old format (strings) and new format (dicts with 'name' key)
+        seen_names = set()
+        unique_people = []
+        for person in all_people:
+            if isinstance(person, dict):
+                name = person.get('name', '')
+            else:
+                name = person
+            if name and name.lower() not in seen_names:
+                seen_names.add(name.lower())
+                unique_people.append(person)
         
         total_entities = len(unique_phones) + len(unique_emails) + len(unique_people)
         
