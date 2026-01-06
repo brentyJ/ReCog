@@ -33,6 +33,8 @@ from recog_engine import (
     SynthEngine,
     ClusterStrategy,
 )
+from recog_engine.case_store import CaseStore
+from recog_engine.timeline_store import TimelineStore
 from recog_engine.core.providers import (
     create_provider,
     get_available_providers,
@@ -200,8 +202,10 @@ def get_source_content(conn: sqlite3.Connection, source_type: str, source_id: st
 # JOB PROCESSORS
 # =============================================================================
 
-# Global synth engine (initialized in run_worker)
+# Global stores (initialized in run_worker)
 synth_engine: Optional[SynthEngine] = None
+case_store: Optional[CaseStore] = None
+timeline_store: Optional[TimelineStore] = None
 
 
 def process_extract_job(
@@ -209,20 +213,23 @@ def process_extract_job(
     job: sqlite3.Row,
     provider,
     insight_store: InsightStore,
+    case_store: CaseStore,
+    timeline_store: TimelineStore,
 ) -> Dict[str, Any]:
     """
     Process an extraction job.
-    
+
     Returns dict with 'success', 'insights_count', 'cost_cents', 'error'.
     """
     source_type = job["source_type"]
     source_id = job["source_id"]
-    
+    case_id = job["case_id"] if "case_id" in job.keys() else None
+
     # Fetch content
     content = get_source_content(conn, source_type, source_id)
     if not content:
         return {"success": False, "error": f"No content found for {source_type}:{source_id}"}
-    
+
     # Get or run Tier 0
     pre_annotation = None
     if job["pre_annotation_json"]:
@@ -230,13 +237,25 @@ def process_extract_job(
             pre_annotation = json.loads(job["pre_annotation_json"])
         except json.JSONDecodeError:
             pass
-    
+
     if not pre_annotation:
         pre_annotation = preprocess_text(content)
-    
-    # Build prompt
-    prompt = build_extraction_prompt(content, pre_annotation)
-    
+
+    # Get case context if case_id provided
+    case_context = None
+    if case_id:
+        case_obj = case_store.get_case(case_id)
+        if case_obj:
+            case_context = {
+                "title": case_obj.title,
+                "context": case_obj.context,
+                "focus_areas": case_obj.focus_areas or [],
+            }
+            logger.info(f"Injecting case context: {case_obj.title}")
+
+    # Build prompt with case context
+    prompt = build_extraction_prompt(content, pre_annotation, case_context=case_context)
+
     # Call LLM
     try:
         response = provider.generate_json(
@@ -245,16 +264,28 @@ def process_extract_job(
         )
     except Exception as e:
         return {"success": False, "error": f"LLM error: {str(e)}"}
-    
+
     # Parse response
     insights = parse_extraction_response(response.content, source_type, source_id)
-    
-    # Save insights
-    saved = insight_store.save_insights_batch(insights, check_similarity=True)
-    
+
+    # Save insights with case_id
+    saved = insight_store.save_insights_batch(insights, check_similarity=True, case_id=case_id)
+
+    # Log timeline event if case_id provided and insights were created
+    if case_id and saved.get("created", 0) > 0:
+        timeline_store.log_event(
+            case_id,
+            "insights_extracted",
+            {
+                "count": saved.get("created", 0),
+                "source_type": source_type,
+                "source_id": source_id,
+            },
+        )
+
     # Calculate cost
     cost_cents = response.cost_estimate_cents or 0
-    
+
     return {
         "success": True,
         "insights_count": saved["created"] + saved["merged"],
@@ -262,6 +293,7 @@ def process_extract_job(
         "merged": saved["merged"],
         "cost_cents": cost_cents,
         "tokens": response.total_tokens,
+        "case_id": case_id,
     }
 
 
@@ -364,7 +396,7 @@ def process_job(
     
     try:
         if op_type == "extract":
-            result = process_extract_job(conn, job, provider, insight_store)
+            result = process_extract_job(conn, job, provider, insight_store, case_store, timeline_store)
         elif op_type == "synthesize":
             result = process_synthesize_job(conn, job, provider, synth_engine)
         elif op_type == "correlate":
@@ -433,9 +465,11 @@ def run_worker():
     logger.info(f"Using provider: {provider.__class__.__name__}")
     logger.info("=" * 60)
     
-    # Create insight store and synth engine
-    global synth_engine
+    # Create stores
+    global synth_engine, case_store, timeline_store
     insight_store = InsightStore(WorkerConfig.DB_PATH)
+    case_store = CaseStore(WorkerConfig.DB_PATH)
+    timeline_store = TimelineStore(WorkerConfig.DB_PATH)
     synth_engine = SynthEngine(WorkerConfig.DB_PATH, insight_store)
     
     while state.running:

@@ -1,18 +1,22 @@
 import { useState, useEffect } from 'react'
-import { 
-  Plus, 
-  FolderOpen, 
-  Archive, 
-  FileText, 
-  Lightbulb, 
+import {
+  Plus,
+  FolderOpen,
+  Archive,
+  FileText,
+  Lightbulb,
   Clock,
   ChevronRight,
   Trash2,
   MoreVertical,
   Target,
-  AlertCircle
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  FileUp
 } from 'lucide-react'
-import { getCases, createCase, deleteCase, getCaseTimeline } from '../../lib/api'
+import { getCases, createCase, deleteCase, getCaseTimeline, getCaseFindings, updateFinding } from '../../lib/api'
 
 // Case Card Component
 function CaseCard({ caseData, onSelect, onDelete }) {
@@ -259,28 +263,70 @@ function CreateCaseModal({ isOpen, onClose, onCreate }) {
 // Case Detail View
 function CaseDetail({ caseData, onBack }) {
   const [timeline, setTimeline] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [findings, setFindings] = useState([])
+  const [loadingTimeline, setLoadingTimeline] = useState(true)
+  const [loadingFindings, setLoadingFindings] = useState(true)
+  const [updatingFinding, setUpdatingFinding] = useState({})
+  const [activeTab, setActiveTab] = useState('findings')
 
   useEffect(() => {
-    async function loadTimeline() {
-      try {
-        const response = await getCaseTimeline(caseData.id)
-        setTimeline(response.data?.events || [])
-      } catch (err) {
-        console.error('Failed to load timeline:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
     loadTimeline()
+    loadFindings()
   }, [caseData.id])
+
+  async function loadTimeline() {
+    try {
+      const response = await getCaseTimeline(caseData.id)
+      setTimeline(response.data?.events || [])
+    } catch (err) {
+      console.error('Failed to load timeline:', err)
+    } finally {
+      setLoadingTimeline(false)
+    }
+  }
+
+  async function loadFindings() {
+    try {
+      const response = await getCaseFindings(caseData.id)
+      setFindings(response.data?.findings || [])
+    } catch (err) {
+      console.error('Failed to load findings:', err)
+    } finally {
+      setLoadingFindings(false)
+    }
+  }
+
+  async function handleUpdateFindingStatus(findingId, newStatus) {
+    setUpdatingFinding(prev => ({ ...prev, [findingId]: true }))
+    try {
+      await updateFinding(findingId, { status: newStatus })
+      setFindings(prev => prev.map(f =>
+        f.id === findingId ? { ...f, status: newStatus } : f
+      ))
+    } catch (err) {
+      console.error('Failed to update finding:', err)
+      alert('Failed to update finding: ' + err.message)
+    } finally {
+      setUpdatingFinding(prev => ({ ...prev, [findingId]: false }))
+    }
+  }
 
   const eventIcons = {
     case_created: FolderOpen,
     doc_added: FileText,
     insights_extracted: Lightbulb,
     finding_verified: Target,
+    finding_added: Lightbulb,
   }
+
+  const statusColors = {
+    verified: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    needs_verification: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+    rejected: 'bg-red-500/20 text-red-400 border-red-500/30',
+  }
+
+  const verifiedCount = findings.filter(f => f.status === 'verified').length
+  const needsVerificationCount = findings.filter(f => f.status === 'needs_verification').length
 
   return (
     <div className="space-y-6">
@@ -299,8 +345,8 @@ function CaseDetail({ caseData, onBack }) {
           )}
         </div>
         <span className={`px-3 py-1 rounded text-sm font-medium ${
-          caseData.status === 'active' 
-            ? 'bg-emerald-500/20 text-emerald-400' 
+          caseData.status === 'active'
+            ? 'bg-emerald-500/20 text-emerald-400'
             : 'bg-zinc-500/20 text-zinc-400'
         }`}>
           {caseData.status}
@@ -311,7 +357,7 @@ function CaseDetail({ caseData, onBack }) {
       {caseData.focus_areas && caseData.focus_areas.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {caseData.focus_areas.map((area, i) => (
-            <span 
+            <span
               key={i}
               className="px-3 py-1 bg-orange-mid/10 text-orange-light text-sm rounded-full border border-orange-mid/20"
             >
@@ -322,58 +368,194 @@ function CaseDetail({ caseData, onBack }) {
       )}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-lg p-4">
           <div className="text-3xl font-bold text-foreground">{caseData.document_count || 0}</div>
           <div className="text-sm text-muted-foreground">Documents</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-3xl font-bold text-foreground">{caseData.findings_count || 0}</div>
+          <div className="text-3xl font-bold text-foreground">{findings.length}</div>
           <div className="text-sm text-muted-foreground">Findings</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-3xl font-bold text-foreground">{caseData.patterns_count || 0}</div>
-          <div className="text-sm text-muted-foreground">Patterns</div>
+          <div className="text-3xl font-bold text-emerald-400">{verifiedCount}</div>
+          <div className="text-sm text-muted-foreground">Verified</div>
+        </div>
+        <div className="bg-card border border-border rounded-lg p-4">
+          <div className="text-3xl font-bold text-amber-400">{needsVerificationCount}</div>
+          <div className="text-sm text-muted-foreground">To Review</div>
         </div>
       </div>
 
-      {/* Timeline */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Clock className="w-5 h-5 text-orange-light" />
-          Timeline
-        </h3>
-        
-        {loading ? (
-          <div className="text-center py-8 text-muted-foreground">Loading timeline...</div>
-        ) : timeline.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">No events yet</div>
-        ) : (
-          <div className="space-y-4">
-            {timeline.map((event) => {
-              const Icon = eventIcons[event.event_type] || Clock
-              return (
-                <div key={event.id} className="flex gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 bg-orange-mid/10 rounded-full flex items-center justify-center">
-                    <Icon className="w-4 h-4 text-orange-light" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-foreground">{event.description}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(event.timestamp).toLocaleString()}
-                    </div>
-                    {event.human_annotation && (
-                      <div className="mt-1 text-xs text-orange-light italic">
-                        Note: {event.human_annotation}
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-border">
+        <button
+          onClick={() => setActiveTab('findings')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'findings'
+              ? 'border-orange-light text-orange-light'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Lightbulb className="w-4 h-4 inline mr-2" />
+          Findings ({findings.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('timeline')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'timeline'
+              ? 'border-orange-light text-orange-light'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Clock className="w-4 h-4 inline mr-2" />
+          Timeline ({timeline.length})
+        </button>
+      </div>
+
+      {/* Findings Tab */}
+      {activeTab === 'findings' && (
+        <div className="bg-card border border-border rounded-lg p-6">
+          {loadingFindings ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+              Loading findings...
+            </div>
+          ) : findings.length === 0 ? (
+            <div className="text-center py-8">
+              <Lightbulb className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+              <div className="text-muted-foreground mb-2">No findings yet</div>
+              <p className="text-sm text-muted-foreground">
+                Upload documents and extract insights, then promote them to findings.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {findings.map((finding) => (
+                <div
+                  key={finding.id}
+                  className={`p-4 rounded-lg border transition-all ${
+                    finding.status === 'verified'
+                      ? 'border-emerald-500/30 bg-emerald-500/5'
+                      : finding.status === 'rejected'
+                      ? 'border-red-500/30 bg-red-500/5 opacity-60'
+                      : 'border-border'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="font-medium text-foreground">
+                          {finding.insight?.title || finding.insight?.claim || 'Untitled Finding'}
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium border flex-shrink-0 ${statusColors[finding.status]}`}>
+                          {finding.status === 'needs_verification' ? 'Needs Review' : finding.status}
+                        </span>
                       </div>
-                    )}
+
+                      {finding.insight?.excerpt && (
+                        <div className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                          {finding.insight.excerpt}
+                        </div>
+                      )}
+
+                      {finding.tags && finding.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {finding.tags.map((tag, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-muted text-xs rounded">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {finding.user_notes && (
+                        <div className="text-sm text-orange-light italic mb-3">
+                          Note: {finding.user_notes}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs text-muted-foreground">
+                          Added {new Date(finding.created_at).toLocaleDateString()}
+                          {finding.verified_at && (
+                            <> • Verified {new Date(finding.verified_at).toLocaleDateString()}</>
+                          )}
+                        </div>
+
+                        {finding.status !== 'rejected' && (
+                          <div className="flex gap-2">
+                            {finding.status !== 'verified' && (
+                              <button
+                                onClick={() => handleUpdateFindingStatus(finding.id, 'verified')}
+                                disabled={updatingFinding[finding.id]}
+                                className="px-3 py-1 text-xs bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/30 transition-colors flex items-center gap-1 disabled:opacity-50"
+                              >
+                                {updatingFinding[finding.id] ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="w-3 h-3" />
+                                )}
+                                Verify
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleUpdateFindingStatus(finding.id, 'rejected')}
+                              disabled={updatingFinding[finding.id]}
+                              className="px-3 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors flex items-center gap-1 disabled:opacity-50"
+                            >
+                              <XCircle className="w-3 h-3" />
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Timeline Tab */}
+      {activeTab === 'timeline' && (
+        <div className="bg-card border border-border rounded-lg p-6">
+          {loadingTimeline ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+              Loading timeline...
+            </div>
+          ) : timeline.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">No events yet</div>
+          ) : (
+            <div className="space-y-4">
+              {timeline.map((event) => {
+                const Icon = eventIcons[event.event_type] || Clock
+                return (
+                  <div key={event.id} className="flex gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 bg-orange-mid/10 rounded-full flex items-center justify-center">
+                      <Icon className="w-4 h-4 text-orange-light" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-foreground">{event.description}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(event.timestamp).toLocaleString()}
+                      </div>
+                      {event.human_annotation && (
+                        <div className="mt-1 text-xs text-orange-light italic">
+                          Note: {event.human_annotation}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
