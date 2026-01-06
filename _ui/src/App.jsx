@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Zap, FileUp, Clipboard, Users, Lightbulb, Waypoints, FolderOpen } from 'lucide-react'
+import { Zap, FileUp, Clipboard, Users, Lightbulb, Waypoints, FolderOpen, Activity, FileText } from 'lucide-react'
 
 // Import all page components
 import { SignalExtraction } from './components/pages/SignalExtraction'
@@ -9,9 +9,11 @@ import { EntitiesPage } from './components/pages/EntitiesPage'
 import { InsightsPage } from './components/pages/InsightsPage'
 import { PatternsPage } from './components/pages/PatternsPage'
 import { CasesPage } from './components/pages/CasesPage'
+import { Dashboard } from './components/pages/Dashboard'
+import { DocumentViewerPage } from './components/pages/DocumentViewerPage'
 
 function App() {
-  const [activePage, setActivePage] = useState('analyse')
+  const [activePage, setActivePage] = useState('dashboard')
   const [serverStatus, setServerStatus] = useState('checking')
   const [badges, setBadges] = useState({
     cases: 0,
@@ -30,14 +32,14 @@ function App() {
       if (match) {
         const page = match[1]
         // Validate it's a known page
-        const validPages = ['cases', 'analyse', 'upload', 'preflight', 'entities', 'insights', 'patterns']
+        const validPages = ['dashboard', 'cases', 'analyse', 'upload', 'preflight', 'entities', 'insights', 'patterns', 'document']
         if (validPages.includes(page)) {
           setActivePage(page)
           return
         }
       }
-      // Default to analyse if no valid hash (empty hash, back button, etc.)
-      setActivePage('analyse')
+      // Default to dashboard if no valid hash (empty hash, back button, etc.)
+      setActivePage('dashboard')
     }
 
     // Check hash on mount
@@ -77,8 +79,9 @@ function App() {
 
   const navSections = [
     {
-      title: 'CASES',
+      title: 'OVERVIEW',
       items: [
+        { id: 'dashboard', label: 'Dashboard', icon: Activity, badge: null },
         { id: 'cases', label: 'Cases', icon: FolderOpen, badge: badges.cases },
       ]
     },
@@ -106,6 +109,7 @@ function App() {
   ]
 
   const pageConfig = {
+    'dashboard': { title: 'Dashboard', icon: Activity },
     'cases': { title: 'Cases', icon: FolderOpen },
     'analyse': { title: 'Signal Extraction', icon: Zap },
     'upload': { title: 'Upload Files', icon: FileUp },
@@ -113,6 +117,7 @@ function App() {
     'entities': { title: 'Entity Management', icon: Users },
     'insights': { title: 'Insights', icon: Lightbulb },
     'patterns': { title: 'Patterns', icon: Waypoints },
+    'document': { title: 'Document Viewer', icon: FileText },
   }
 
   const currentPage = pageConfig[activePage]
@@ -224,6 +229,7 @@ function App() {
 
         {/* Page Content */}
         <div className="flex-1 p-8 overflow-y-auto scrollbar-thin">
+          {activePage === 'dashboard' && <Dashboard />}
           {activePage === 'cases' && <CasesPage />}
           {activePage === 'analyse' && <SignalExtraction />}
           {activePage === 'upload' && <UploadPage />}
@@ -231,6 +237,7 @@ function App() {
           {activePage === 'entities' && <EntitiesPage />}
           {activePage === 'insights' && <InsightsPage />}
           {activePage === 'patterns' && <PatternsPage />}
+          {activePage === 'document' && <DocumentViewerPage />}
         </div>
       </main>
     </div>

@@ -837,6 +837,61 @@ Completed:
 
 ---
 
+## Phase 10.8: Entity Extraction Quality ✅
+
+**Goal**: Improve entity detection accuracy and add user feedback loop
+
+**Session Date**: 2026-01-06 (Claude Code CLI)
+
+### 10.8.1 False Positive Filtering ✅
+```
+Modify: _scripts/recog_engine/tier0.py
+```
+
+Expanded NON_NAME_CAPITALS (~300 entries):
+- [x] US cities: Seattle, Chicago, Boston, Denver, Portland, etc.
+- [x] International cities: Toronto, Vancouver, Dublin, Edinburgh, etc.
+- [x] Business terms: Project, Meeting, Date, Deadline, Schedule, etc.
+- [x] Research terms: Interviewer, Cohort, Site, Hypothesis, Protocol, etc.
+- [x] Compass/project names: Meridian, Horizon, Summit, Aurora, etc.
+- [x] Building/room terms: Conference, Room, Floor, Hall, etc.
+
+### 10.8.2 Title Detection Fix ✅
+```
+Modify: _scripts/recog_engine/tier0.py
+```
+
+Completed:
+- [x] Abbreviation protection pattern prevents sentence splitting on "Dr.", "Mr.", etc.
+- [x] "Dr. Sarah" now correctly detected as HIGH confidence (was LOW)
+- [x] Added Prof, Rev, Sir, Dame, Lord, Lady to PEOPLE_TITLES
+- [x] Honorifics (Mr, Mrs, Dr, etc.) skipped when followed by actual name
+
+### 10.8.3 Entity Confirmation Fix ✅
+```
+Modify: _ui/src/components/pages/EntitiesPage.jsx
+```
+
+Completed:
+- [x] handleIdentify() now sends `confirmed: true` with entity update
+- [x] Entities move from "Unknown" to "Confirmed" list after identification
+
+### 10.8.4 Entity Rejection (Blacklist) UI ✅
+```
+Modify: _ui/src/components/pages/EntitiesPage.jsx, _ui/src/lib/api.js
+```
+
+Completed:
+- [x] Added `rejectEntity()` API function
+- [x] Added "Not a Name" button with Ban icon next to "Identify"
+- [x] Clicking rejects entity and adds to blacklist database
+- [x] Blacklisted values skipped in future extractions
+- [x] Blacklist persists across server restarts
+
+**Deliverable**: Higher quality entity extraction with user feedback loop ✅ COMPLETE
+
+---
+
 ## Phase 11: EhkoLabs Website Modernization 📋
 
 **Goal**: Convert marketing website to React + shadcn/ui with consistent branding
@@ -890,6 +945,7 @@ Completed:
 | 10.5 ✅ | Case Architecture | Case-centric document intelligence |
 | 10.6 ✅ | Code Quality | Tests, indexes, shared components |
 | 10.7 ✅ | UI Navigation | Hash routing, state persistence, batch ops |
+| 10.8 ✅ | Entity Quality | False positive filtering, blacklist UI |
 | 11 📋 | Website | Marketing site modernization |
 
 ## Architecture (Post-Phase 6)
@@ -938,4 +994,4 @@ Total: ~8-14 sessions to production-ready MVP
 
 ---
 
-*Last updated: Phase 10.7 UI Navigation & State Persistence COMPLETE - 06 Jan 2026*
+*Last updated: Phase 10.8 Entity Extraction Quality COMPLETE - 06 Jan 2026*

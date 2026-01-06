@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Virtuoso } from 'react-virtuoso'
 import { Lightbulb, Filter, FolderOpen, CheckCircle, Star, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -25,6 +26,7 @@ import {
   autoPromoteFindings,
   getCaseFindings,
 } from '@/lib/api'
+import { VIRTUOSO_CONFIG } from '@/lib/virtualization'
 
 export function InsightsPage() {
   const [insights, setInsights] = useState([])
@@ -438,102 +440,107 @@ function InsightsList({ insights, loading, findings, promoting, caseSelected, on
   }
 
   return (
-    <div className="space-y-3">
-      {insights.map((insight) => {
-        const sigBadge = getSignificanceBadge(insight.significance_score)
-        const finding = findings[insight.id]
-        const isPromoting = promoting[insight.id]
-        
-        return (
-          <Card 
-            key={insight.id} 
-            className={`
-              hover:bg-muted/30 transition-colors
-              ${finding ? 'border-[#5fb3a1]/50 bg-[#5fb3a1]/5' : ''}
-            `}
-          >
-            <CardContent className="pt-6">
-              <div className="flex items-start gap-4">
-                <div className={`
-                  text-3xl font-bold flex-shrink-0 w-12 text-center
-                  ${getSignificanceColor(insight.significance_score)}
-                `}>
-                  {insight.significance_score}
-                </div>
+    <div style={{ height: 'calc(100vh - 420px)', minHeight: '300px' }}>
+      <Virtuoso
+        data={insights}
+        {...VIRTUOSO_CONFIG}
+        itemContent={(index, insight) => {
+          const sigBadge = getSignificanceBadge(insight.significance_score)
+          const finding = findings[insight.id]
+          const isPromoting = promoting[insight.id]
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="text-lg font-semibold line-clamp-2">
-                      {insight.title || insight.claim}
+          return (
+            <div className="pb-3">
+              <Card
+                className={`
+                  hover:bg-muted/30 transition-colors
+                  ${finding ? 'border-[#5fb3a1]/50 bg-[#5fb3a1]/5' : ''}
+                `}
+              >
+                <CardContent className="pt-6">
+                  <div className="flex items-start gap-4">
+                    <div className={`
+                      text-3xl font-bold flex-shrink-0 w-12 text-center
+                      ${getSignificanceColor(insight.significance_score)}
+                    `}>
+                      {insight.significance_score}
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Badge variant="outline" className={sigBadge.color}>
-                        {sigBadge.label}
-                      </Badge>
-                      
-                      {/* Finding status / Promote button */}
-                      {finding ? (
-                        <Badge className="bg-[#5fb3a1]/20 text-[#5fb3a1] border-[#5fb3a1]/30 gap-1">
-                          <CheckCircle className="w-3 h-3" />
-                          {finding.status === 'verified' ? 'Verified' : 'Finding'}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="text-lg font-semibold line-clamp-2">
+                          {insight.title || insight.claim}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Badge variant="outline" className={sigBadge.color}>
+                            {sigBadge.label}
+                          </Badge>
+
+                          {/* Finding status / Promote button */}
+                          {finding ? (
+                            <Badge className="bg-[#5fb3a1]/20 text-[#5fb3a1] border-[#5fb3a1]/30 gap-1">
+                              <CheckCircle className="w-3 h-3" />
+                              {finding.status === 'verified' ? 'Verified' : 'Finding'}
+                            </Badge>
+                          ) : caseSelected ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onPromote(insight.id)}
+                              disabled={isPromoting}
+                              className="gap-1 h-7 text-xs"
+                            >
+                              {isPromoting ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Star className="w-3 h-3" />
+                              )}
+                              Promote
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {insight.excerpt && (
+                        <div className="text-sm text-muted-foreground mb-3 line-clamp-3">
+                          {insight.excerpt}
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="secondary">
+                          {insight.insight_type || 'observation'}
                         </Badge>
-                      ) : caseSelected ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onPromote(insight.id)}
-                          disabled={isPromoting}
-                          className="gap-1 h-7 text-xs"
-                        >
-                          {isPromoting ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Star className="w-3 h-3" />
-                          )}
-                          Promote
-                        </Button>
-                      ) : null}
+                        <Badge variant="outline">
+                          {insight.status}
+                        </Badge>
+                        {insight.case_id && (
+                          <Badge variant="outline" className="bg-orange-mid/10 border-orange-mid/30">
+                            <FolderOpen className="w-3 h-3 mr-1" />
+                            In Case
+                          </Badge>
+                        )}
+                        {insight.themes && insight.themes.length > 0 && (
+                          insight.themes.slice(0, 3).map((theme, i) => (
+                            <Badge key={i} variant="outline" className="bg-blue-500/10">
+                              {theme}
+                            </Badge>
+                          ))
+                        )}
+                        {insight.entities && insight.entities.length > 0 && (
+                          <Badge variant="outline" className="bg-orange-mid/10">
+                            {insight.entities.length} entities
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
-
-                  {insight.excerpt && (
-                    <div className="text-sm text-muted-foreground mb-3 line-clamp-3">
-                      {insight.excerpt}
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">
-                      {insight.insight_type || 'observation'}
-                    </Badge>
-                    <Badge variant="outline">
-                      {insight.status}
-                    </Badge>
-                    {insight.case_id && (
-                      <Badge variant="outline" className="bg-orange-mid/10 border-orange-mid/30">
-                        <FolderOpen className="w-3 h-3 mr-1" />
-                        In Case
-                      </Badge>
-                    )}
-                    {insight.themes && insight.themes.length > 0 && (
-                      insight.themes.slice(0, 3).map((theme, i) => (
-                        <Badge key={i} variant="outline" className="bg-blue-500/10">
-                          {theme}
-                        </Badge>
-                      ))
-                    )}
-                    {insight.entities && insight.entities.length > 0 && (
-                      <Badge variant="outline" className="bg-orange-mid/10">
-                        {insight.entities.length} entities
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )
-      })}
+                </CardContent>
+              </Card>
+            </div>
+          )
+        }}
+      />
     </div>
   )
 }

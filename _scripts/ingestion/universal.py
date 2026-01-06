@@ -31,10 +31,11 @@ SUPPORTED_FORMATS = {
     ".markdown": ("Markdown", "markdown"),
     ".txt": ("Plain Text", "text"),
     ".text": ("Plain Text", "text"),
-    
+
     # Data exports
     ".json": ("JSON (may contain chat exports)", "json"),
-    
+    ".csv": ("CSV Data", "csv"),
+
     # Messages
     ".xml": ("XML Messages", "messages"),
     ".mbox": ("Email Archive", "messages"),

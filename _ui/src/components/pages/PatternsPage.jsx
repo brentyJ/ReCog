@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Virtuoso } from 'react-virtuoso'
 import { Waypoints, Play, Users, Calendar, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,6 +16,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StatCard, StatGrid } from '@/components/ui/stat-card'
 import { getPatterns, getSynthStats, runSynthesis } from '@/lib/api'
+import { VIRTUOSO_CONFIG } from '@/lib/virtualization'
 
 export function PatternsPage() {
   const [patterns, setPatterns] = useState([])
@@ -191,87 +193,90 @@ export function PatternsPage() {
               description="Run synthesis to generate patterns from your insights."
             />
           ) : (
-            <div className="space-y-4">
-              {patterns.map((pattern) => {
-                const StrategyIcon = strategyIcons[pattern.cluster_strategy] || Waypoints
-                return (
-                  <div
-                    key={pattern.id}
-                    className="p-4 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
-                  >
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-4 mb-3">
-                      <div className="flex-1">
-                        <div className="text-lg font-semibold mb-1">
-                          {pattern.title || pattern.description?.substring(0, 100)}
+            <div style={{ height: 'calc(100vh - 450px)', minHeight: '300px' }}>
+              <Virtuoso
+                data={patterns}
+                {...VIRTUOSO_CONFIG}
+                itemContent={(index, pattern) => {
+                  const StrategyIcon = strategyIcons[pattern.cluster_strategy] || Waypoints
+                  return (
+                    <div className="pb-4">
+                      <div className="p-4 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-4 mb-3">
+                          <div className="flex-1">
+                            <div className="text-lg font-semibold mb-1">
+                              {pattern.title || pattern.description?.substring(0, 100)}
+                            </div>
+                            {pattern.description && (
+                              <div className="text-sm text-muted-foreground line-clamp-2">
+                                {pattern.description}
+                              </div>
+                            )}
+                          </div>
+
+                          <Badge variant="outline" className="flex-shrink-0">
+                            <StrategyIcon className="w-3 h-3 mr-1" />
+                            {pattern.cluster_strategy}
+                          </Badge>
                         </div>
-                        {pattern.description && (
-                          <div className="text-sm text-muted-foreground line-clamp-2">
-                            {pattern.description}
+
+                        {/* Strength Bar */}
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-muted-foreground">Strength</span>
+                            <span className="text-xs font-mono">{pattern.strength_score}/10</span>
+                          </div>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${getStrengthColor(pattern.strength_score)} transition-all`}
+                              style={{ width: getStrengthWidth(pattern.strength_score) }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Metadata */}
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="secondary">
+                            {pattern.pattern_type || 'correlation'}
+                          </Badge>
+                          <Badge variant="outline">
+                            {pattern.status || 'pending'}
+                          </Badge>
+                          {pattern.insight_count && (
+                            <Badge variant="outline" className="bg-blue-500/10">
+                              {pattern.insight_count} insights
+                            </Badge>
+                          )}
+                          {pattern.entities && pattern.entities.length > 0 && (
+                            <Badge variant="outline" className="bg-orange-mid/10">
+                              <Users className="w-3 h-3 mr-1" />
+                              {pattern.entities.length}
+                            </Badge>
+                          )}
+                          {pattern.timespan && (
+                            <Badge variant="outline" className="bg-cyan-500/10">
+                              <Calendar className="w-3 h-3 mr-1" />
+                              {pattern.timespan}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Themes */}
+                        {pattern.themes && pattern.themes.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-1">
+                            {pattern.themes.slice(0, 5).map((theme, i) => (
+                              <Badge key={i} variant="outline" className="text-xs">
+                                {theme}
+                              </Badge>
+                            ))}
                           </div>
                         )}
                       </div>
-                      
-                      <Badge variant="outline" className="flex-shrink-0">
-                        <StrategyIcon className="w-3 h-3 mr-1" />
-                        {pattern.cluster_strategy}
-                      </Badge>
                     </div>
-
-                    {/* Strength Bar */}
-                    <div className="mb-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-muted-foreground">Strength</span>
-                        <span className="text-xs font-mono">{pattern.strength_score}/10</span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${getStrengthColor(pattern.strength_score)} transition-all`}
-                          style={{ width: getStrengthWidth(pattern.strength_score) }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Metadata */}
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="secondary">
-                        {pattern.pattern_type || 'correlation'}
-                      </Badge>
-                      <Badge variant="outline">
-                        {pattern.status || 'pending'}
-                      </Badge>
-                      {pattern.insight_count && (
-                        <Badge variant="outline" className="bg-blue-500/10">
-                          {pattern.insight_count} insights
-                        </Badge>
-                      )}
-                      {pattern.entities && pattern.entities.length > 0 && (
-                        <Badge variant="outline" className="bg-orange-mid/10">
-                          <Users className="w-3 h-3 mr-1" />
-                          {pattern.entities.length}
-                        </Badge>
-                      )}
-                      {pattern.timespan && (
-                        <Badge variant="outline" className="bg-cyan-500/10">
-                          <Calendar className="w-3 h-3 mr-1" />
-                          {pattern.timespan}
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Themes */}
-                    {pattern.themes && pattern.themes.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        {pattern.themes.slice(0, 5).map((theme, i) => (
-                          <Badge key={i} variant="outline" className="text-xs">
-                            {theme}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                  )
+                }}
+              />
             </div>
           )}
         </CardContent>

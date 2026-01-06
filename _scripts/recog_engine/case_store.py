@@ -282,19 +282,34 @@ class CaseStore:
                 params
             ).fetchone()[0]
             
-            # Get results
+            # Get results with insight counts
             query = f"""
-                SELECT * FROM cases 
+                SELECT c.*,
+                       COALESCE(ic.insight_count, 0) as insight_count
+                FROM cases c
+                LEFT JOIN (
+                    SELECT case_id, COUNT(*) as insight_count
+                    FROM insights
+                    GROUP BY case_id
+                ) ic ON c.id = ic.case_id
                 WHERE {where_clause}
                 ORDER BY {order_by} {order_dir}
                 LIMIT ? OFFSET ?
             """
             params.extend([limit, offset])
-            
+
             rows = conn.execute(query, params).fetchall()
-            
+
+            # Build case dicts with insight_count
+            cases = []
+            for row in rows:
+                case_dict = Case.from_row(row).to_dict()
+                # Get insight_count from the last column
+                case_dict["insight_count"] = row["insight_count"] if "insight_count" in row.keys() else 0
+                cases.append(case_dict)
+
             return {
-                "cases": [Case.from_row(row).to_dict() for row in rows],
+                "cases": cases,
                 "total": total,
                 "limit": limit,
                 "offset": offset,

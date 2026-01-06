@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, forwardRef } from 'react'
+import { Virtuoso, GroupedVirtuoso } from 'react-virtuoso'
 import {
   Plus,
   FolderOpen,
@@ -18,6 +19,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { getCases, createCase, deleteCase, getCaseTimeline, getCaseFindings, updateFinding } from '../../lib/api'
+import { VIRTUOSO_CONFIG, GROUPED_VIRTUOSO_CONFIG, groupEventsByDate } from '../../lib/virtualization'
 
 // Case Card Component
 function CaseCard({ caseData, onSelect, onDelete }) {
@@ -415,88 +417,93 @@ function CaseDetail({ caseData, onBack }) {
               description="Upload documents and extract insights, then promote them to findings."
             />
           ) : (
-            <div className="space-y-3">
-              {findings.map((finding) => (
-                <div
-                  key={finding.id}
-                  className={`p-4 rounded-lg border transition-all ${
-                    finding.status === 'verified'
-                      ? 'border-emerald-500/30 bg-emerald-500/5'
-                      : finding.status === 'rejected'
-                      ? 'border-red-500/30 bg-red-500/5 opacity-60'
-                      : 'border-border'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="font-medium text-foreground">
-                          {finding.insight?.title || finding.insight?.claim || 'Untitled Finding'}
-                        </div>
-                        <StatusBadge status={finding.status} />
-                      </div>
-
-                      {finding.insight?.excerpt && (
-                        <div className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                          {finding.insight.excerpt}
-                        </div>
-                      )}
-
-                      {finding.tags && finding.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {finding.tags.map((tag, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-muted text-xs rounded">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {finding.user_notes && (
-                        <div className="text-sm text-orange-light italic mb-3">
-                          Note: {finding.user_notes}
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between">
-                        <div className="text-xs text-muted-foreground">
-                          Added {new Date(finding.created_at).toLocaleDateString()}
-                          {finding.verified_at && (
-                            <> • Verified {new Date(finding.verified_at).toLocaleDateString()}</>
-                          )}
-                        </div>
-
-                        {finding.status !== 'rejected' && (
-                          <div className="flex gap-2">
-                            {finding.status !== 'verified' && (
-                              <button
-                                onClick={() => handleUpdateFindingStatus(finding.id, 'verified')}
-                                disabled={updatingFinding[finding.id]}
-                                className="px-3 py-1 text-xs bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/30 transition-colors flex items-center gap-1 disabled:opacity-50"
-                              >
-                                {updatingFinding[finding.id] ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <CheckCircle className="w-3 h-3" />
-                                )}
-                                Verify
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleUpdateFindingStatus(finding.id, 'rejected')}
-                              disabled={updatingFinding[finding.id]}
-                              className="px-3 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors flex items-center gap-1 disabled:opacity-50"
-                            >
-                              <XCircle className="w-3 h-3" />
-                              Reject
-                            </button>
+            <div style={{ height: 'calc(100vh - 500px)', minHeight: '300px' }}>
+              <Virtuoso
+                data={findings}
+                {...VIRTUOSO_CONFIG}
+                itemContent={(index, finding) => (
+                  <div className="pb-3">
+                    <div
+                      className={`p-4 rounded-lg border transition-all ${
+                        finding.status === 'verified'
+                          ? 'border-emerald-500/30 bg-emerald-500/5'
+                          : finding.status === 'rejected'
+                          ? 'border-red-500/30 bg-red-500/5 opacity-60'
+                          : 'border-border'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="font-medium text-foreground">
+                              {finding.insight?.title || finding.insight?.claim || 'Untitled Finding'}
+                            </div>
+                            <StatusBadge status={finding.status} />
                           </div>
-                        )}
+
+                          {finding.insight?.excerpt && (
+                            <div className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                              {finding.insight.excerpt}
+                            </div>
+                          )}
+
+                          {finding.tags && finding.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-3">
+                              {finding.tags.map((tag, i) => (
+                                <span key={i} className="px-2 py-0.5 bg-muted text-xs rounded">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {finding.user_notes && (
+                            <div className="text-sm text-orange-light italic mb-3">
+                              Note: {finding.user_notes}
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs text-muted-foreground">
+                              Added {new Date(finding.created_at).toLocaleDateString()}
+                              {finding.verified_at && (
+                                <> • Verified {new Date(finding.verified_at).toLocaleDateString()}</>
+                              )}
+                            </div>
+
+                            {finding.status !== 'rejected' && (
+                              <div className="flex gap-2">
+                                {finding.status !== 'verified' && (
+                                  <button
+                                    onClick={() => handleUpdateFindingStatus(finding.id, 'verified')}
+                                    disabled={updatingFinding[finding.id]}
+                                    className="px-3 py-1 text-xs bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/30 transition-colors flex items-center gap-1 disabled:opacity-50"
+                                  >
+                                    {updatingFinding[finding.id] ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <CheckCircle className="w-3 h-3" />
+                                    )}
+                                    Verify
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleUpdateFindingStatus(finding.id, 'rejected')}
+                                  disabled={updatingFinding[finding.id]}
+                                  className="px-3 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  <XCircle className="w-3 h-3" />
+                                  Reject
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )}
+              />
             </div>
           )}
         </div>
@@ -514,28 +521,52 @@ function CaseDetail({ caseData, onBack }) {
               description="Timeline events will appear as you work with this case."
             />
           ) : (
-            <div className="space-y-4">
-              {timeline.map((event) => {
-                const Icon = eventIcons[event.event_type] || Clock
+            <div style={{ height: 'calc(100vh - 500px)', minHeight: '300px' }}>
+              {(() => {
+                const groupedTimeline = groupEventsByDate(timeline)
+                const flatEvents = groupedTimeline.flatMap(g => g.events)
                 return (
-                  <div key={event.id} className="flex gap-3">
-                    <div className="flex-shrink-0 w-8 h-8 bg-orange-mid/10 rounded-full flex items-center justify-center">
-                      <Icon className="w-4 h-4 text-orange-light" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-foreground">{event.description}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(event.timestamp).toLocaleString()}
-                      </div>
-                      {event.human_annotation && (
-                        <div className="mt-1 text-xs text-orange-light italic">
-                          Note: {event.human_annotation}
+                  <GroupedVirtuoso
+                    groupCounts={groupedTimeline.map(g => g.events.length)}
+                    {...GROUPED_VIRTUOSO_CONFIG}
+                    groupContent={(index) => {
+                      const group = groupedTimeline[index]
+                      return (
+                        <div className="sticky top-0 bg-card/95 backdrop-blur-sm py-2 px-4 border-b border-border z-10">
+                          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                            <Clock className="w-4 h-4" />
+                            {group.date}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
+                      )
+                    }}
+                    itemContent={(index) => {
+                      const event = flatEvents[index]
+                      const Icon = eventIcons[event.event_type] || Clock
+                      return (
+                        <div className="py-2 px-4">
+                          <div className="flex gap-3">
+                            <div className="flex-shrink-0 w-8 h-8 bg-orange-mid/10 rounded-full flex items-center justify-center">
+                              <Icon className="w-4 h-4 text-orange-light" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm text-foreground">{event.description}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(event.timestamp).toLocaleString()}
+                              </div>
+                              {event.human_annotation && (
+                                <div className="mt-1 text-xs text-orange-light italic">
+                                  Note: {event.human_annotation}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    }}
+                  />
                 )
-              })}
+              })()}
             </div>
           )}
         </div>
@@ -663,17 +694,22 @@ export function CasesPage() {
         />
       )}
 
-      {/* Case Grid */}
+      {/* Case List (Virtualized) */}
       {!loading && cases.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {cases.map((c) => (
-            <CaseCard
-              key={c.id}
-              caseData={c}
-              onSelect={setSelectedCase}
-              onDelete={handleDeleteCase}
-            />
-          ))}
+        <div style={{ height: 'calc(100vh - 280px)' }}>
+          <Virtuoso
+            data={cases}
+            {...VIRTUOSO_CONFIG}
+            itemContent={(index, caseData) => (
+              <div className="pb-4">
+                <CaseCard
+                  caseData={caseData}
+                  onSelect={setSelectedCase}
+                  onDelete={handleDeleteCase}
+                />
+              </div>
+            )}
+          />
         </div>
       )}
 

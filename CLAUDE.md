@@ -145,6 +145,7 @@ Files → Ingestion (parse) → Tier 0 (signals) → Tier 1 (insights) → Tier 
 - `POST /api/extract` - Run LLM extraction
 - `GET/POST /api/preflight/<id>/*` - Preflight workflow
 - `GET/PATCH /api/entities/*` - Entity management
+- `POST /api/entities/<id>/reject` - Blacklist false positive entity
 - `GET/PATCH /api/insights/*` - Insight management
 - `POST /api/synth/run` - Run synthesis
 - `POST /api/critique/insight` - Validate insight
@@ -161,8 +162,8 @@ RECOG_PORT=5100                    # Server port
 
 ## Database
 
-SQLite at `_scripts/recog.db` with tables:
-- `entities`, `entity_relationships`, `entity_sentiment`, `entity_co_occurrences`
+SQLite at `_scripts/_data/recog.db` with tables:
+- `entities`, `entity_relationships`, `entity_sentiment`, `entity_co_occurrences`, `entity_blacklist`
 - `insights`, `insight_sources`, `insight_history`
 - `patterns`, `insight_clusters`
 - `critique_reports`

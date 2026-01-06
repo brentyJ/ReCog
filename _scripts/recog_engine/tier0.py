@@ -126,11 +126,13 @@ SELF_INQUIRY_PATTERNS = [
 
 # Common titles/indicators for people - these BOOST confidence
 PEOPLE_TITLES = [
-    "Mr", "Mrs", "Ms", "Dr", "Mum", "Mom", "Dad", "Father", "Mother",
+    "Mr", "Mrs", "Ms", "Dr", "Prof", "Rev",  # Abbreviated forms
+    "Mum", "Mom", "Dad", "Father", "Mother",
     "Uncle", "Aunt", "Grandma", "Grandpa", "Gran", "Pop", "Nan",
     "Brother", "Sister", "Son", "Daughter", "Wife", "Husband",
     "Boss", "Manager", "Teacher", "Coach", "Therapist", "Professor",
-    "Officer", "Detective", "Sergeant", "Captain", "Pastor", "Reverend"
+    "Officer", "Detective", "Sergeant", "Captain", "Pastor", "Reverend",
+    "Sir", "Dame", "Lord", "Lady",  # Formal titles
 ]
 
 # Words that are often capitalised but are NOT people names
@@ -173,11 +175,55 @@ NON_NAME_CAPITALS = {
     "Victoria", "Queensland", "NSW", "London", "Paris", "Tokyo", "Berlin",
     "America", "England", "France", "Germany", "Japan", "China", "India",
     "USA", "UK", "EU", "UN", "US",
+    # US cities
+    "Seattle", "Chicago", "Boston", "Denver", "Portland", "Austin", "Dallas",
+    "Houston", "Phoenix", "Miami", "Atlanta", "Detroit", "Minneapolis",
+    "Philadelphia", "Baltimore", "Washington", "Cleveland", "Pittsburgh",
+    "Cincinnati", "Nashville", "Charlotte", "Tampa", "Orlando", "Vegas",
+    "Francisco", "Angeles", "Diego", "Jose", "York", "Jersey",
+    # Other major cities
+    "Toronto", "Vancouver", "Montreal", "Dublin", "Edinburgh", "Manchester",
+    "Amsterdam", "Brussels", "Madrid", "Barcelona", "Rome", "Milan", "Vienna",
+    "Munich", "Hamburg", "Stockholm", "Oslo", "Copenhagen", "Helsinki",
+    "Singapore", "Bangkok", "Seoul", "Beijing", "Shanghai", "Mumbai", "Delhi",
     
     # Common nouns that get capitalised
     "OK", "Yes", "No", "Maybe", "Please", "Thanks", "Sorry", "Hello", "Hi",
     "Goodbye", "Bye", "Well", "Right", "Sure", "True", "False",
     "God", "Christmas", "Easter", "New", "Year", "Years",
+    # Business/project terms often capitalised
+    "Project", "Phase", "Stage", "Task", "Meeting", "Report", "Update",
+    "Review", "Analysis", "Research", "Study", "Plan", "Goal", "Target",
+    "Team", "Group", "Department", "Division", "Unit", "Office", "Branch",
+    "Date", "Deadline", "Schedule", "Timeline", "Milestone", "Objective",
+    "Budget", "Cost", "Price", "Rate", "Fee", "Proposal", "Contract",
+    "Document", "File", "Folder", "Record", "Note", "Notes", "Summary",
+    "Issue", "Problem", "Solution", "Action", "Item", "Items", "List",
+    "Status", "Progress", "Result", "Results", "Outcome", "Findings",
+    "Section", "Chapter", "Part", "Volume", "Edition", "Version",
+    "Table", "Figure", "Chart", "Graph", "Diagram", "Image", "Photo",
+    "Appendix", "Reference", "Source", "Citation", "Bibliography",
+    # Research/academic terms
+    "Hypothesis", "Theory", "Method", "Methodology", "Protocol",
+    "Experiment", "Trial", "Test", "Sample", "Data", "Dataset",
+    "Variable", "Factor", "Parameter", "Metric", "Measure", "Index",
+    "Subject", "Participant", "Respondent", "Patient", "Client",
+    "Conclusion", "Discussion", "Abstract", "Introduction", "Background",
+    "Interviewer", "Interviewee", "Cohort", "Site", "Control", "Baseline",
+    "Outcome", "Endpoint", "Population", "Subset", "Group", "Arm",
+    # Compass/direction words that might be project names
+    "Meridian", "Horizon", "Summit", "Peak", "Aurora", "Eclipse", "Zenith",
+    "Compass", "Beacon", "Pioneer", "Frontier", "Gateway", "Pathway",
+    # Common building/room terms
+    "Conference", "Room", "Building", "Floor", "Hall", "Lobby", "Suite",
+    "Tower", "Center", "Centre", "Campus", "Complex", "Facility", "Station",
+    "Library", "Museum", "Gallery", "Theater", "Theatre", "Arena", "Stadium",
+    "Hospital", "Clinic", "School", "University", "College", "Academy",
+    "Church", "Temple", "Mosque", "Cathedral", "Chapel",
+    # More common words that appear capitalised
+    "Street", "Avenue", "Road", "Lane", "Drive", "Boulevard", "Way", "Place",
+    "Park", "Garden", "Square", "Plaza", "Court", "Circle", "Terrace",
+    "North", "South", "East", "West", "Central", "Downtown", "Uptown",
     
     # Common verbs / modal verbs that appear capitalised
     "Can", "Could", "Would", "Should", "Will", "Won", "Did", "Does", "Do",
@@ -650,7 +696,11 @@ def extract_basic_entities(text: str, include_low_confidence: bool = True) -> Di
     emails = extract_email_addresses(text)
     
     # Extract people (capitalised words, titles) with confidence
-    sentences = re.split(r'[.!?]|(?<=["\'])\s+(?=[A-Z])|:\s+', text)
+    # Pre-process to protect abbreviations from sentence splitting
+    # Common titles/abbreviations that should not be treated as sentence endings
+    abbrev_pattern = r'\b(Dr|Mr|Mrs|Ms|Prof|Rev|Sr|Jr|St|Lt|Sgt|Capt|Gen|Col|Maj|Mt|Ave|Blvd|Apt|Dept|Inc|Corp|Ltd|vs|etc|e\.g|i\.e)\.'
+    protected_text = re.sub(abbrev_pattern, r'\1', text, flags=re.IGNORECASE)
+    sentences = re.split(r'[.!?]|(?<=["\'])\s+(?=[A-Z])|:\s+', protected_text)
     people = []  # Now list of dicts with 'name' and 'confidence'
     seen_names = set()
     
@@ -699,7 +749,17 @@ def extract_basic_entities(text: str, include_low_confidence: bool = True) -> Di
                 # Check if it IS a title (Mum, Dad, etc.)
                 if clean in PEOPLE_TITLES:
                     is_title = True
-                
+                    # Honorific titles (Mr, Mrs, Dr, etc.) should not be detected as names
+                    # when followed by a capitalized word - they just boost the next word
+                    honorifics = {"Mr", "Mrs", "Ms", "Dr", "Prof", "Rev", "Sir", "Dame",
+                                  "Lord", "Lady", "Officer", "Detective", "Sergeant",
+                                  "Captain", "Pastor", "Reverend", "Professor"}
+                    if clean in honorifics and i+1 < len(words):
+                        next_word = re.sub(r"[^a-zA-Z']", "", words[i+1])
+                        if next_word and next_word[0].isupper():
+                            # Skip this honorific - we'll detect the following name
+                            continue
+
                 # Score confidence
                 confidence = score_person_confidence(
                     clean,

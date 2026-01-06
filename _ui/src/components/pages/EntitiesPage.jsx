@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Users, UserPlus, AlertCircle, Check, X } from 'lucide-react'
+import { Virtuoso } from 'react-virtuoso'
+import { Users, UserPlus, AlertCircle, Check, X, Ban } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -16,7 +17,8 @@ import {
 import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StatCard, StatGrid } from '@/components/ui/stat-card'
-import { getEntities, getUnknownEntities, updateEntity, getEntityStats } from '@/lib/api'
+import { getEntities, getUnknownEntities, updateEntity, rejectEntity, getEntityStats } from '@/lib/api'
+import { VIRTUOSO_CONFIG } from '@/lib/virtualization'
 
 export function EntitiesPage() {
   const [entities, setEntities] = useState([])
@@ -44,9 +46,10 @@ export function EntitiesPage() {
         getUnknownEntities(),
         getEntityStats(),
       ])
-      setEntities(entitiesData.entities || [])
-      setUnknownEntities(unknownData.entities || [])
-      setStats(statsData)
+      // Extract entities from nested data structure
+      setEntities(entitiesData.data?.entities || entitiesData.entities || [])
+      setUnknownEntities(unknownData.data?.entities || unknownData.entities || [])
+      setStats(statsData.data || statsData)
     } catch (error) {
       console.error('Failed to load entities:', error)
     } finally {
@@ -67,11 +70,23 @@ export function EntitiesPage() {
 
   async function handleIdentify() {
     try {
-      await updateEntity(selectedEntity.id, identifyForm)
+      await updateEntity(selectedEntity.id, {
+        ...identifyForm,
+        confirmed: true,  // Mark as confirmed when identifying
+      })
       setIsIdentifyDialogOpen(false)
       await loadData()
     } catch (error) {
       alert(`Failed to identify entity: ${error.message}`)
+    }
+  }
+
+  async function handleReject(entity) {
+    try {
+      await rejectEntity(entity.id, 'not_a_name')
+      await loadData()
+    } catch (error) {
+      alert(`Failed to reject entity: ${error.message}`)
     }
   }
 
@@ -100,10 +115,10 @@ export function EntitiesPage() {
       {/* Stats */}
       {stats && (
         <StatGrid>
-          <StatCard value={stats.total_entities} label="Total Entities" color="primary" />
-          <StatCard value={stats.confirmed} label="Confirmed" color="success" />
-          <StatCard value={stats.unknown} label="Need ID" color="warning" />
-          <StatCard value={stats.anonymised || 0} label="Anonymised" color="secondary" />
+          <StatCard value={stats.total?.total || 0} label="Total Entities" color="primary" />
+          <StatCard value={stats.total?.confirmed || 0} label="Confirmed" color="success" />
+          <StatCard value={stats.total?.unconfirmed || 0} label="Need ID" color="warning" />
+          <StatCard value={stats.person?.total || 0} label="People" color="secondary" />
         </StatGrid>
       )}
 
@@ -120,33 +135,47 @@ export function EntitiesPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {unknownEntities.map((entity) => (
-                <div
-                  key={entity.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-card"
-                >
-                  <div className="flex items-center gap-3">
-                    <Badge variant="outline" className="w-20 justify-center">
-                      {entity.entity_type}
-                    </Badge>
-                    <div>
-                      <div className="font-mono font-semibold">{entity.raw_value}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {entity.occurrence_count} occurrence{entity.occurrence_count !== 1 ? 's' : ''}
+            <div style={{ height: Math.min(unknownEntities.length * 80, 300), minHeight: '80px' }}>
+              <Virtuoso
+                data={unknownEntities}
+                {...VIRTUOSO_CONFIG}
+                itemContent={(index, entity) => (
+                  <div className="pb-2">
+                    <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline" className="w-20 justify-center">
+                          {entity.entity_type}
+                        </Badge>
+                        <div>
+                          <div className="font-mono font-semibold">{entity.raw_value}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {entity.occurrence_count} occurrence{entity.occurrence_count !== 1 ? 's' : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => openIdentifyDialog(entity)}
+                          className="gap-2"
+                        >
+                          <UserPlus className="w-4 h-4" />
+                          Identify
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReject(entity)}
+                          className="gap-2 text-muted-foreground hover:text-destructive"
+                        >
+                          <Ban className="w-4 h-4" />
+                          Not a Name
+                        </Button>
                       </div>
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => openIdentifyDialog(entity)}
-                    className="gap-2"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Identify
-                  </Button>
-                </div>
-              ))}
+                )}
+              />
             </div>
           </CardContent>
         </Card>
@@ -170,37 +199,40 @@ export function EntitiesPage() {
               description="Entities will appear here once you've identified them."
             />
           ) : (
-            <div className="space-y-2">
-              {entities.map((entity) => (
-                <div
-                  key={entity.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Badge variant="secondary" className="w-20 justify-center">
-                      {entity.entity_type}
-                    </Badge>
-                    <div>
-                      <div className="font-semibold">
-                        {entity.display_name || entity.raw_value}
-                        {entity.anonymise_in_prompts && (
-                          <Badge variant="outline" className="ml-2 text-xs">
-                            Anonymised
-                          </Badge>
-                        )}
-                      </div>
-                      {entity.relationship && (
-                        <div className="text-sm text-muted-foreground">
-                          {entity.relationship}
+            <div style={{ height: 'calc(100vh - 450px)', minHeight: '300px' }}>
+              <Virtuoso
+                data={entities}
+                {...VIRTUOSO_CONFIG}
+                itemContent={(index, entity) => (
+                  <div className="pb-2">
+                    <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <Badge variant="secondary" className="w-20 justify-center">
+                          {entity.entity_type}
+                        </Badge>
+                        <div>
+                          <div className="font-semibold">
+                            {entity.display_name || entity.raw_value}
+                            {entity.anonymise_in_prompts && (
+                              <Badge variant="outline" className="ml-2 text-xs">
+                                Anonymised
+                              </Badge>
+                            )}
+                          </div>
+                          {entity.relationship && (
+                            <div className="text-sm text-muted-foreground">
+                              {entity.relationship}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {entity.occurrence_count} mentions
+                      </div>
                     </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    {entity.occurrence_count} mentions
-                  </div>
-                </div>
-              ))}
+                )}
+              />
             </div>
           )}
         </CardContent>

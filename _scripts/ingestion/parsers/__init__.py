@@ -12,6 +12,7 @@ from .plaintext import PlaintextParser
 from .messages import MessagesParser
 from .json_export import JSONExportParser
 from .excel import ExcelParser
+from .csv_parser import CSVParser
 
 __all__ = [
     "BaseParser",
@@ -24,4 +25,5 @@ __all__ = [
     "MessagesParser",
     "JSONExportParser",
     "ExcelParser",
+    "CSVParser",
 ]

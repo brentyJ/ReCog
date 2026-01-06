@@ -91,9 +91,33 @@ export async function detectFileFormat(file) {
   })
 
   const data = await response.json()
-  
+
   if (!response.ok) {
     throw new APIError(data.error || 'Detection failed', response.status, data)
+  }
+
+  return data
+}
+
+// Batch upload multiple files into a single preflight session
+export async function uploadFilesBatch(files, caseId = null) {
+  const formData = new FormData()
+  for (const file of files) {
+    formData.append('files', file)
+  }
+  if (caseId) {
+    formData.append('case_id', caseId)
+  }
+
+  const response = await fetch(`${API_BASE}/upload/batch`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new APIError(data.error || 'Batch upload failed', response.status, data)
   }
 
   return data
@@ -154,6 +178,13 @@ export async function updateEntity(entityId, updates) {
   })
 }
 
+export async function rejectEntity(entityId, reason = 'not_a_name') {
+  return fetchAPI(`/entities/${entityId}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason, delete_entity: true }),
+  })
+}
+
 export async function getEntityStats() {
   return fetchAPI('/entities/stats')
 }
@@ -207,6 +238,10 @@ export async function deleteInsight(insightId, hard = false) {
 
 export async function getInsightStats() {
   return fetchAPI('/insights/stats')
+}
+
+export async function getInsightActivity(days = 30) {
+  return fetchAPI(`/insights/activity?days=${days}`)
 }
 
 // Synthesis
@@ -325,6 +360,11 @@ export async function removeCaseDocument(caseId, documentId) {
   return fetchAPI(`/cases/${caseId}/documents/${documentId}`, {
     method: 'DELETE',
   })
+}
+
+// Document Text Retrieval
+export async function getDocumentText(documentId) {
+  return fetchAPI(`/documents/${documentId}/text`)
 }
 
 export async function getCaseStats(caseId) {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Virtuoso } from 'react-virtuoso'
 import { Clipboard, Check, Filter, Loader2, FolderOpen, CheckSquare, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,7 +16,10 @@ import {
   includePreflightItem,
   confirmPreflight,
   getCase,
+  getDocumentText,
+  extractWithCase,
 } from '@/lib/api'
+import { VIRTUOSO_CONFIG } from '@/lib/virtualization'
 
 export function PreflightPage() {
   const [sessionId, setSessionId] = useState(null)
@@ -174,9 +178,9 @@ export function PreflightPage() {
 
   async function handleConfirm() {
     const includedItems = items.filter(i => i.included)
-    
+
     if (!window.confirm(
-      `Process ${includedItems.length} items?` + 
+      `Process ${includedItems.length} items?` +
       (caseData ? ` Context from "${caseData.title}" will be injected.` : '') +
       '\n\nThis will use LLM credits.'
     )) {
@@ -185,35 +189,66 @@ export function PreflightPage() {
 
     setProcessing(true)
     setProcessedCount(0)
-    
+
     try {
       // First confirm the preflight session
       await confirmPreflight(sessionId)
-      
-      // If we have a case, we need to trigger extraction with case context
-      // The backend should handle this, but we can also do it explicitly
-      if (caseId) {
-        // For each included item, we'd typically call extract with case_id
-        // But since confirmPreflight queues the items, we need to ensure
-        // the backend knows about the case_id
-        
-        // Store case association for the session
-        // The backend will pick this up during processing
-        console.log(`Processing with case context: ${caseId}`)
+
+      // Extract insights from each included item
+      let successCount = 0
+      let errorCount = 0
+
+      for (let i = 0; i < includedItems.length; i++) {
+        const item = includedItems[i]
+        setProcessedCount(i + 1)
+
+        try {
+          // Fetch the document text
+          const docResponse = await getDocumentText(item.id)
+          const text = docResponse.data?.text
+
+          if (!text || text.trim().length < 50) {
+            console.warn(`Skipping item ${item.id}: insufficient text`)
+            continue
+          }
+
+          // Extract insights with optional case context
+          await extractWithCase(
+            text,
+            item.source_type || 'document',
+            caseId || null,
+            {
+              source_id: `preflight_item_${item.id}`,
+              save: true,
+              check_similarity: true,
+            }
+          )
+
+          successCount++
+        } catch (itemError) {
+          console.error(`Failed to extract from item ${item.id}:`, itemError)
+          errorCount++
+        }
       }
-      
+
       // Clear the session storage
       sessionStorage.removeItem(`preflight_case_${sessionId}`)
-      
+
+      const message = errorCount > 0
+        ? `Extracted insights from ${successCount} items. ${errorCount} failed.`
+        : `Successfully extracted insights from ${successCount} items!`
+
       alert(
-        `Processing started!` +
-        (caseData ? ` Insights will be linked to "${caseData.title}".` : '') +
+        message +
+        (caseData ? ` Insights linked to "${caseData.title}".` : '') +
         '\n\nCheck the Insights page for results.'
       )
-      
-      // Optionally navigate to insights or case page
+
+      // Navigate to insights or case page
       if (caseData) {
-        window.location.hash = ''  // Back to cases
+        window.location.hash = ''  // Back to dashboard
+      } else {
+        window.location.hash = 'insights'
       }
       
     } catch (error) {
@@ -412,63 +447,68 @@ export function PreflightPage() {
               description="Upload a file first to see items for review."
             />
           ) : (
-            <div className="space-y-2">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className={`
-                    p-4 rounded-lg border transition-all
-                    ${item.included 
-                      ? 'bg-card border-orange-mid/30' 
-                      : 'bg-muted/30 border-border opacity-60'
-                    }
-                  `}
-                >
-                  <div className="flex items-start gap-3">
-                    <button
-                      onClick={() => handleToggleItem(item.id, item.included)}
+            <div style={{ height: 'calc(100vh - 550px)', minHeight: '300px' }}>
+              <Virtuoso
+                data={items}
+                {...VIRTUOSO_CONFIG}
+                itemContent={(index, item) => (
+                  <div className="pb-2">
+                    <div
                       className={`
-                        mt-1 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0
-                        ${item.included 
-                          ? 'bg-orange-mid border-orange-mid text-background' 
-                          : 'border-muted-foreground hover:border-orange-mid'
+                        p-4 rounded-lg border transition-all
+                        ${item.included
+                          ? 'bg-card border-orange-mid/30'
+                          : 'bg-muted/30 border-border opacity-60'
                         }
                       `}
                     >
-                      {item.included && <Check className="w-3 h-3" />}
-                    </button>
+                      <div className="flex items-start gap-3">
+                        <button
+                          onClick={() => handleToggleItem(item.id, item.included)}
+                          className={`
+                            mt-1 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0
+                            ${item.included
+                              ? 'bg-orange-mid border-orange-mid text-background'
+                              : 'border-muted-foreground hover:border-orange-mid'
+                            }
+                          `}
+                        >
+                          {item.included && <Check className="w-3 h-3" />}
+                        </button>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold mb-1">{item.title || `Item ${item.id}`}</div>
-                      <div className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                        {item.preview || item.text?.substring(0, 200)}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {item.word_count && (
-                          <Badge variant="secondary">
-                            {item.word_count} words
-                          </Badge>
-                        )}
-                        {item.entities_count > 0 && (
-                          <Badge variant="secondary">
-                            {item.entities_count} entities
-                          </Badge>
-                        )}
-                        {item.flags?.has_questions && (
-                          <Badge variant="outline" className="border-blue-500/50 text-blue-400">
-                            Has questions
-                          </Badge>
-                        )}
-                        {item.flags?.has_decisions && (
-                          <Badge variant="outline" className="border-green-500/50 text-green-400">
-                            Has decisions
-                          </Badge>
-                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold mb-1">{item.title || `Item ${item.id}`}</div>
+                          <div className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                            {item.preview || item.text?.substring(0, 200)}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {item.word_count && (
+                              <Badge variant="secondary">
+                                {item.word_count} words
+                              </Badge>
+                            )}
+                            {item.entities_count > 0 && (
+                              <Badge variant="secondary">
+                                {item.entities_count} entities
+                              </Badge>
+                            )}
+                            {item.flags?.has_questions && (
+                              <Badge variant="outline" className="border-blue-500/50 text-blue-400">
+                                Has questions
+                              </Badge>
+                            )}
+                            {item.flags?.has_decisions && (
+                              <Badge variant="outline" className="border-green-500/50 text-green-400">
+                                Has decisions
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )}
+              />
             </div>
           )}
         </CardContent>
@@ -500,7 +540,7 @@ export function PreflightPage() {
             {processing ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Processing...
+                Extracting {processedCount}/{items.filter(i => i.included).length}...
               </>
             ) : (
               <>

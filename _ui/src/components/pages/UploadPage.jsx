@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
-import { FileUp, Upload, File, CheckCircle, AlertCircle, Loader2, FolderOpen, Plus, Check, CheckSquare, Square, Trash2 } from 'lucide-react'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { FileUp, Upload, File, CheckCircle, AlertCircle, Loader2, FolderOpen, Plus, Check, CheckSquare, Square, Trash2, ChevronDown, ChevronRight, Package } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { uploadFile, detectFileFormat, getCases, createCase } from '@/lib/api'
+import { uploadFile, uploadFilesBatch, detectFileFormat, getCases, createCase } from '@/lib/api'
 
 export function UploadPage() {
   const [dragging, setDragging] = useState(false)
@@ -20,12 +20,85 @@ export function UploadPage() {
   const [quickCaseTitle, setQuickCaseTitle] = useState('')
   const [creatingCase, setCreatingCase] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState(new Set())
+  const [expandedSessions, setExpandedSessions] = useState(new Set())
+  const [inputKey, setInputKey] = useState(0)
   const fileInputRef = useRef(null)
 
-  // Get successful uploads with session IDs
-  const successfulFiles = files.filter(f => f.status === 'success' && f.sessionId)
-  const allSelected = successfulFiles.length > 0 && successfulFiles.every(f => selectedFiles.has(f.sessionId))
+  // Group files by session for display
+  const groupedUploads = useMemo(() => {
+    const groups = []
+    const sessionMap = new Map()
+
+    for (const file of files) {
+      if (!file.sessionId) {
+        // Files without sessionId (errors) shown individually
+        groups.push({ type: 'single', file })
+        continue
+      }
+
+      if (!sessionMap.has(file.sessionId)) {
+        sessionMap.set(file.sessionId, { batch: null, children: [] })
+      }
+      const group = sessionMap.get(file.sessionId)
+
+      if (file.isBatch) {
+        group.batch = file
+      } else {
+        group.children.push(file)
+      }
+    }
+
+    // Convert session groups to display items
+    for (const [sessionId, group] of sessionMap) {
+      if (group.batch) {
+        // Batch upload - show as collapsible group
+        groups.push({
+          type: 'batch',
+          sessionId,
+          batch: group.batch,
+          children: group.children,
+        })
+      } else if (group.children.length === 1) {
+        // Single file upload
+        groups.push({ type: 'single', file: group.children[0] })
+      } else {
+        // Multiple files without batch header (shouldn't happen, but handle it)
+        for (const file of group.children) {
+          groups.push({ type: 'single', file })
+        }
+      }
+    }
+
+    return groups
+  }, [files])
+
+  // Get unique session IDs for selection
+  const uniqueSessionIds = useMemo(() => {
+    const ids = new Set()
+    for (const group of groupedUploads) {
+      if (group.type === 'batch' && group.batch.status === 'success') {
+        ids.add(group.sessionId)
+      } else if (group.type === 'single' && group.file.status === 'success' && group.file.sessionId) {
+        ids.add(group.file.sessionId)
+      }
+    }
+    return ids
+  }, [groupedUploads])
+
+  const allSelected = uniqueSessionIds.size > 0 && [...uniqueSessionIds].every(id => selectedFiles.has(id))
   const someSelected = selectedFiles.size > 0
+
+  function toggleSessionExpanded(sessionId) {
+    setExpandedSessions(prev => {
+      const next = new Set(prev)
+      if (next.has(sessionId)) {
+        next.delete(sessionId)
+      } else {
+        next.add(sessionId)
+      }
+      return next
+    })
+  }
 
   function toggleFileSelection(sessionId) {
     setSelectedFiles(prev => {
@@ -43,7 +116,7 @@ export function UploadPage() {
     if (allSelected) {
       setSelectedFiles(new Set())
     } else {
-      setSelectedFiles(new Set(successfulFiles.map(f => f.sessionId)))
+      setSelectedFiles(new Set(uniqueSessionIds))
     }
   }
 
@@ -68,6 +141,8 @@ export function UploadPage() {
   function clearUploads() {
     setFiles([])
     setSelectedFiles(new Set())
+    setExpandedSessions(new Set())
+    setInputKey(k => k + 1)  // Force file input to remount
     localStorage.removeItem('upload_files')
   }
 
@@ -111,44 +186,74 @@ export function UploadPage() {
 
   const handleFileSelect = async (e) => {
     const selectedFiles = Array.from(e.target.files)
+    if (selectedFiles.length === 0) return
     await processFiles(selectedFiles)
+    // Reset input so same files can be re-selected
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
 
   async function processFiles(fileList) {
     setUploading(true)
-    
-    const newFiles = []
-    for (const file of fileList) {
-      try {
-        // Detect format first
-        const detection = await detectFileFormat(file)
-        
-        // Upload file with case_id for context injection
-        const upload = await uploadFile(file, selectedCaseId || null)
-        
+
+    try {
+      // Use batch upload to create ONE session for all files
+      const upload = await uploadFilesBatch(fileList, selectedCaseId || null)
+      const uploadData = upload.data || upload
+
+      // Create file entries for each uploaded file
+      const newFiles = []
+      const fileResults = uploadData.file_results || []
+
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i]
+        const result = fileResults[i] || {}
+
         newFiles.push({
           name: file.name,
           size: file.size,
           type: file.type,
-          format: detection.data?.file_type || 'unknown',
-          sessionId: upload.data?.preflight_session_id,
+          format: result.supported ? 'supported' : 'unsupported',
+          // All files share the same session ID
+          sessionId: uploadData.preflight_session_id,
           caseId: selectedCaseId || null,
-          status: 'success',
-          items: upload.data?.items || 0,
-          words: upload.data?.words || 0,
-        })
-      } catch (error) {
-        newFiles.push({
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          status: 'error',
-          error: error.message,
+          status: result.supported !== false ? 'success' : 'error',
+          items: result.items || 0,
+          words: 0, // Not tracked per-file in batch
+          error: result.error || result.message,
         })
       }
+
+      // Add a summary entry for the batch
+      if (fileList.length > 1) {
+        newFiles.unshift({
+          name: `Batch Upload (${fileList.length} files)`,
+          size: fileList.reduce((sum, f) => sum + f.size, 0),
+          type: 'batch',
+          format: 'batch',
+          sessionId: uploadData.preflight_session_id,
+          caseId: selectedCaseId || null,
+          status: 'success',
+          items: uploadData.items || 0,
+          words: uploadData.words || 0,
+          isBatch: true,
+        })
+      }
+
+      setFiles(prev => [...prev, ...newFiles])
+    } catch (error) {
+      // If batch upload fails, add error entries for all files
+      const newFiles = fileList.map(file => ({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        status: 'error',
+        error: error.message,
+      }))
+      setFiles(prev => [...prev, ...newFiles])
     }
-    
-    setFiles(prev => [...prev, ...newFiles])
+
     setUploading(false)
   }
 
@@ -333,6 +438,7 @@ export function UploadPage() {
             </Button>
 
             <input
+              key={inputKey}
               ref={fileInputRef}
               type="file"
               multiple
@@ -349,19 +455,19 @@ export function UploadPage() {
       </Card>
 
       {/* Uploaded Files */}
-      {files.length > 0 && (
+      {groupedUploads.length > 0 && (
         <Card>
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
                 <CardTitle>Uploaded Files</CardTitle>
                 <CardDescription>
-                  {files.length} file{files.length !== 1 ? 's' : ''} uploaded
+                  {uniqueSessionIds.size} session{uniqueSessionIds.size !== 1 ? 's' : ''} ready for review
                   {someSelected && ` • ${selectedFiles.size} selected`}
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                {successfulFiles.length > 0 && (
+                {uniqueSessionIds.size > 0 && (
                   <>
                     <Button
                       variant="outline"
@@ -397,80 +503,215 @@ export function UploadPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {files.map((file, i) => (
-                <div
-                  key={i}
-                  className={`
-                    flex items-center gap-3 p-3 rounded-lg border transition-all
-                    ${file.sessionId && selectedFiles.has(file.sessionId)
-                      ? 'bg-orange-mid/10 border-orange-mid/30'
-                      : 'bg-card'
-                    }
-                  `}
-                >
-                  {/* Checkbox for successful uploads */}
-                  {file.status === 'success' && file.sessionId ? (
-                    <button
-                      onClick={() => toggleFileSelection(file.sessionId)}
+            <div className="space-y-3">
+              {groupedUploads.map((group, i) => {
+                if (group.type === 'batch') {
+                  const { batch, children, sessionId } = group
+                  const isExpanded = expandedSessions.has(sessionId)
+                  const isSelected = selectedFiles.has(sessionId)
+
+                  return (
+                    <div
+                      key={sessionId}
                       className={`
-                        w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0
-                        ${selectedFiles.has(file.sessionId)
-                          ? 'bg-orange-mid border-orange-mid text-background'
-                          : 'border-muted-foreground hover:border-orange-mid'
+                        rounded-lg border-2 overflow-hidden transition-all
+                        ${isSelected
+                          ? 'border-orange-mid/50 bg-orange-mid/5'
+                          : 'border-border bg-card'
                         }
                       `}
                     >
-                      {selectedFiles.has(file.sessionId) && <Check className="w-3 h-3" />}
-                    </button>
-                  ) : (
-                    <div className={`
-                      w-10 h-10 rounded flex items-center justify-center flex-shrink-0
-                      ${file.status === 'success' ? 'bg-[#5fb3a1]/20' : 'bg-destructive/20'}
-                    `}>
-                      {file.status === 'success' ? (
-                        <CheckCircle className="w-5 h-5 text-[#5fb3a1]" />
-                      ) : (
-                        <AlertCircle className="w-5 h-5 text-destructive" />
+                      {/* Batch Header */}
+                      <div
+                        className={`
+                          flex items-center gap-3 p-4
+                          ${isSelected ? 'bg-orange-mid/10' : 'bg-muted/30'}
+                        `}
+                      >
+                        {/* Checkbox */}
+                        <button
+                          onClick={() => toggleFileSelection(sessionId)}
+                          className={`
+                            w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0
+                            ${isSelected
+                              ? 'bg-orange-mid border-orange-mid text-background'
+                              : 'border-muted-foreground hover:border-orange-mid'
+                            }
+                          `}
+                        >
+                          {isSelected && <Check className="w-3 h-3" />}
+                        </button>
+
+                        {/* Expand/Collapse Button */}
+                        <button
+                          onClick={() => toggleSessionExpanded(sessionId)}
+                          className="p-1 hover:bg-background/50 rounded transition-colors"
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                          )}
+                        </button>
+
+                        {/* Batch Icon */}
+                        <div className="w-10 h-10 rounded-lg bg-orange-mid/20 flex items-center justify-center flex-shrink-0">
+                          <Package className="w-5 h-5 text-orange-light" />
+                        </div>
+
+                        {/* Batch Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold flex items-center gap-2">
+                            Batch Upload
+                            <Badge variant="secondary" className="text-xs">
+                              {children.length} files
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {formatFileSize(batch.size)}
+                            {batch.items > 0 && ` • ${batch.items} items`}
+                            {batch.words > 0 && ` • ${batch.words.toLocaleString()} words`}
+                          </div>
+                          {batch.caseId && (
+                            <div className="text-xs text-orange-light mt-0.5">
+                              → {cases.find(c => c.id === batch.caseId)?.title || 'Case'}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Review Button */}
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            localStorage.setItem('current_preflight_session', sessionId)
+                            if (batch.caseId) {
+                              sessionStorage.setItem(`preflight_case_${sessionId}`, batch.caseId)
+                            }
+                            window.location.hash = `preflight/${sessionId}`
+                          }}
+                        >
+                          Review
+                        </Button>
+                      </div>
+
+                      {/* Collapsible Children */}
+                      {isExpanded && children.length > 0 && (
+                        <div className="border-t border-border/50 bg-background/50">
+                          <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            Files in this session
+                          </div>
+                          <div className="px-4 pb-3 space-y-1">
+                            {children.map((file, j) => (
+                              <div
+                                key={j}
+                                className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/30"
+                              >
+                                <div className={`
+                                  w-6 h-6 rounded flex items-center justify-center flex-shrink-0
+                                  ${file.status === 'success' ? 'bg-[#5fb3a1]/20' : 'bg-destructive/20'}
+                                `}>
+                                  {file.status === 'success' ? (
+                                    <CheckCircle className="w-3.5 h-3.5 text-[#5fb3a1]" />
+                                  ) : (
+                                    <AlertCircle className="w-3.5 h-3.5 text-destructive" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm truncate">{file.name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {formatFileSize(file.size)}
+                                  </div>
+                                </div>
+                                {file.error && (
+                                  <span className="text-xs text-destructive">{file.error}</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
-                  )}
+                  )
+                }
 
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{file.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {formatFileSize(file.size)}
-                      {file.format && ` • ${file.format}`}
-                      {file.items > 0 && ` • ${file.items} items`}
-                      {file.words > 0 && ` • ${file.words.toLocaleString()} words`}
-                    </div>
-                    {file.caseId && (
-                      <div className="text-xs text-orange-light mt-0.5">
-                        → {cases.find(c => c.id === file.caseId)?.title || 'Case'}
+                // Single file (non-batch)
+                const { file } = group
+                const isSelected = file.sessionId && selectedFiles.has(file.sessionId)
+
+                return (
+                  <div
+                    key={i}
+                    className={`
+                      flex items-center gap-3 p-3 rounded-lg border transition-all
+                      ${isSelected
+                        ? 'bg-orange-mid/10 border-orange-mid/30'
+                        : 'bg-card'
+                      }
+                    `}
+                  >
+                    {/* Checkbox for successful uploads */}
+                    {file.status === 'success' && file.sessionId ? (
+                      <button
+                        onClick={() => toggleFileSelection(file.sessionId)}
+                        className={`
+                          w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0
+                          ${isSelected
+                            ? 'bg-orange-mid border-orange-mid text-background'
+                            : 'border-muted-foreground hover:border-orange-mid'
+                          }
+                        `}
+                      >
+                        {isSelected && <Check className="w-3 h-3" />}
+                      </button>
+                    ) : (
+                      <div className={`
+                        w-10 h-10 rounded flex items-center justify-center flex-shrink-0
+                        ${file.status === 'success' ? 'bg-[#5fb3a1]/20' : 'bg-destructive/20'}
+                      `}>
+                        {file.status === 'success' ? (
+                          <CheckCircle className="w-5 h-5 text-[#5fb3a1]" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-destructive" />
+                        )}
                       </div>
                     )}
-                    {file.error && (
-                      <div className="text-sm text-destructive mt-1">{file.error}</div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{file.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {formatFileSize(file.size)}
+                        {file.format && ` • ${file.format}`}
+                        {file.items > 0 && ` • ${file.items} items`}
+                        {file.words > 0 && ` • ${file.words.toLocaleString()} words`}
+                      </div>
+                      {file.caseId && (
+                        <div className="text-xs text-orange-light mt-0.5">
+                          → {cases.find(c => c.id === file.caseId)?.title || 'Case'}
+                        </div>
+                      )}
+                      {file.error && (
+                        <div className="text-sm text-destructive mt-1">{file.error}</div>
+                      )}
+                    </div>
+
+                    {file.status === 'success' && file.sessionId && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          localStorage.setItem('current_preflight_session', file.sessionId)
+                          if (file.caseId) {
+                            sessionStorage.setItem(`preflight_case_${file.sessionId}`, file.caseId)
+                          }
+                          window.location.hash = `preflight/${file.sessionId}`
+                        }}
+                      >
+                        Review
+                      </Button>
                     )}
                   </div>
-
-                  {file.status === 'success' && file.sessionId && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        localStorage.setItem('current_preflight_session', file.sessionId)
-                        if (file.caseId) {
-                          sessionStorage.setItem(`preflight_case_${file.sessionId}`, file.caseId)
-                        }
-                        window.location.hash = `preflight/${file.sessionId}`
-                      }}
-                    >
-                      Review
-                    </Button>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
           </CardContent>
         </Card>

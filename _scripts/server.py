@@ -382,6 +382,122 @@ def upload_file():
         return api_response(error=str(e), status=500)
 
 
+@app.route("/api/upload/batch", methods=["POST"])
+def upload_batch():
+    """
+    Upload multiple files into a single preflight session.
+
+    Accepts multipart form data with multiple files:
+        - files: Multiple files to upload
+        - case_id: Optional case UUID to link for context injection
+
+    Returns preflight session ID with all items for review.
+    """
+    if "files" not in request.files:
+        return api_response(error="No files provided", status=400)
+
+    files = request.files.getlist("files")
+    if not files or all(f.filename == "" for f in files):
+        return api_response(error="No files selected", status=400)
+
+    # Get optional case_id from form data
+    case_id = request.form.get("case_id")
+
+    # Save all files first
+    saved_files = []
+    for file in files:
+        if file.filename == "":
+            continue
+        filename = secure_filename(file.filename)
+        file_id = uuid4().hex[:8]
+        saved_path = Config.UPLOAD_DIR / f"{file_id}_{filename}"
+        file.save(str(saved_path))
+        saved_files.append({
+            "path": saved_path,
+            "filename": filename,
+            "file_id": file_id,
+        })
+
+    if not saved_files:
+        return api_response(error="No valid files to process", status=400)
+
+    logger.info(f"Batch upload: {len(saved_files)} files" + (f" (case: {case_id})" if case_id else ""))
+
+    # Create ONE preflight session for all files
+    try:
+        session_id = preflight_manager.create_session(
+            session_type="batch",
+            source_files=[str(f["path"]) for f in saved_files],
+            case_id=case_id,
+        )
+
+        results = []
+        total_items = 0
+        total_words = 0
+
+        for file_info in saved_files:
+            saved_path = file_info["path"]
+            filename = file_info["filename"]
+
+            # Detect format
+            detection = detect_file(str(saved_path))
+
+            if not detection.supported:
+                results.append({
+                    "filename": filename,
+                    "supported": False,
+                    "message": detection.action_message,
+                })
+                continue
+
+            # Ingest and add to preflight session
+            try:
+                documents = ingest_file(str(saved_path))
+
+                for doc in documents:
+                    preflight_manager.add_item(
+                        session_id=session_id,
+                        source_type=doc.source_type,
+                        content=doc.content,
+                        source_id=doc.id,
+                        title=doc.metadata.get("title", filename) if doc.metadata else filename,
+                    )
+                    total_items += 1
+
+                results.append({
+                    "filename": filename,
+                    "supported": True,
+                    "items": len(documents),
+                })
+            except Exception as e:
+                logger.error(f"Error processing {filename}: {e}")
+                results.append({
+                    "filename": filename,
+                    "supported": False,
+                    "error": str(e),
+                })
+
+        # Scan session
+        scan_result = preflight_manager.scan_session(session_id)
+
+        return api_response({
+            "uploaded": True,
+            "file_count": len(saved_files),
+            "preflight_session_id": session_id,
+            "items": scan_result["item_count"],
+            "words": scan_result["total_words"],
+            "entities": scan_result["total_entities"],
+            "unknown_entities": scan_result["unknown_entities"],
+            "estimated_cost_cents": scan_result["estimated_cost_cents"],
+            "questions": scan_result["questions"][:5],
+            "file_results": results,
+        })
+
+    except Exception as e:
+        logger.error(f"Batch upload processing error: {e}")
+        return api_response(error=str(e), status=500)
+
+
 # =============================================================================
 # TIER 0 (Direct Processing)
 # =============================================================================
@@ -1283,7 +1399,19 @@ def extract_insights():
                             "source_id": source_id,
                         },
                     )
-        
+
+        # Register entities from Tier 0 extraction
+        entity_registration = None
+        if pre_annotation.get("entities") and data.get("save", True):
+            entity_registration = entity_registry.register_from_tier0(
+                pre_annotation["entities"],
+                source_type=source_type,
+                source_id=source_id,
+            )
+            new_count = sum(1 for results in entity_registration.values() for _, is_new in results if is_new)
+            if new_count > 0:
+                logger.info(f"Registered {new_count} new entities")
+
         # Build entity resolution summary for response
         entity_resolution_summary = None
         if entity_resolution:
@@ -1295,6 +1423,15 @@ def extract_insights():
                 "context_injected": bool(entity_context),
             }
         
+        # Build entity registration summary
+        entities_registered = None
+        if entity_registration:
+            entities_registered = {
+                entity_type: {"total": len(results), "new": sum(1 for _, is_new in results if is_new)}
+                for entity_type, results in entity_registration.items()
+                if results
+            }
+
         return api_response({
             "success": result.success,
             "insights": [i.to_dict() for i in result.insights],
@@ -1309,6 +1446,7 @@ def extract_insights():
                 "emotion_categories": pre_annotation.get("emotion_signals", {}).get("categories", []),
             },
             "entity_resolution": entity_resolution_summary,
+            "entities_registered": entities_registered,
             "case_id": case_id,
             "case_context_injected": case_context_injected,
         })
@@ -1427,6 +1565,39 @@ def insight_stats():
     """Get insight statistics."""
     stats = insight_store.get_stats()
     return api_response(stats)
+
+
+@app.route("/api/insights/activity", methods=["GET"])
+def insight_activity():
+    """
+    Get insight creation activity over time.
+
+    Query params:
+        - days: Number of days to look back (default 30)
+
+    Returns daily counts of insights created.
+    """
+    days = int(request.args.get("days", 30))
+
+    conn = _get_db_connection()
+    try:
+        rows = conn.execute("""
+            SELECT DATE(created_at) as date, COUNT(*) as count
+            FROM insights
+            WHERE created_at >= datetime('now', ?)
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+        """, (f'-{days} days',)).fetchall()
+
+        activity = [{"date": row["date"], "count": row["count"]} for row in rows]
+
+        return api_response({
+            "activity": activity,
+            "days": days,
+            "total": sum(r["count"] for r in activity),
+        })
+    finally:
+        conn.close()
 
 
 # =============================================================================
@@ -2326,11 +2497,118 @@ def add_case_document(case_id: str):
 def remove_case_document(case_id: str, document_id: str):
     """Remove a document from a case."""
     success = case_store.remove_document(case_id, document_id)
-    
+
     if success:
         return api_response({"removed": True, "document_id": document_id})
-    
+
     return api_response(error="Document not found in case", status=404)
+
+
+# =============================================================================
+# DOCUMENT TEXT RETRIEVAL
+# =============================================================================
+
+@app.route("/api/documents/<doc_id>/text", methods=["GET"])
+def get_document_text(doc_id: str):
+    """
+    Get the original text of an uploaded document.
+
+    Retrieves text from:
+    - Preflight items (recently uploaded)
+    - Document chunks (processed documents)
+
+    Returns:
+        {
+            "document_id": str,
+            "filename": str,
+            "text": str,
+            "format": str,
+            "line_count": int,
+            "char_count": int
+        }
+    """
+    import sqlite3
+
+    conn = sqlite3.connect(str(Config.DB_PATH))
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    try:
+        # Try preflight_items first (most recent uploads)
+        # doc_id might be "preflight_item_123" or just "123"
+        item_id = doc_id.replace("preflight_item_", "") if doc_id.startswith("preflight_item_") else doc_id
+
+        cursor.execute("""
+            SELECT id, title, content, source_type
+            FROM preflight_items
+            WHERE id = ? OR source_id = ?
+        """, (item_id, doc_id))
+
+        row = cursor.fetchone()
+
+        if row and row['content']:
+            text = row['content']
+            return api_response({
+                "document_id": doc_id,
+                "filename": row['title'] or f"Document {row['id']}",
+                "text": text,
+                "format": _detect_text_format(text, row['source_type']),
+                "line_count": text.count('\n') + 1,
+                "char_count": len(text),
+            })
+
+        # Try document_chunks (ingested documents)
+        cursor.execute("""
+            SELECT d.id, d.filename, d.file_type,
+                   GROUP_CONCAT(c.content, '\n\n---\n\n') as full_text
+            FROM ingested_documents d
+            LEFT JOIN document_chunks c ON c.document_id = d.id
+            WHERE d.id = ? OR d.file_hash = ?
+            GROUP BY d.id
+        """, (doc_id, doc_id))
+
+        row = cursor.fetchone()
+
+        if row and row['full_text']:
+            text = row['full_text']
+            return api_response({
+                "document_id": doc_id,
+                "filename": row['filename'] or f"Document {row['id']}",
+                "text": text,
+                "format": row['file_type'] or 'txt',
+                "line_count": text.count('\n') + 1,
+                "char_count": len(text),
+            })
+
+        # Document not found
+        return api_response(
+            error="Document not found",
+            status=404
+        )
+
+    finally:
+        conn.close()
+
+
+def _detect_text_format(text: str, source_type: str = None) -> str:
+    """Detect text format from content or source type."""
+    if source_type:
+        source_lower = source_type.lower()
+        if 'markdown' in source_lower or 'md' in source_lower:
+            return 'markdown'
+        if 'json' in source_lower:
+            return 'json'
+        if 'csv' in source_lower:
+            return 'csv'
+
+    # Simple content-based detection
+    text_start = text[:500] if text else ''
+    if text_start.strip().startswith('{') or text_start.strip().startswith('['):
+        return 'json'
+    if text_start.startswith('#') or '\n## ' in text or '\n### ' in text:
+        return 'markdown'
+
+    return 'txt'
 
 
 @app.route("/api/cases/<case_id>/stats", methods=["GET"])

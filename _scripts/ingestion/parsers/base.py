@@ -38,10 +38,10 @@ class BaseParser(ABC):
 def get_parser(path: Path) -> Optional[BaseParser]:
     """
     Get appropriate parser for a file.
-    
+
     Args:
         path: Path to file
-    
+
     Returns:
         Parser instance or None if unsupported
     """
@@ -51,20 +51,22 @@ def get_parser(path: Path) -> Optional[BaseParser]:
     from .messages import MessagesParser
     from .json_export import JSONExportParser
     from .excel import ExcelParser
-    
+    from .csv_parser import CSVParser
+
     parsers = [
         PDFParser(),
         MarkdownParser(),
+        CSVParser(),         # Check CSV before plaintext
         ExcelParser(),       # Check Excel before plaintext
         JSONExportParser(),  # Check JSON before plaintext
         MessagesParser(),    # Check before plaintext (txt files might be messages)
         PlaintextParser(),
     ]
-    
+
     for parser in parsers:
         if parser.can_parse(path):
             return parser
-    
+
     return None
 
 
@@ -76,10 +78,12 @@ def get_all_parsers() -> List[BaseParser]:
     from .messages import MessagesParser
     from .json_export import JSONExportParser
     from .excel import ExcelParser
-    
+    from .csv_parser import CSVParser
+
     return [
         PDFParser(),
         MarkdownParser(),
+        CSVParser(),
         ExcelParser(),
         JSONExportParser(),
         MessagesParser(),

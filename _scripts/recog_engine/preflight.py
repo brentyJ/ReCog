@@ -541,19 +541,22 @@ class PreflightManager:
     def confirm_session(self, session_id: int) -> Dict:
         """
         Confirm a preflight session and prepare for processing.
-        
+
         This marks the session as ready for LLM processing.
         The actual processing is handled by the extraction system.
-        
+
         Returns:
             dict with confirmation status and item count
         """
         session = self.get_session(session_id)
-        
+
         if not session:
             return {'success': False, 'error': 'Session not found'}
-        
-        if session['status'] not in ('scanned', 'reviewing'):
+
+        # Allow confirmation from pending, scanned, or reviewing status
+        # Also allow re-confirming an already confirmed session (idempotent)
+        allowed_statuses = ('pending', 'scanned', 'reviewing', 'confirmed')
+        if session['status'] not in allowed_statuses:
             return {'success': False, 'error': f'Session not ready: {session["status"]}'}
         
         items = self.get_items(session_id, included_only=True)
