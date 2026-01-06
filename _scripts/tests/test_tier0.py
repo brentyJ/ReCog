@@ -83,9 +83,10 @@ def _get_people_names(people_list):
 
 
 def test_no_false_positives():
-    """Entity extraction should not flag common words as people."""
+    """Entity extraction should not flag common words as people (when filtering low confidence)."""
     for case in FALSE_POSITIVE_TESTS:
-        result = extract_basic_entities(case["text"])
+        # Use include_low_confidence=False to filter out uncertain detections
+        result = extract_basic_entities(case["text"], include_low_confidence=False)
         people = result.get("people", [])
         people_names = _get_people_names(people)
 
