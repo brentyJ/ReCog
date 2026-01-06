@@ -277,7 +277,31 @@ Mirrorwell (raw) → ReCog (process) → EhkoForge (curate) → Ehko (final)
 
 ---
 
-## 10. QUICK REFERENCE
+## 10. CLAUDE INTERFACES
+
+**Two options for working with Claude on ReCog:**
+
+| Interface | Best For |
+|-----------|----------|
+| **Claude Code CLI** | Running tests, server operations, build-test-fix cycles, git commits |
+| **Desktop Claude** | Architecture discussions, planning, reviewing analysis results |
+
+**Same Claude brain, different interfaces.** Claude Code CLI can directly run `python server.py`, execute tests, and iterate on code. Desktop Claude is better for discussing analysis strategies and reviewing extracted insights.
+
+**Use Claude Code CLI when:**
+- Running/debugging the server or CLI
+- Executing test suites
+- Making code changes with immediate verification
+- Git operations
+
+**Use Desktop Claude when:**
+- Planning new processing tiers or features
+- Reviewing and discussing extracted insights
+- Architecture decisions
+
+---
+
+## 11. QUICK REFERENCE
 
 **At session start:**
 1. Check if ReCog server is needed (ask Brent)
@@ -307,6 +331,7 @@ Mirrorwell (raw) → ReCog (process) → EhkoForge (curate) → Ehko (final)
 |---------|------|---------|
 | 1.0 | 2024-12-22 | Initial instructions created (technical README existed, but not Claude-specific instructions) |
 | 1.1 | 2026-01-06 | Added Case Architecture: cases, findings, timeline, context injection |
+| 1.2 | 2026-01-06 | Added Claude Interfaces section (CLI vs Desktop guidance) |
 
 ---
 
