@@ -100,6 +100,12 @@ python recog_cli.py preflight scan <id>
 - `findings_store.py` - Findings storage
 - `timeline_store.py` - Timeline events
 
+**recog_engine/cypher/** - Conversational interface:
+- `intent_classifier.py` - Hybrid regex + LLM intent classification
+- `action_router.py` - Routes intents to backend operations
+- `response_formatter.py` - Ensures consistent Cypher voice
+- `prompts.py` - System prompts and response templates
+
 **recog_engine/core/** - Lower-level components:
 - `providers/` - LLM adapters (OpenAI, Anthropic)
 - `routing.py` - LLM provider selection
@@ -129,6 +135,13 @@ React 18 + Vite + shadcn/ui + Tailwind CSS
   - `InsightsPage.jsx` - Browse/manage insights
   - `PatternsPage.jsx` - Synthesized patterns
 - `src/components/ui/` - shadcn components
+- `src/components/cypher/` - Conversational interface:
+  - `Cypher.jsx` - Slide-in panel with message history
+  - `CypherMessage.jsx` - User/assistant message bubbles
+  - `CypherSuggestions.jsx` - Action buttons from responses
+  - `CypherTyping.jsx` - Animated typing indicator
+- `src/contexts/CypherContext.jsx` - State management for Cypher
+- `src/hooks/useCypherActions.js` - Navigation and action execution
 
 ### Data Flow
 
@@ -149,6 +162,8 @@ Files → Ingestion (parse) → Tier 0 (signals) → Tier 1 (insights) → Tier 
 - `GET/PATCH /api/insights/*` - Insight management
 - `POST /api/synth/run` - Run synthesis
 - `POST /api/critique/insight` - Validate insight
+- `POST /api/cypher/message` - Send message to Cypher conversational interface
+- `GET /api/extraction/status/<case_id>` - Poll extraction progress
 
 ## Environment Variables
 

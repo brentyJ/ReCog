@@ -892,17 +892,91 @@ Completed:
 
 ---
 
-## Phase 11: EhkoLabs Website Modernization 📋
+## Phase 11: Cypher Conversational Interface ⏳
+
+**Goal**: Replace fragmented Upload → Preflight → Dashboard workflow with natural language assistant
+
+**Session Date**: 2026-01-07 (Claude Code CLI)
+
+### 11.1 Backend Foundation ✅
+```
+New files in recog_engine/cypher/
+```
+
+Completed:
+- [x] Create `recog_engine/cypher/` module with `__init__.py`
+- [x] `intent_classifier.py` - Hybrid regex patterns + Claude Haiku fallback
+- [x] `action_router.py` - CypherActionRouter for entity corrections, navigation, queries
+- [x] `response_formatter.py` - Ensures Cypher voice consistency
+- [x] `prompts.py` - System prompt with communication patterns, response templates
+- [x] `/api/cypher/message` endpoint in server.py
+- [x] `/api/extraction/status/<case_id>` polling endpoint
+
+Intent types supported:
+- `entity_correction` - "Webb isn't a person"
+- `navigation` - "Show me entities"
+- `filter_request` - "Focus on Seattle"
+- `analysis_query` - "Are there gaps in April?"
+- `help_request`, `status_query`, `general_chat`
+
+### 11.2 Frontend Core ✅
+```
+New files in _ui/src/components/cypher/, contexts/, hooks/
+```
+
+Completed:
+- [x] `CypherContext.jsx` - State management, message history, extraction polling
+- [x] `Cypher.jsx` - Slide-in panel (420px width, teal accent)
+- [x] `CypherMessage.jsx` - User/assistant bubbles with timestamps
+- [x] `CypherTyping.jsx` - Animated typing indicator (3 dots)
+- [x] `CypherSuggestions.jsx` - Action buttons with Lucide icons
+- [x] `useCypher.js`, `useCypherActions.js` hooks
+- [x] Trigger button in header with processing badge
+- [x] App.jsx wrapped with CypherProvider
+
+### 11.3 Action Execution ✅
+```
+Implemented in useCypherActions.js
+```
+
+Completed:
+- [x] Hash-based navigation (`window.location.hash = '#entities'`)
+- [x] Entity correction workflow (remove + blocklist)
+- [x] Filter application (returns matching count)
+- [x] Suggestion buttons with icons
+- [x] Keyboard shortcuts (Enter to send, Esc to close)
+
+### 11.4 Live Processing 📋
+- [ ] Real-time progress updates (2-second polling)
+- [ ] Document-by-document narration
+- [ ] Completion notifications
+- [ ] Badge on trigger showing "8/23" count
+
+### 11.5 Polish 📋
+- [ ] Error handling and retry
+- [ ] Empty states refinement
+- [ ] Edge case testing
+- [ ] CypherProgress.jsx for extraction visualization
+
+**Deliverable**: Natural language interface for all ReCog operations
+
+**Status**: Phases 1-3 complete. Phase 4 (Live Processing) next priority.
+
+**Reference**: `C:\EhkoVaults\ReCog\CYPHER_IMPLEMENTATION_SPEC.md`
+
+---
+
+## Phase 12: EhkoLabs Website Modernization 📋
 
 **Goal**: Convert marketing website to React + shadcn/ui with consistent branding
 
-### 11.1 Planning
+### 12.1 Planning
 - [ ] Audit current website pages and components
 - [ ] Define reusable component architecture
 - [ ] SEO strategy (Next.js vs static export)
 - [ ] Hosting plan (Vercel, Netlify, CloudFlare Pages)
 
-### 11.2 Component Migration
+### 12.2 Component Migration
 - [ ] Homepage hero with CTAs
 - [ ] Product showcase pages (ReCog, EhkoForge)
 - [ ] About/team page
@@ -911,14 +985,14 @@ Completed:
 - [ ] Pricing tables
 - [ ] Testimonials
 
-### 11.3 Interactive Features
+### 12.3 Interactive Features
 - [ ] Live ReCog demo widget
 - [ ] Pricing calculator
 - [ ] Feature comparison tables
 - [ ] Newsletter signup
 - [ ] Demo request forms
 
-### 11.4 Shared Design System
+### 12.4 Shared Design System
 - [ ] Component library shared across website + products
 - [ ] Consistent color palette
 - [ ] Typography system
@@ -927,7 +1001,50 @@ Completed:
 
 **Deliverable**: Professional marketing site matching product quality
 
-**Priority**: High (Q1 2026 target)
+**Priority**: Medium (Q1 2026 target)
+
+---
+
+## 🔮 Blue Sky Ideas & Future Experiments
+
+**Purpose**: Track exciting ideas that aren't immediate priorities but worth remembering
+
+### Ehko-Powered Interfaces
+- [ ] **Ehko Import for Cypher**: Allow users to import an Ehko (from EhkoForge) to replace Cypher as their terminal assistant
+  - Showcase EhkoForge capability without being too in-your-face
+  - Let users interact with ReCog through their own digital echo or someone else's
+  - Cool cross-pollination between ReCog and EhkoForge projects
+  - Technical: Load Ehko personality/voice from EhkoForge export, inject into Cypher system prompt
+  - UI: "Import Ehko" button in Cypher settings, personality switcher
+  - Example: "Analyze this case using Grandma's Ehko" for warm, storytelling approach vs technical analysis
+
+### Advanced Analysis Features
+- [ ] Voice memo analysis (transcription → extraction pipeline)
+- [ ] Video interview processing (speech-to-text → visual cue detection)
+- [ ] Multi-language support (translation layer before extraction)
+- [ ] Real-time collaborative case analysis
+- [ ] Mobile app for field data collection
+
+### Visualization & Reporting
+- [ ] Interactive timeline visualizations (D3.js)
+- [ ] Entity relationship maps (force-directed graphs)
+- [ ] Automated report generation with templates
+- [ ] Export to legal/medical/research formats
+
+### AI Augmentation
+- [ ] Predictive pattern detection (ML on synthesis history)
+- [ ] Anomaly detection in communication patterns
+- [ ] Sentiment trend forecasting
+- [ ] Question generation from document corpus
+
+### Integration & Ecosystem
+- [ ] Slack/Teams bot for document submission
+- [ ] Email ingestion (IMAP/Exchange)
+- [ ] Google Drive / Dropbox sync
+- [ ] Zapier/Make.com integrations
+- [ ] API webhooks for external workflows
+
+**Note**: These ideas are parked here for future reference. Add new ones as they come up!
 
 ---
 
@@ -946,9 +1063,10 @@ Completed:
 | 10.6 ✅ | Code Quality | Tests, indexes, shared components |
 | 10.7 ✅ | UI Navigation | Hash routing, state persistence, batch ops |
 | 10.8 ✅ | Entity Quality | False positive filtering, blacklist UI |
-| 11 📋 | Website | Marketing site modernization |
+| 11 ⏳ | Cypher Interface | Phases 1-3 complete, live processing next |
+| 12 📋 | Website | Marketing site modernization |
 
-## Architecture (Post-Phase 6)
+## Architecture (Post-Phase 8)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -986,12 +1104,14 @@ Completed:
 - **Phase 4**: 1-2 sessions (LLM integration, database layer) ✅
 - **Phase 5**: 1 session (UI workflow) ✅
 - **Phase 6**: 1 session (Synth Engine) ✅
-- **Phase 7**: 1-2 sessions (Entity graph)
-- **Phase 8**: 1-2 sessions (Critique layer)
-- **Phase 9**: 2-4 sessions (many small tasks)
+- **Phase 7**: 1-2 sessions (Entity graph) ✅
+- **Phase 8**: 1-2 sessions (Critique layer) ✅
+- **Phase 9**: 2-4 sessions (many small tasks) ⏳
+- **Phase 10**: 3-5 sessions (React UI modernization) ✅
+- **Phase 11**: 2-3 sessions (Cypher interface) ⏳ ~60% complete
 
-Total: ~8-14 sessions to production-ready MVP
+Total: ~14-22 sessions to full-featured platform
 
 ---
 
-*Last updated: Phase 10.8 Entity Extraction Quality COMPLETE - 06 Jan 2026*
+*Last updated: Phase 11 Cypher implementation (Phases 1-3 complete) - 07 Jan 2026*
