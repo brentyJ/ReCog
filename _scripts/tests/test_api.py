@@ -100,14 +100,15 @@ def test_tier0_detects_entities(client, sample_text):
         json={'text': sample_text},
         content_type='application/json'
     )
-    
+
     data = json.loads(response.data)
     entities = data['data']['tier0']['entities']
-    
-    # Should find people
+
+    # Should find people (tier0 v0.3 returns dicts with 'name' and 'confidence')
     people = entities.get('people', [])
-    assert 'Sarah' in people or 'Michael' in people, "Should detect named entities"
-    
+    people_names = [p.get('name', p) if isinstance(p, dict) else p for p in people]
+    assert 'Sarah' in people_names or 'Michael' in people_names, "Should detect named entities"
+
     # Should find phone number
     phones = entities.get('phone_numbers', [])
     assert len(phones) >= 1, "Should detect phone number"

@@ -71,14 +71,26 @@ FALSE_POSITIVE_TESTS = [
 # PYTEST FUNCTIONS
 # =============================================================================
 
+def _get_people_names(people_list):
+    """Extract names from people list (handles both dict and string formats)."""
+    names = []
+    for p in people_list:
+        if isinstance(p, dict):
+            names.append(p.get('name', ''))
+        else:
+            names.append(p)
+    return names
+
+
 def test_no_false_positives():
     """Entity extraction should not flag common words as people."""
     for case in FALSE_POSITIVE_TESTS:
         result = extract_basic_entities(case["text"])
         people = result.get("people", [])
-        
+        people_names = _get_people_names(people)
+
         for bad in case["should_not_find"]:
-            assert bad not in people, f"[{case['name']}] False positive: '{bad}' detected"
+            assert bad not in people_names, f"[{case['name']}] False positive: '{bad}' detected"
 
 
 def test_real_names_detected():
@@ -86,12 +98,13 @@ def test_real_names_detected():
     for case in FALSE_POSITIVE_TESTS:
         if not case["should_find"]:
             continue
-            
+
         result = extract_basic_entities(case["text"])
         people = result.get("people", [])
-        
+        people_names = _get_people_names(people)
+
         for name in case["should_find"]:
-            assert name in people, f"[{case['name']}] Missed name: '{name}'"
+            assert name in people_names, f"[{case['name']}] Missed name: '{name}'"
 
 
 def test_preprocess_flags():
