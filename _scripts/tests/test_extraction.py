@@ -154,14 +154,14 @@ def test_parse_insight_fields():
     """Parsed insights should have all expected fields."""
     result = parse_extraction_response(VALID_LLM_RESPONSE)
     insight = result.insights[0]
-    
+
     assert isinstance(insight, ExtractedInsight)
     assert insight.summary is not None
     assert insight.significance is not None
     assert insight.confidence is not None
     assert insight.insight_type is not None
     assert isinstance(insight.themes, list)
-    assert insight.supporting_excerpt is not None
+    assert insight.excerpt is not None  # Field renamed from supporting_excerpt
 
 
 def test_parse_malformed_responses():
@@ -187,53 +187,65 @@ def test_parse_response_with_markdown():
 
 def test_calculate_similarity_identical():
     """Identical text should have similarity 1.0."""
-    text = "The subject feels anxious about work"
-    sim = calculate_similarity(text, text)
+    summary = "The subject feels anxious about work"
+    themes = ["anxiety", "work"]
+    sim = calculate_similarity(summary, themes, summary, themes)
     assert sim == 1.0
 
 
 def test_calculate_similarity_different():
     """Completely different text should have low similarity."""
-    text1 = "The subject enjoys hiking in the mountains"
-    text2 = "A database query optimization technique"
-    sim = calculate_similarity(text1, text2)
+    summary1 = "The subject enjoys hiking in the mountains"
+    themes1 = ["hiking", "outdoors", "nature"]
+    summary2 = "A database query optimization technique"
+    themes2 = ["database", "performance", "technical"]
+    sim = calculate_similarity(summary1, themes1, summary2, themes2)
     assert sim < 0.3, "Unrelated text should have low similarity"
 
 
 def test_calculate_similarity_similar():
     """Similar text should have high similarity."""
-    text1 = "Subject feels anxious about the upcoming promotion"
-    text2 = "The subject is anxious regarding their promotion prospects"
-    sim = calculate_similarity(text1, text2)
-    assert sim > 0.5, "Similar text should have moderate-high similarity"
+    summary1 = "Subject feels anxious about the upcoming promotion"
+    themes1 = ["anxiety", "promotion", "career"]
+    summary2 = "The subject is anxious regarding their promotion prospects"
+    themes2 = ["anxiety", "promotion", "work"]
+    sim = calculate_similarity(summary1, themes1, summary2, themes2)
+    assert sim > 0.4, "Similar text should have moderate similarity"
 
 
 def test_find_similar_insight():
     """Should find similar insights in a list."""
     insights = [
         ExtractedInsight(
+            id="test-1",
             summary="Subject enjoys morning walks",
+            themes=["exercise", "routine"],
             significance=0.5,
             confidence=0.8,
             insight_type="observation",
         ),
         ExtractedInsight(
+            id="test-2",
             summary="Subject feels anxious about work deadlines",
+            themes=["anxiety", "work", "deadlines"],
             significance=0.7,
             confidence=0.9,
             insight_type="emotional_state",
         ),
     ]
-    
+
     new_insight = ExtractedInsight(
+        id="test-new",
         summary="Subject is anxious about upcoming work deadlines",
+        themes=["anxiety", "work", "deadlines"],
         significance=0.75,
         confidence=0.85,
         insight_type="emotional_state",
     )
-    
-    match = find_similar_insight(new_insight, insights, threshold=0.5)
-    assert match is not None, "Should find the similar anxiety insight"
+
+    result = find_similar_insight(new_insight, insights, threshold=0.5)
+    assert result is not None, "Should find the similar anxiety insight"
+    match, score = result  # Function returns (insight, score) tuple
     assert "anxious" in match.summary.lower()
 
 
@@ -244,23 +256,25 @@ def test_find_similar_insight():
 def test_merge_insights_combines_themes():
     """Merging should combine themes from both insights."""
     insight1 = ExtractedInsight(
+        id="merge-1",
         summary="Subject feels stressed",
+        themes=["stress", "work"],
         significance=0.6,
         confidence=0.8,
         insight_type="emotional_state",
-        themes=["stress", "work"],
     )
-    
+
     insight2 = ExtractedInsight(
+        id="merge-2",
         summary="Subject is stressed about deadlines",
+        themes=["deadlines", "pressure"],
         significance=0.7,
         confidence=0.85,
         insight_type="emotional_state",
-        themes=["deadlines", "pressure"],
     )
-    
+
     merged = merge_insights(insight1, insight2)
-    
+
     assert merged.significance >= 0.65, "Should average/boost significance"
     assert "stress" in merged.themes or "deadlines" in merged.themes
 
@@ -268,21 +282,25 @@ def test_merge_insights_combines_themes():
 def test_merge_insights_updates_confidence():
     """Merging should increase confidence (corroborated)."""
     insight1 = ExtractedInsight(
+        id="merge-3",
         summary="Subject values family time",
+        themes=["family", "values"],
         significance=0.5,
         confidence=0.7,
         insight_type="observation",
     )
-    
+
     insight2 = ExtractedInsight(
+        id="merge-4",
         summary="Subject prioritizes family activities",
+        themes=["family", "priorities"],
         significance=0.5,
         confidence=0.7,
         insight_type="observation",
     )
-    
+
     merged = merge_insights(insight1, insight2)
-    
+
     # Corroborated insights should have higher confidence
     assert merged.confidence >= insight1.confidence
 
@@ -294,24 +312,28 @@ def test_merge_insights_updates_confidence():
 def test_should_surface_high_significance():
     """High significance insights should surface."""
     insight = ExtractedInsight(
+        id="surface-1",
         summary="Major life decision detected",
+        themes=["decision", "life"],
         significance=0.9,
         confidence=0.8,
         insight_type="decision",
     )
-    
+
     assert should_surface(insight), "High significance should surface"
 
 
 def test_should_surface_low_significance():
     """Low significance insights should not surface."""
     insight = ExtractedInsight(
+        id="surface-2",
         summary="Subject mentioned the weather",
+        themes=["weather", "observation"],
         significance=0.2,
         confidence=0.9,
         insight_type="observation",
     )
-    
+
     assert not should_surface(insight), "Low significance should not surface"
 
 

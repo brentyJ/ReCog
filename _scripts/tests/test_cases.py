@@ -665,14 +665,16 @@ class TestTimelineStore:
 
     def test_get_timeline(self, timeline_store, sample_case):
         """Should retrieve timeline events."""
-        timeline_store.log_event(sample_case.id, "case_created", {})
+        # Note: sample_case fixture auto-logs a case_created event
+        timeline_store.log_event(sample_case.id, "doc_added", {})
         timeline_store.log_event(sample_case.id, "doc_added", {})
         timeline_store.log_event(sample_case.id, "finding_added", {})
 
         result = timeline_store.get_timeline(sample_case.id)
 
-        assert result["total"] == 3
-        assert len(result["events"]) == 3
+        # 1 auto-logged case_created + 3 manual events = 4
+        assert result["total"] == 4
+        assert len(result["events"]) == 4
 
     def test_get_timeline_filter_types(self, timeline_store, sample_case):
         """Should filter by event types."""
@@ -701,12 +703,14 @@ class TestTimelineStore:
 
     def test_get_timeline_order(self, timeline_store, sample_case):
         """Should support ordering."""
-        timeline_store.log_event(sample_case.id, "case_created", {"order": 1})
+        # Note: sample_case fixture auto-logs a case_created event first
+        timeline_store.log_event(sample_case.id, "doc_added", {"order": 1})
         timeline_store.log_event(sample_case.id, "doc_added", {"order": 2})
         timeline_store.log_event(sample_case.id, "doc_added", {"order": 3})
 
-        desc = timeline_store.get_timeline(sample_case.id, order="DESC")
-        asc = timeline_store.get_timeline(sample_case.id, order="ASC")
+        # Filter to only doc_added events to avoid the auto-logged case_created
+        desc = timeline_store.get_timeline(sample_case.id, event_types=["doc_added"], order="DESC")
+        asc = timeline_store.get_timeline(sample_case.id, event_types=["doc_added"], order="ASC")
 
         # DESC should have newest first (highest order)
         assert desc["events"][0]["event_data"]["order"] == 3
@@ -738,13 +742,14 @@ class TestTimelineStore:
 
     def test_get_summary(self, timeline_store, sample_case):
         """Should return timeline summary."""
-        timeline_store.log_event(sample_case.id, "case_created", {})
+        # Note: sample_case fixture auto-logs a case_created event
         timeline_store.log_event(sample_case.id, "doc_added", {})
         timeline_store.log_event(sample_case.id, "doc_added", {})
         timeline_store.log_event(sample_case.id, "finding_verified", {})
 
         summary = timeline_store.get_summary(sample_case.id)
 
+        # 1 auto-logged case_created + 3 manual events = 4
         assert summary["total_events"] == 4
         assert summary["by_type"]["doc_added"] == 2
         assert summary["by_type"]["case_created"] == 1
