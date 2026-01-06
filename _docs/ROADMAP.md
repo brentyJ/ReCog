@@ -704,6 +704,76 @@ Timeline Management:
 
 ---
 
+## Phase 10.6: Code Quality & Developer Experience ✅
+
+**Goal**: Improve test coverage, code organization, and developer tooling
+
+**Session Date**: 2026-01-06 (Claude Code CLI)
+
+### 10.6.1 Test Coverage ✅
+```
+New file: _scripts/tests/test_cases.py
+```
+
+Completed:
+- [x] TestCaseStore - 21 tests for case CRUD operations
+- [x] TestFindingsStore - 14 tests for findings management
+- [x] TestTimelineStore - 14 tests for timeline events
+- [x] TestCaseIntegration - 4 integration tests
+- [x] Standalone runner for environments without pytest
+- [x] Total: 53 new tests covering Case architecture
+
+### 10.6.2 Database Indexes ✅
+```
+New file: migrations/migration_v0_7_missing_indexes.sql
+```
+
+Indexes added:
+- [x] FK indexes: `merged_into_id`, `critique_id`, `source_cluster_id`
+- [x] Timestamp indexes: `created_at`, `queued_at`, `ingested_at`, `last_seen_at`
+- [x] Total: 10 new indexes for query performance
+
+### 10.6.3 UI Component Refactoring ✅
+```
+New files in _ui/src/components/ui/
+```
+
+Shared components extracted:
+- [x] `loading-state.jsx` - Spinner with message, 3 size variants
+- [x] `empty-state.jsx` - Icon, title, description, optional action
+- [x] `status-badge.jsx` - 15+ predefined status color schemes
+- [x] `stat-card.jsx` - StatCard + StatGrid for metrics display
+
+Pages updated:
+- [x] InsightsPage, PatternsPage, EntitiesPage - StatGrid, LoadingState, EmptyState
+- [x] PreflightPage - LoadingState, EmptyState
+- [x] CasesPage - LoadingState, EmptyState, StatusBadge
+- [x] Net reduction: 62 lines (-166, +104)
+
+### 10.6.4 API Consistency Review ✅
+```
+Review: server.py
+```
+
+Completed:
+- [x] Verified all 70+ endpoints use `api_response()` wrapper
+- [x] Confirmed consistent format: `{success, data, error, timestamp}`
+- [x] No fixes needed - architecture already enforces consistency
+
+### 10.6.5 Code Comment Audit ✅
+```
+Search: TODO, FIXME, HACK comments
+```
+
+Completed:
+- [x] Found 2 valid TODOs (synthesis cost tracking, correlation feature)
+- [x] Both are legitimate future work items, not outdated
+- [x] Codebase is clean - no stale comments to remove
+
+**Deliverable**: Improved test coverage, query performance, and code organization ✅ COMPLETE
+
+---
+
 ## Phase 11: EhkoLabs Website Modernization 📋
 
 **Goal**: Convert marketing website to React + shadcn/ui with consistent branding
@@ -755,6 +825,7 @@ Timeline Management:
 | 9 ⏳ | Polish | Production-ready with real parsers |
 | 10 ✅ | React UI | Modern interface with shadcn/ui |
 | 10.5 ✅ | Case Architecture | Case-centric document intelligence |
+| 10.6 ✅ | Code Quality | Tests, indexes, shared components |
 | 11 📋 | Website | Marketing site modernization |
 
 ## Architecture (Post-Phase 6)
@@ -803,4 +874,4 @@ Total: ~8-14 sessions to production-ready MVP
 
 ---
 
-*Last updated: Phase 10.5 Case Architecture (Backend + UI) COMPLETE - 06 Jan 2026*
+*Last updated: Phase 10.6 Code Quality & Developer Experience COMPLETE - 06 Jan 2026*
