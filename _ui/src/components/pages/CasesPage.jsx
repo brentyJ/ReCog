@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import {
   Plus,
   FolderOpen,
-  Archive,
   FileText,
   Lightbulb,
   Clock,
@@ -14,27 +13,24 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  FileUp
 } from 'lucide-react'
+import { LoadingState } from '@/components/ui/loading-state'
+import { EmptyState } from '@/components/ui/empty-state'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { getCases, createCase, deleteCase, getCaseTimeline, getCaseFindings, updateFinding } from '../../lib/api'
 
 // Case Card Component
 function CaseCard({ caseData, onSelect, onDelete }) {
   const [showMenu, setShowMenu] = useState(false)
-  
-  const statusColors = {
-    active: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-    archived: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
-  }
 
   return (
-    <div 
+    <div
       className="group relative bg-card border border-border rounded-lg p-5 hover:border-orange-mid/50 transition-all cursor-pointer"
       onClick={() => onSelect(caseData)}
     >
       {/* Status Badge */}
-      <div className={`absolute top-4 right-4 px-2 py-0.5 rounded text-xs font-medium border ${statusColors[caseData.status]}`}>
-        {caseData.status}
+      <div className="absolute top-4 right-4">
+        <StatusBadge status={caseData.status} />
       </div>
 
       {/* Title */}
@@ -319,12 +315,6 @@ function CaseDetail({ caseData, onBack }) {
     finding_added: Lightbulb,
   }
 
-  const statusColors = {
-    verified: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-    needs_verification: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-    rejected: 'bg-red-500/20 text-red-400 border-red-500/30',
-  }
-
   const verifiedCount = findings.filter(f => f.status === 'verified').length
   const needsVerificationCount = findings.filter(f => f.status === 'needs_verification').length
 
@@ -417,18 +407,13 @@ function CaseDetail({ caseData, onBack }) {
       {activeTab === 'findings' && (
         <div className="bg-card border border-border rounded-lg p-6">
           {loadingFindings ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-              Loading findings...
-            </div>
+            <LoadingState message="Loading findings..." />
           ) : findings.length === 0 ? (
-            <div className="text-center py-8">
-              <Lightbulb className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <div className="text-muted-foreground mb-2">No findings yet</div>
-              <p className="text-sm text-muted-foreground">
-                Upload documents and extract insights, then promote them to findings.
-              </p>
-            </div>
+            <EmptyState
+              icon={Lightbulb}
+              title="No findings yet"
+              description="Upload documents and extract insights, then promote them to findings."
+            />
           ) : (
             <div className="space-y-3">
               {findings.map((finding) => (
@@ -448,9 +433,7 @@ function CaseDetail({ caseData, onBack }) {
                         <div className="font-medium text-foreground">
                           {finding.insight?.title || finding.insight?.claim || 'Untitled Finding'}
                         </div>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium border flex-shrink-0 ${statusColors[finding.status]}`}>
-                          {finding.status === 'needs_verification' ? 'Needs Review' : finding.status}
-                        </span>
+                        <StatusBadge status={finding.status} />
                       </div>
 
                       {finding.insight?.excerpt && (
@@ -523,12 +506,13 @@ function CaseDetail({ caseData, onBack }) {
       {activeTab === 'timeline' && (
         <div className="bg-card border border-border rounded-lg p-6">
           {loadingTimeline ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-              Loading timeline...
-            </div>
+            <LoadingState message="Loading timeline..." />
           ) : timeline.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No events yet</div>
+            <EmptyState
+              icon={Clock}
+              title="No events yet"
+              description="Timeline events will appear as you work with this case."
+            />
           ) : (
             <div className="space-y-4">
               {timeline.map((event) => {
@@ -657,27 +641,26 @@ export function CasesPage() {
 
       {/* Loading */}
       {loading && (
-        <div className="text-center py-12 text-muted-foreground">
-          Loading cases...
-        </div>
+        <LoadingState message="Loading cases..." size="lg" />
       )}
 
       {/* Empty State */}
       {!loading && cases.length === 0 && (
-        <div className="text-center py-12 border border-dashed border-border rounded-lg">
-          <FolderOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-1">No cases yet</h3>
-          <p className="text-muted-foreground mb-4">
-            Create a case to start organizing your document analysis
-          </p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-orange-mid text-background rounded-md text-sm font-medium hover:bg-orange-light transition-colors inline-flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Create Your First Case
-          </button>
-        </div>
+        <EmptyState
+          icon={FolderOpen}
+          title="No cases yet"
+          description="Create a case to start organizing your document analysis"
+          variant="dashed"
+          action={
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-4 py-2 bg-orange-mid text-background rounded-md text-sm font-medium hover:bg-orange-light transition-colors inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Create Your First Case
+            </button>
+          }
+        />
       )}
 
       {/* Case Grid */}

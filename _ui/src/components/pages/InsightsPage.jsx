@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Lightbulb, Filter, TrendingUp, AlertCircle, FolderOpen, CheckCircle, Star, Loader2 } from 'lucide-react'
+import { Lightbulb, Filter, FolderOpen, CheckCircle, Star, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -13,10 +13,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { 
-  getInsights, 
-  getInsightStats, 
-  getCases, 
+import { LoadingState } from '@/components/ui/loading-state'
+import { EmptyState } from '@/components/ui/empty-state'
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
+import { StatusBadge } from '@/components/ui/status-badge'
+import {
+  getInsights,
+  getInsightStats,
+  getCases,
   promoteToFinding,
   autoPromoteFindings,
   getCaseFindings,
@@ -189,32 +193,12 @@ export function InsightsPage() {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-orange-light">{stats.total_insights || stats.total || 0}</div>
-              <div className="text-sm text-muted-foreground">Total Insights</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-[#5fb3a1]">{stats.surfaced || 0}</div>
-              <div className="text-sm text-muted-foreground">Surfaced</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-blue-light">{stats.high_significance || 0}</div>
-              <div className="text-sm text-muted-foreground">High Significance</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-orange-mid">{stats.patterns_generated || 0}</div>
-              <div className="text-sm text-muted-foreground">In Patterns</div>
-            </CardContent>
-          </Card>
-        </div>
+        <StatGrid>
+          <StatCard value={stats.total_insights || stats.total || 0} label="Total Insights" color="primary" />
+          <StatCard value={stats.surfaced || 0} label="Surfaced" color="success" />
+          <StatCard value={stats.high_significance || 0} label="High Significance" color="secondary" />
+          <StatCard value={stats.patterns_generated || 0} label="In Patterns" color="warning" />
+        </StatGrid>
       )}
 
       {/* Case Selection for Findings */}
@@ -432,9 +416,8 @@ function InsightsList({ insights, loading, findings, promoting, caseSelected, on
   if (loading) {
     return (
       <Card>
-        <CardContent className="pt-12 pb-12 text-center text-muted-foreground">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-          Loading insights...
+        <CardContent>
+          <LoadingState message="Loading insights..." size="lg" />
         </CardContent>
       </Card>
     )
@@ -443,8 +426,12 @@ function InsightsList({ insights, loading, findings, promoting, caseSelected, on
   if (insights.length === 0) {
     return (
       <Card>
-        <CardContent className="pt-12 pb-12 text-center text-muted-foreground">
-          No insights found
+        <CardContent>
+          <EmptyState
+            icon={Lightbulb}
+            title="No insights found"
+            description="Try adjusting your filters or upload documents to extract insights."
+          />
         </CardContent>
       </Card>
     )

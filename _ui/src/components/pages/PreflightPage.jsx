@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react'
-import { Clipboard, Check, X, Filter, Loader2, AlertTriangle, FolderOpen } from 'lucide-react'
+import { Clipboard, Check, Filter, Loader2, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { 
-  getPreflightItems, 
+import { LoadingState } from '@/components/ui/loading-state'
+import { EmptyState } from '@/components/ui/empty-state'
+import {
+  getPreflightItems,
   getPreflight,
-  filterPreflightItems, 
-  excludePreflightItem, 
-  includePreflightItem, 
+  filterPreflightItems,
+  excludePreflightItem,
+  includePreflightItem,
   confirmPreflight,
   getCase,
-  extractWithCase,
 } from '@/lib/api'
 
 export function PreflightPage() {
@@ -330,14 +331,13 @@ export function PreflightPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-              Loading items...
-            </div>
+            <LoadingState message="Loading items..." size="lg" />
           ) : items.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              No items in this session
-            </div>
+            <EmptyState
+              icon={Clipboard}
+              title="No items in this session"
+              description="Upload a file first to see items for review."
+            />
           ) : (
             <div className="space-y-2">
               {items.map((item) => (

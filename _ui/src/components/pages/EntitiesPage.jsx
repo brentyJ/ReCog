@@ -13,6 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { LoadingState } from '@/components/ui/loading-state'
+import { EmptyState } from '@/components/ui/empty-state'
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 import { getEntities, getUnknownEntities, updateEntity, getEntityStats } from '@/lib/api'
 
 export function EntitiesPage() {
@@ -96,32 +99,12 @@ export function EntitiesPage() {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-orange-light">{stats.total_entities}</div>
-              <div className="text-sm text-muted-foreground">Total Entities</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-[#5fb3a1]">{stats.confirmed}</div>
-              <div className="text-sm text-muted-foreground">Confirmed</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-orange-mid">{stats.unknown}</div>
-              <div className="text-sm text-muted-foreground">Need ID</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-blue-light">{stats.anonymised || 0}</div>
-              <div className="text-sm text-muted-foreground">Anonymised</div>
-            </CardContent>
-          </Card>
-        </div>
+        <StatGrid>
+          <StatCard value={stats.total_entities} label="Total Entities" color="primary" />
+          <StatCard value={stats.confirmed} label="Confirmed" color="success" />
+          <StatCard value={stats.unknown} label="Need ID" color="warning" />
+          <StatCard value={stats.anonymised || 0} label="Anonymised" color="secondary" />
+        </StatGrid>
       )}
 
       {/* Unknown Entities Queue */}
@@ -179,11 +162,13 @@ export function EntitiesPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-12 text-muted-foreground">Loading...</div>
+            <LoadingState message="Loading entities..." size="lg" />
           ) : entities.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              No confirmed entities yet
-            </div>
+            <EmptyState
+              icon={Users}
+              title="No confirmed entities yet"
+              description="Entities will appear here once you've identified them."
+            />
           ) : (
             <div className="space-y-2">
               {entities.map((entity) => (

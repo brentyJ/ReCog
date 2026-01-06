@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Waypoints, Play, TrendingUp, Users, Calendar, Sparkles } from 'lucide-react'
+import { Waypoints, Play, Users, Calendar, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getPatterns, getSynthStats, createClusters, runSynthesis } from '@/lib/api'
+import { LoadingState } from '@/components/ui/loading-state'
+import { EmptyState } from '@/components/ui/empty-state'
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
+import { getPatterns, getSynthStats, runSynthesis } from '@/lib/api'
 
 export function PatternsPage() {
   const [patterns, setPatterns] = useState([])
@@ -92,32 +95,12 @@ export function PatternsPage() {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-orange-light">{stats.total_patterns || 0}</div>
-              <div className="text-sm text-muted-foreground">Total Patterns</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-[#5fb3a1]">{stats.validated || 0}</div>
-              <div className="text-sm text-muted-foreground">Validated</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-blue-light">{stats.pending_clusters || 0}</div>
-              <div className="text-sm text-muted-foreground">Pending Clusters</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-orange-mid">{stats.avg_strength?.toFixed(1) || 0}</div>
-              <div className="text-sm text-muted-foreground">Avg Strength</div>
-            </CardContent>
-          </Card>
-        </div>
+        <StatGrid>
+          <StatCard value={stats.total_patterns || 0} label="Total Patterns" color="primary" />
+          <StatCard value={stats.validated || 0} label="Validated" color="success" />
+          <StatCard value={stats.pending_clusters || 0} label="Pending Clusters" color="secondary" />
+          <StatCard value={stats.avg_strength?.toFixed(1) || 0} label="Avg Strength" color="warning" />
+        </StatGrid>
       )}
 
       {/* Synthesis Controls */}
@@ -200,13 +183,13 @@ export function PatternsPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-12 text-muted-foreground">
-              Loading patterns...
-            </div>
+            <LoadingState message="Loading patterns..." size="lg" />
           ) : patterns.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              No patterns yet. Run synthesis to generate patterns from your insights.
-            </div>
+            <EmptyState
+              icon={Waypoints}
+              title="No patterns yet"
+              description="Run synthesis to generate patterns from your insights."
+            />
           ) : (
             <div className="space-y-4">
               {patterns.map((pattern) => {
