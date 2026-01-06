@@ -6,10 +6,12 @@ ReCog processes documents through tiered analysis—from free signal extraction 
 
 ## Features
 
+- **Case-Centric Workflow** — Organize documents into cases with context injection for focused analysis
 - **Tiered Processing** — Start free with signal extraction, escalate to LLM when needed
 - **Entity Intelligence** — Registry with relationship graphs, sentiment tracking, context injection
 - **Pattern Synthesis** — Cluster insights and synthesise higher-order patterns
 - **Critique Layer** — Self-correcting validation prevents hallucination propagation
+- **Findings Validation** — Promote insights to verified findings with status tracking
 - **Multi-Provider LLM** — OpenAI and Anthropic support with automatic fallback
 - **Preflight Workflow** — Review and filter before processing, with cost estimates
 - **Export-First** — SQLite database, human-readable formats, no lock-in
@@ -77,6 +79,46 @@ Server runs at **http://localhost:5100**
 - **Data**: `.csv`, `.xlsx`, `.xls`, `.xlsm`
 - **Email**: `.eml`, `.msg`
 - **Chat Exports**: WhatsApp, SMS XML, ChatGPT `conversations.json`
+
+## Cases: Document Intelligence Workflow
+
+ReCog uses **Cases** to organize document analysis around specific questions or investigations. Cases provide:
+
+- **Context Injection** — Case context (title, focus areas) is injected into LLM prompts for more relevant extraction
+- **Findings Workflow** — Promote high-confidence insights to verified findings
+- **Timeline Tracking** — Auto-generated chronicle of case evolution
+- **Document Organization** — Group related documents for cross-reference analysis
+
+### Case Workflow
+
+```
+1. Create Case
+   └── Define title, context, and focus areas (e.g., "Q3 Sales Analysis")
+
+2. Upload Documents
+   └── Select case during upload → context stored with preflight session
+
+3. Preflight Review
+   └── Case context banner shows → confirms context will be injected
+
+4. Process Documents
+   └── LLM extraction uses case context → insights tagged with case_id
+
+5. Review Findings
+   └── Verify/reject findings → add annotations → track validation status
+
+6. Timeline
+   └── Auto-generated events: doc_added, insights_extracted, finding_verified
+```
+
+### Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Case** | Organizational container with title, context, focus areas |
+| **Findings** | Validated insights promoted from raw insights |
+| **Timeline** | Auto-generated chronicle of case activities |
+| **Context Injection** | Case context injected into LLM prompts |
 
 ## API Reference
 
@@ -180,6 +222,41 @@ Server runs at **http://localhost:5100**
 | `/api/queue/<id>` | DELETE | Remove from queue |
 | `/api/queue/clear` | POST | Clear failed/complete items |
 
+### Cases
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/cases` | POST | Create new case |
+| `/api/cases` | GET | List cases (filter by status) |
+| `/api/cases/<id>` | GET | Get case details |
+| `/api/cases/<id>` | PATCH | Update case (title, context, status) |
+| `/api/cases/<id>` | DELETE | Delete case with cascade |
+| `/api/cases/<id>/documents` | GET | List documents in case |
+| `/api/cases/<id>/documents` | POST | Add document to case |
+| `/api/cases/<id>/stats` | GET | Case statistics |
+| `/api/cases/<id>/context` | GET | Get context for prompt injection |
+
+### Findings
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/findings` | POST | Promote insight to finding |
+| `/api/cases/<id>/findings` | GET | List case findings |
+| `/api/findings/<id>` | GET | Get finding details |
+| `/api/findings/<id>` | PATCH | Update status (verified/rejected) |
+| `/api/findings/<id>/note` | POST | Add annotation |
+| `/api/findings/<id>` | DELETE | Demote finding |
+| `/api/cases/<id>/findings/auto-promote` | POST | Batch auto-promotion |
+
+### Timeline
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/cases/<id>/timeline` | GET | Get timeline events |
+| `/api/cases/<id>/timeline` | POST | Add human annotation |
+| `/api/timeline/<id>/annotate` | POST | Annotate existing event |
+| `/api/cases/<id>/activity` | GET | Recent case activity |
+
 ## CLI Commands
 
 ```bash
@@ -253,21 +330,28 @@ The Docker setup includes:
 
 ## Database Schema
 
-ReCog uses SQLite with 15+ tables:
+ReCog uses SQLite with 19+ tables:
 
+**Core Tables:**
 - `entities` — Entity registry with normalisation
 - `entity_relationships` — Graph edges between entities
 - `entity_sentiment` — Sentiment tracking over time
 - `entity_co_occurrences` — Co-occurrence pairs
-- `insights` — Extracted insights
+- `insights` — Extracted insights (with `case_id` FK)
 - `insight_sources` — Source links for insights
 - `insight_history` — Audit trail
-- `patterns` — Synthesised patterns
+- `patterns` — Synthesised patterns (with `case_id` FK)
 - `insight_clusters` — Clustering for synthesis
 - `critique_reports` — Validation results
-- `preflight_sessions` — Upload sessions
+- `preflight_sessions` — Upload sessions (with `case_id` FK)
 - `preflight_items` — Items pending review
-- `processing_queue` — Background job queue
+- `processing_queue` — Background job queue (with `case_id` FK)
+
+**Case Tables:**
+- `cases` — Case containers with title, context, focus_areas
+- `case_documents` — Links documents to cases
+- `findings` — Validated insights promoted from raw insights
+- `case_timeline` — Auto-generated case evolution log
 
 ## Development
 

@@ -1,6 +1,6 @@
 # RECOG INSTRUCTIONS
 
-*Last updated: 2024-12-22*
+*Last updated: 2026-01-06*
 
 ---
 
@@ -26,7 +26,8 @@
 - Feeds processed insights into EhkoForge ingot creation
 
 **Current State:**
-- CLI-based tool with web server
+- CLI-based tool with web server + React UI
+- Case-centric workflow for document intelligence
 - Database-backed (stores analysis results)
 - Supports batch processing of files
 - Integrates with both Mirrorwell (source) and EhkoForge (destination)
@@ -125,6 +126,47 @@ ReCog/
 
 ---
 
+## 5.5 CASES: DOCUMENT INTELLIGENCE
+
+**Cases** organize document analysis around specific questions or investigations.
+
+### Case Workflow
+1. **Create Case** — Define title, context, and focus areas
+2. **Upload Documents** — Select case when uploading (context stored with session)
+3. **Preflight Review** — Case context banner confirms injection
+4. **Process** — LLM extraction uses case context for focused analysis
+5. **Review Findings** — Promote insights to verified findings
+6. **Timeline** — Auto-generated chronicle of case evolution
+
+### Key Concepts
+| Term | Description |
+|------|-------------|
+| **Case** | Container with title, context, focus areas |
+| **Findings** | Validated insights (verified/needs_verification/rejected) |
+| **Timeline** | Auto-logged events (doc_added, insights_extracted, etc.) |
+| **Context Injection** | Case context injected into LLM prompts |
+
+### Case Commands (API)
+```bash
+# Create case
+curl -X POST http://localhost:5100/api/cases -d '{"title":"Q3 Analysis","context":"Revenue investigation"}'
+
+# List cases
+curl http://localhost:5100/api/cases
+
+# Get case with stats
+curl http://localhost:5100/api/cases/<id>/stats
+
+# Promote insight to finding
+curl -X POST http://localhost:5100/api/findings -d '{"insight_id":"...","case_id":"..."}'
+```
+
+### When to Use Cases
+- **Use cases when:** Analyzing related documents for a specific purpose
+- **Skip cases when:** Quick one-off analysis, no need for findings tracking
+
+---
+
 ## 6. WORKFLOWS
 
 ### Processing a Journal Entry
@@ -154,6 +196,24 @@ ReCog/
 3. Extract distilled insights ready for EhkoForge
 4. Format as ingots following EhkoForge conventions
 
+### Working with Cases
+**When Brent says:** "Create a case for this investigation" or "Analyze these documents together"
+
+**You should:**
+1. Create a case with descriptive title and context
+2. Define focus areas relevant to the investigation
+3. Upload documents to the case (select case in UI or pass case_id to API)
+4. After processing, review findings and mark verified ones
+5. Use timeline to track case evolution
+
+**When Brent says:** "What findings do we have?" or "Review the case"
+
+**You should:**
+1. Fetch case findings: `GET /api/cases/<id>/findings`
+2. Show status breakdown (verified vs needs_verification)
+3. Suggest which findings to verify based on confidence
+4. Check timeline for recent activity
+
 ---
 
 ## 7. CROSS-VAULT RELATIONSHIPS
@@ -179,10 +239,12 @@ Mirrorwell (raw) → ReCog (process) → EhkoForge (curate) → Ehko (final)
 
 **DO:**
 - ✅ Start with Tier 0 (free) before escalating to LLM tiers
+- ✅ Use Cases for related document analysis
 - ✅ Process batches efficiently (use database for persistence)
 - ✅ Respect privacy - all data is processed locally
 - ✅ Explain what each tier extracts before running
 - ✅ Suggest correlation opportunities across entries
+- ✅ Promote high-confidence insights to findings for tracking
 
 **DON'T:**
 - ❌ Run expensive LLM tiers without confirming with Brent first
@@ -190,6 +252,7 @@ Mirrorwell (raw) → ReCog (process) → EhkoForge (curate) → Ehko (final)
 - ❌ Skip Tier 0 - it's free and often sufficient
 - ❌ Process data without understanding what Brent wants extracted
 - ❌ Confuse ReCog (tool) with the insights themselves
+- ❌ Skip case creation for multi-document investigations
 
 ---
 
@@ -226,12 +289,15 @@ Mirrorwell (raw) → ReCog (process) → EhkoForge (curate) → Ehko (final)
 - "Process this file" → `python recog_cli.py ingest <file>`
 - "Start server" → `python server.py`
 - "What emotions are in this?" → Tier 0 emotional analysis
+- "Create a case" → POST to `/api/cases`
+- "List findings" → GET from `/api/cases/<id>/findings`
 
 **Decision tree:**
 - Quick analysis → Tier 0
 - Conversation processing → Tier 1
 - Pattern finding → Tier 2
 - Creating ingots → Tier 3
+- Multi-document investigation → Create Case first
 
 ---
 
@@ -240,6 +306,7 @@ Mirrorwell (raw) → ReCog (process) → EhkoForge (curate) → Ehko (final)
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2024-12-22 | Initial instructions created (technical README existed, but not Claude-specific instructions) |
+| 1.1 | 2026-01-06 | Added Case Architecture: cases, findings, timeline, context injection |
 
 ---
 

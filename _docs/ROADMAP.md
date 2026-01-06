@@ -568,11 +568,12 @@ New components in src/components/pages/
 
 Completed:
 - [x] Signal Extraction page - Tier 0 analysis form with emotion/entity/temporal extraction
-- [x] Upload page - drag/drop file handler with format detection
-- [x] Preflight page - review workflow with item selection and filtering
+- [x] Upload page - drag/drop file handler with format detection, case selection
+- [x] Preflight page - review workflow with item selection, case context banner
 - [x] Entities page - entity management with identification modal and anonymization
-- [x] Insights page - browse insights with filters and tabbed status views
+- [x] Insights page - browse insights with filters, findings promotion
 - [x] Patterns page - synthesis view with pattern cards and cluster controls
+- [x] Cases page - case dashboard, case detail, findings management, timeline
 
 ### 10.3 Component Library ✅
 ```
@@ -802,4 +803,4 @@ Total: ~8-14 sessions to production-ready MVP
 
 ---
 
-*Last updated: Phase 10.5 Case Architecture Backend COMPLETE - 05 Jan 2026*
+*Last updated: Phase 10.5 Case Architecture (Backend + UI) COMPLETE - 06 Jan 2026*
