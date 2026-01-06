@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Lightbulb, Filter, TrendingUp, AlertCircle } from 'lucide-react'
+import { Lightbulb, Filter, TrendingUp, AlertCircle, FolderOpen, CheckCircle, Star, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -13,53 +13,152 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getInsights, getInsightStats } from '@/lib/api'
+import { 
+  getInsights, 
+  getInsightStats, 
+  getCases, 
+  promoteToFinding,
+  autoPromoteFindings,
+  getCaseFindings,
+} from '@/lib/api'
 
 export function InsightsPage() {
   const [insights, setInsights] = useState([])
   const [stats, setStats] = useState(null)
+  const [cases, setCases] = useState([])
+  const [findings, setFindings] = useState({}) // Map of insight_id -> finding
   const [loading, setLoading] = useState(true)
+  const [promoting, setPromoting] = useState({}) // Track which insights are being promoted
+  const [bulkPromoting, setBulkPromoting] = useState(false)
   const [filters, setFilters] = useState({
     status: '',
     min_significance: '',
     insight_type: '',
+    case_id: '',
   })
   const [activeTab, setActiveTab] = useState('all')
 
   useEffect(() => {
-    loadData()
+    loadInitialData()
   }, [])
 
-  async function loadData() {
+  useEffect(() => {
+    // When case filter changes, load findings for that case
+    if (filters.case_id) {
+      loadFindingsForCase(filters.case_id)
+    } else {
+      setFindings({})
+    }
+  }, [filters.case_id])
+
+  async function loadInitialData() {
     setLoading(true)
     try {
-      const [insightsData, statsData] = await Promise.all([
+      const [insightsData, statsData, casesData] = await Promise.all([
         getInsights(filters),
         getInsightStats(),
+        getCases({ status: 'active' }),
       ])
-      setInsights(insightsData.insights || [])
-      setStats(statsData)
+      setInsights(insightsData.data?.insights || insightsData.insights || [])
+      setStats(statsData.data || statsData)
+      setCases(casesData.data?.cases || [])
     } catch (error) {
-      console.error('Failed to load insights:', error)
+      console.error('Failed to load data:', error)
     } finally {
       setLoading(false)
     }
   }
 
+  async function loadFindingsForCase(caseId) {
+    try {
+      const data = await getCaseFindings(caseId)
+      const findingsMap = {}
+      const findingsList = data.data?.findings || data.findings || []
+      findingsList.forEach(f => {
+        findingsMap[f.insight_id] = f
+      })
+      setFindings(findingsMap)
+    } catch (error) {
+      console.error('Failed to load findings:', error)
+    }
+  }
+
   async function handleApplyFilters() {
-    await loadData()
+    setLoading(true)
+    try {
+      const apiFilters = { ...filters }
+      // Remove empty values
+      Object.keys(apiFilters).forEach(key => {
+        if (!apiFilters[key]) delete apiFilters[key]
+      })
+      const data = await getInsights(apiFilters)
+      setInsights(data.data?.insights || data.insights || [])
+    } catch (error) {
+      console.error('Failed to apply filters:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  function getSignificanceColor(score) {
-    if (score >= 8) return 'text-orange-light'
-    if (score >= 5) return 'text-blue-light'
-    return 'text-muted-foreground'
+  async function handlePromote(insightId) {
+    if (!filters.case_id) {
+      alert('Please select a case first to promote insights')
+      return
+    }
+
+    setPromoting(prev => ({ ...prev, [insightId]: true }))
+    try {
+      const result = await promoteToFinding(filters.case_id, insightId)
+      const finding = result.data || result
+      setFindings(prev => ({ ...prev, [insightId]: finding }))
+    } catch (error) {
+      console.error('Failed to promote insight:', error)
+      alert('Failed to promote: ' + error.message)
+    } finally {
+      setPromoting(prev => ({ ...prev, [insightId]: false }))
+    }
   }
 
-  function getSignificanceBadge(score) {
-    if (score >= 8) return { label: 'High', color: 'bg-orange-mid/20 text-orange-light border-orange-mid/30' }
-    if (score >= 5) return { label: 'Medium', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' }
-    return { label: 'Low', color: 'bg-muted text-muted-foreground border-border' }
+  async function handleBulkPromote() {
+    if (!filters.case_id) {
+      alert('Please select a case first')
+      return
+    }
+
+    // Get high-quality insights not yet promoted
+    const eligibleInsights = insights.filter(i => 
+      !findings[i.id] && 
+      (i.significance_score >= 7 || i.confidence >= 0.7)
+    )
+
+    if (eligibleInsights.length === 0) {
+      alert('No eligible insights to promote (need significance ≥7 or confidence ≥0.7)')
+      return
+    }
+
+    if (!window.confirm(`Promote ${eligibleInsights.length} high-quality insights to findings?`)) {
+      return
+    }
+
+    setBulkPromoting(true)
+    try {
+      const insightIds = eligibleInsights.map(i => i.id)
+      const result = await autoPromoteFindings(filters.case_id, insightIds, {
+        min_confidence: 0.7,
+        min_significance: 0.7,
+      })
+      
+      // Reload findings
+      await loadFindingsForCase(filters.case_id)
+      
+      const data = result.data || result
+      alert(`Promoted ${data.promoted_count || 0} insights to findings`)
+    } catch (error) {
+      console.error('Bulk promote failed:', error)
+      alert('Bulk promote failed: ' + error.message)
+    } finally {
+      setBulkPromoting(false)
+    }
   }
 
   const statusCounts = {
@@ -67,6 +166,13 @@ export function InsightsPage() {
     refined: insights.filter(i => i.status === 'refined').length,
     surfaced: insights.filter(i => i.status === 'surfaced').length,
   }
+
+  const selectedCase = cases.find(c => c.id === filters.case_id)
+  const promotedCount = Object.keys(findings).length
+  const eligibleForPromotion = insights.filter(i => 
+    !findings[i.id] && 
+    (i.significance_score >= 7 || i.confidence >= 0.7)
+  ).length
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -86,7 +192,7 @@ export function InsightsPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-orange-light">{stats.total_insights}</div>
+              <div className="text-2xl font-bold text-orange-light">{stats.total_insights || stats.total || 0}</div>
               <div className="text-sm text-muted-foreground">Total Insights</div>
             </CardContent>
           </Card>
@@ -110,6 +216,77 @@ export function InsightsPage() {
           </Card>
         </div>
       )}
+
+      {/* Case Selection for Findings */}
+      <Card className="border-orange-mid/30 bg-orange-mid/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <FolderOpen className="w-4 h-4 text-orange-light" />
+            Promote to Case Findings
+          </CardTitle>
+          <CardDescription>
+            Select a case to promote insights as verified findings
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-3 items-end">
+            <div className="flex-1 space-y-2">
+              <Label>Target Case</Label>
+              <Select
+                value={filters.case_id}
+                onValueChange={(value) => setFilters({...filters, case_id: value})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a case..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No case selected</SelectItem>
+                  {cases.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {filters.case_id && (
+              <Button
+                onClick={handleBulkPromote}
+                disabled={bulkPromoting || eligibleForPromotion === 0}
+                variant="outline"
+                className="gap-2"
+              >
+                {bulkPromoting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Star className="w-4 h-4" />
+                )}
+                Auto-Promote ({eligibleForPromotion})
+              </Button>
+            )}
+          </div>
+
+          {selectedCase && (
+            <div className="mt-3 p-3 bg-background rounded-md border border-border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-sm">{selectedCase.title}</div>
+                  {selectedCase.context && (
+                    <div className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                      {selectedCase.context}
+                    </div>
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium text-orange-light">{promotedCount} findings</div>
+                  <div className="text-xs text-muted-foreground">from this view</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <Card>
@@ -195,24 +372,43 @@ export function InsightsPage() {
         </TabsList>
 
         <TabsContent value="all" className="mt-6">
-          <InsightsList insights={insights} loading={loading} />
+          <InsightsList 
+            insights={insights} 
+            loading={loading}
+            findings={findings}
+            promoting={promoting}
+            caseSelected={!!filters.case_id}
+            onPromote={handlePromote}
+          />
         </TabsContent>
         <TabsContent value="raw" className="mt-6">
           <InsightsList 
             insights={insights.filter(i => i.status === 'raw')} 
-            loading={loading} 
+            loading={loading}
+            findings={findings}
+            promoting={promoting}
+            caseSelected={!!filters.case_id}
+            onPromote={handlePromote}
           />
         </TabsContent>
         <TabsContent value="refined" className="mt-6">
           <InsightsList 
             insights={insights.filter(i => i.status === 'refined')} 
-            loading={loading} 
+            loading={loading}
+            findings={findings}
+            promoting={promoting}
+            caseSelected={!!filters.case_id}
+            onPromote={handlePromote}
           />
         </TabsContent>
         <TabsContent value="surfaced" className="mt-6">
           <InsightsList 
             insights={insights.filter(i => i.status === 'surfaced')} 
-            loading={loading} 
+            loading={loading}
+            findings={findings}
+            promoting={promoting}
+            caseSelected={!!filters.case_id}
+            onPromote={handlePromote}
           />
         </TabsContent>
       </Tabs>
@@ -220,7 +416,7 @@ export function InsightsPage() {
   )
 }
 
-function InsightsList({ insights, loading }) {
+function InsightsList({ insights, loading, findings, promoting, caseSelected, onPromote }) {
   function getSignificanceColor(score) {
     if (score >= 8) return 'text-orange-light'
     if (score >= 5) return 'text-blue-light'
@@ -237,6 +433,7 @@ function InsightsList({ insights, loading }) {
     return (
       <Card>
         <CardContent className="pt-12 pb-12 text-center text-muted-foreground">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
           Loading insights...
         </CardContent>
       </Card>
@@ -257,8 +454,17 @@ function InsightsList({ insights, loading }) {
     <div className="space-y-3">
       {insights.map((insight) => {
         const sigBadge = getSignificanceBadge(insight.significance_score)
+        const finding = findings[insight.id]
+        const isPromoting = promoting[insight.id]
+        
         return (
-          <Card key={insight.id} className="hover:bg-muted/30 transition-colors">
+          <Card 
+            key={insight.id} 
+            className={`
+              hover:bg-muted/30 transition-colors
+              ${finding ? 'border-[#5fb3a1]/50 bg-[#5fb3a1]/5' : ''}
+            `}
+          >
             <CardContent className="pt-6">
               <div className="flex items-start gap-4">
                 <div className={`
@@ -273,9 +479,34 @@ function InsightsList({ insights, loading }) {
                     <div className="text-lg font-semibold line-clamp-2">
                       {insight.title || insight.claim}
                     </div>
-                    <Badge variant="outline" className={sigBadge.color}>
-                      {sigBadge.label}
-                    </Badge>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Badge variant="outline" className={sigBadge.color}>
+                        {sigBadge.label}
+                      </Badge>
+                      
+                      {/* Finding status / Promote button */}
+                      {finding ? (
+                        <Badge className="bg-[#5fb3a1]/20 text-[#5fb3a1] border-[#5fb3a1]/30 gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          {finding.status === 'verified' ? 'Verified' : 'Finding'}
+                        </Badge>
+                      ) : caseSelected ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onPromote(insight.id)}
+                          disabled={isPromoting}
+                          className="gap-1 h-7 text-xs"
+                        >
+                          {isPromoting ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Star className="w-3 h-3" />
+                          )}
+                          Promote
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
 
                   {insight.excerpt && (
@@ -291,6 +522,12 @@ function InsightsList({ insights, loading }) {
                     <Badge variant="outline">
                       {insight.status}
                     </Badge>
+                    {insight.case_id && (
+                      <Badge variant="outline" className="bg-orange-mid/10 border-orange-mid/30">
+                        <FolderOpen className="w-3 h-3 mr-1" />
+                        In Case
+                      </Badge>
+                    )}
                     {insight.themes && insight.themes.length > 0 && (
                       insight.themes.slice(0, 3).map((theme, i) => (
                         <Badge key={i} variant="outline" className="bg-blue-500/10">
