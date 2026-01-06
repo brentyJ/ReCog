@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { FileUp, Upload, File, CheckCircle, AlertCircle, Loader2, FolderOpen, Plus } from 'lucide-react'
+import { FileUp, Upload, File, CheckCircle, AlertCircle, Loader2, FolderOpen, Plus, Check, CheckSquare, Square, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -7,7 +7,11 @@ import { uploadFile, detectFileFormat, getCases, createCase } from '@/lib/api'
 
 export function UploadPage() {
   const [dragging, setDragging] = useState(false)
-  const [files, setFiles] = useState([])
+  const [files, setFiles] = useState(() => {
+    // Restore files from localStorage on mount
+    const saved = localStorage.getItem('upload_files')
+    return saved ? JSON.parse(saved) : []
+  })
   const [uploading, setUploading] = useState(false)
   const [cases, setCases] = useState([])
   const [selectedCaseId, setSelectedCaseId] = useState('')
@@ -15,7 +19,62 @@ export function UploadPage() {
   const [showQuickCreate, setShowQuickCreate] = useState(false)
   const [quickCaseTitle, setQuickCaseTitle] = useState('')
   const [creatingCase, setCreatingCase] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState(new Set())
   const fileInputRef = useRef(null)
+
+  // Get successful uploads with session IDs
+  const successfulFiles = files.filter(f => f.status === 'success' && f.sessionId)
+  const allSelected = successfulFiles.length > 0 && successfulFiles.every(f => selectedFiles.has(f.sessionId))
+  const someSelected = selectedFiles.size > 0
+
+  function toggleFileSelection(sessionId) {
+    setSelectedFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(sessionId)) {
+        next.delete(sessionId)
+      } else {
+        next.add(sessionId)
+      }
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedFiles(new Set())
+    } else {
+      setSelectedFiles(new Set(successfulFiles.map(f => f.sessionId)))
+    }
+  }
+
+  function handleReviewSelected() {
+    const selectedList = Array.from(selectedFiles)
+    if (selectedList.length === 0) return
+
+    // Store all selected sessions for multi-session review
+    localStorage.setItem('preflight_sessions', JSON.stringify(selectedList))
+    localStorage.setItem('current_preflight_session', selectedList[0])
+
+    // Store case IDs if any
+    for (const file of files) {
+      if (selectedFiles.has(file.sessionId) && file.caseId) {
+        sessionStorage.setItem(`preflight_case_${file.sessionId}`, file.caseId)
+      }
+    }
+
+    window.location.hash = `preflight/${selectedList[0]}`
+  }
+
+  function clearUploads() {
+    setFiles([])
+    setSelectedFiles(new Set())
+    localStorage.removeItem('upload_files')
+  }
+
+  // Persist files to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('upload_files', JSON.stringify(files))
+  }, [files])
 
   // Load cases on mount
   useEffect(() => {
@@ -293,26 +352,90 @@ export function UploadPage() {
       {files.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Uploaded Files</CardTitle>
-            <CardDescription>
-              {files.length} file{files.length !== 1 ? 's' : ''} uploaded
-            </CardDescription>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle>Uploaded Files</CardTitle>
+                <CardDescription>
+                  {files.length} file{files.length !== 1 ? 's' : ''} uploaded
+                  {someSelected && ` • ${selectedFiles.size} selected`}
+                </CardDescription>
+              </div>
+              <div className="flex gap-2">
+                {successfulFiles.length > 0 && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleSelectAll}
+                      className="gap-1.5"
+                    >
+                      {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                      {allSelected ? 'Deselect All' : 'Select All'}
+                    </Button>
+                    {someSelected && (
+                      <Button
+                        size="sm"
+                        onClick={handleReviewSelected}
+                        className="gap-1.5"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Review Selected ({selectedFiles.size})
+                      </Button>
+                    )}
+                  </>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearUploads}
+                  className="gap-1.5 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Clear
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {files.map((file, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-lg border bg-card">
-                  <div className={`
-                    w-10 h-10 rounded flex items-center justify-center flex-shrink-0
-                    ${file.status === 'success' ? 'bg-[#5fb3a1]/20' : 'bg-destructive/20'}
-                  `}>
-                    {file.status === 'success' ? (
-                      <CheckCircle className="w-5 h-5 text-[#5fb3a1]" />
-                    ) : (
-                      <AlertCircle className="w-5 h-5 text-destructive" />
-                    )}
-                  </div>
-                  
+                <div
+                  key={i}
+                  className={`
+                    flex items-center gap-3 p-3 rounded-lg border transition-all
+                    ${file.sessionId && selectedFiles.has(file.sessionId)
+                      ? 'bg-orange-mid/10 border-orange-mid/30'
+                      : 'bg-card'
+                    }
+                  `}
+                >
+                  {/* Checkbox for successful uploads */}
+                  {file.status === 'success' && file.sessionId ? (
+                    <button
+                      onClick={() => toggleFileSelection(file.sessionId)}
+                      className={`
+                        w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0
+                        ${selectedFiles.has(file.sessionId)
+                          ? 'bg-orange-mid border-orange-mid text-background'
+                          : 'border-muted-foreground hover:border-orange-mid'
+                        }
+                      `}
+                    >
+                      {selectedFiles.has(file.sessionId) && <Check className="w-3 h-3" />}
+                    </button>
+                  ) : (
+                    <div className={`
+                      w-10 h-10 rounded flex items-center justify-center flex-shrink-0
+                      ${file.status === 'success' ? 'bg-[#5fb3a1]/20' : 'bg-destructive/20'}
+                    `}>
+                      {file.status === 'success' ? (
+                        <CheckCircle className="w-5 h-5 text-[#5fb3a1]" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-destructive" />
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{file.name}</div>
                     <div className="text-sm text-muted-foreground">
@@ -332,11 +455,11 @@ export function UploadPage() {
                   </div>
 
                   {file.status === 'success' && file.sessionId && (
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       variant="outline"
                       onClick={() => {
-                        // Store case_id for preflight, then navigate
+                        localStorage.setItem('current_preflight_session', file.sessionId)
                         if (file.caseId) {
                           sessionStorage.setItem(`preflight_case_${file.sessionId}`, file.caseId)
                         }

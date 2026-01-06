@@ -15,7 +15,7 @@ REST API for:
 import os
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 from functools import wraps
@@ -144,7 +144,7 @@ def api_response(data=None, error=None, status=200):
     """Standard API response wrapper."""
     response = {
         "success": error is None,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     if data is not None:
         response["data"] = data

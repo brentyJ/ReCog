@@ -11,6 +11,7 @@ export default defineConfig({
   },
   server: {
     port: 3100,
+    strictPort: true,  // Fail if port 3100 is in use instead of picking another
     proxy: {
       '/api': {
         target: 'http://localhost:5100',

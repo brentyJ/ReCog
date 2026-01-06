@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clipboard, Check, Filter, Loader2, FolderOpen } from 'lucide-react'
+import { Clipboard, Check, Filter, Loader2, FolderOpen, CheckSquare, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -34,29 +34,42 @@ export function PreflightPage() {
   })
 
   useEffect(() => {
-    // Get session ID from URL hash or localStorage
-    const hash = window.location.hash
-    const hashMatch = hash.match(/preflight\/(\d+)/)
-    
-    let sid = null
-    if (hashMatch) {
-      sid = hashMatch[1]
-    } else {
-      sid = localStorage.getItem('current_preflight_session')
-    }
-    
-    if (sid) {
-      setSessionId(sid)
-      loadSession(sid)
-      loadItems(sid)
-      
-      // Check for linked case
-      const linkedCaseId = sessionStorage.getItem(`preflight_case_${sid}`)
-      if (linkedCaseId) {
-        setCaseId(linkedCaseId)
-        loadCase(linkedCaseId)
+    function loadFromHash() {
+      // Get session ID from URL hash or localStorage
+      const hash = window.location.hash
+      const hashMatch = hash.match(/preflight\/(\d+)/)
+
+      let sid = null
+      if (hashMatch) {
+        sid = hashMatch[1]
+      } else {
+        sid = localStorage.getItem('current_preflight_session')
+      }
+
+      if (sid) {
+        setSessionId(sid)
+        loadSession(sid)
+        loadItems(sid)
+
+        // Check for linked case
+        const linkedCaseId = sessionStorage.getItem(`preflight_case_${sid}`)
+        if (linkedCaseId) {
+          setCaseId(linkedCaseId)
+          loadCase(linkedCaseId)
+        }
+      } else {
+        setSessionId(null)
+        setSessionData(null)
+        setItems([])
       }
     }
+
+    // Load on mount
+    loadFromHash()
+
+    // Re-load when hash changes (e.g., navigating to different session)
+    window.addEventListener('hashchange', loadFromHash)
+    return () => window.removeEventListener('hashchange', loadFromHash)
   }, [])
 
   async function loadSession(sid) {
@@ -106,6 +119,38 @@ export function PreflightPage() {
       await loadItems(sessionId)
     } catch (error) {
       console.error('Failed to toggle item:', error)
+    }
+  }
+
+  async function handleSelectAll() {
+    setLoading(true)
+    try {
+      // Include all items that are currently excluded
+      const excludedItems = items.filter(i => !i.included)
+      for (const item of excludedItems) {
+        await includePreflightItem(sessionId, item.id)
+      }
+      await loadItems(sessionId)
+    } catch (error) {
+      console.error('Failed to select all:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleDeselectAll() {
+    setLoading(true)
+    try {
+      // Exclude all items that are currently included
+      const includedItems = items.filter(i => i.included)
+      for (const item of includedItems) {
+        await excludePreflightItem(sessionId, item.id)
+      }
+      await loadItems(sessionId)
+    } catch (error) {
+      console.error('Failed to deselect all:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -324,10 +369,38 @@ export function PreflightPage() {
       {/* Items List */}
       <Card>
         <CardHeader>
-          <CardTitle>Items for Review</CardTitle>
-          <CardDescription>
-            Toggle items on/off before processing
-          </CardDescription>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle>Items for Review</CardTitle>
+              <CardDescription>
+                Toggle items on/off before processing
+              </CardDescription>
+            </div>
+            {items.length > 0 && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSelectAll}
+                  disabled={loading || items.every(i => i.included)}
+                  className="gap-1.5"
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  Select All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeselectAll}
+                  disabled={loading || items.every(i => !i.included)}
+                  className="gap-1.5"
+                >
+                  <Square className="w-4 h-4" />
+                  Deselect All
+                </Button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (

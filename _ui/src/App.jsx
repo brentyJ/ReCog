@@ -21,6 +21,33 @@ function App() {
     patterns: 0,
   })
 
+  // Handle hash-based routing
+  useEffect(() => {
+    function handleHashChange() {
+      const hash = window.location.hash
+      // Match patterns like #preflight/123 or #cases/456 or just #insights
+      const match = hash.match(/^#(\w+)/)
+      if (match) {
+        const page = match[1]
+        // Validate it's a known page
+        const validPages = ['cases', 'analyse', 'upload', 'preflight', 'entities', 'insights', 'patterns']
+        if (validPages.includes(page)) {
+          setActivePage(page)
+          return
+        }
+      }
+      // Default to analyse if no valid hash (empty hash, back button, etc.)
+      setActivePage('analyse')
+    }
+
+    // Check hash on mount
+    handleHashChange()
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
+
   // Check server health
   useEffect(() => {
     async function checkHealth() {
@@ -119,7 +146,10 @@ function App() {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActivePage(item.id)}
+                    onClick={() => {
+                      setActivePage(item.id)
+                      window.location.hash = item.id
+                    }}
                     className={`
                       w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-all
                       ${isActive 
