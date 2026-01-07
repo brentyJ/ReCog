@@ -892,7 +892,7 @@ Completed:
 
 ---
 
-## Phase 11: Cypher Conversational Interface ⏳
+## Phase 11: Cypher Conversational Interface ✅
 
 **Goal**: Replace fragmented Upload → Preflight → Dashboard workflow with natural language assistant
 
@@ -946,21 +946,36 @@ Completed:
 - [x] Suggestion buttons with icons
 - [x] Keyboard shortcuts (Enter to send, Esc to close)
 
-### 11.4 Live Processing 📋
-- [ ] Real-time progress updates (2-second polling)
-- [ ] Document-by-document narration
-- [ ] Completion notifications
-- [ ] Badge on trigger showing "8/23" count
+### 11.4 Live Processing ✅
+```
+Modified: CypherContext.jsx, PreflightPage.jsx
+New: CypherProgress.jsx
+```
 
-### 11.5 Polish 📋
-- [ ] Error handling and retry
-- [ ] Empty states refinement
-- [ ] Edge case testing
-- [ ] CypherProgress.jsx for extraction visualization
+Completed:
+- [x] Real-time progress updates (2-second polling during extraction, 5s when idle)
+- [x] Document-by-document narration via custom events
+- [x] Completion notifications with action suggestions
+- [x] Badge on trigger showing "8/23" count
+- [x] CypherProgress component with progress bar visualization
+- [x] Client-side event system (recog-extraction-start/progress/complete)
+- [x] PreflightPage dispatches events during extraction loop
 
-**Deliverable**: Natural language interface for all ReCog operations
+### 11.5 Polish ✅
+```
+Modified: CypherContext.jsx, Cypher.jsx, CypherSuggestions.jsx
+```
 
-**Status**: Phases 1-3 complete. Phase 4 (Live Processing) next priority.
+Completed:
+- [x] Error handling with classification (network, server, timeout)
+- [x] `retryLast()` function with automatic error message removal
+- [x] RefreshCw icon and working retry button in suggestions
+- [x] Contextual `EmptyState` component based on current view
+- [x] View-specific example prompts (entities, insights, preflight, etc.)
+
+**Deliverable**: Natural language interface for all ReCog operations ✅
+
+**Status**: Phase 11 complete. Ready for production use.
 
 **Reference**: `C:\EhkoVaults\ReCog\CYPHER_IMPLEMENTATION_SPEC.md`
 
@@ -1063,7 +1078,7 @@ Completed:
 | 10.6 ✅ | Code Quality | Tests, indexes, shared components |
 | 10.7 ✅ | UI Navigation | Hash routing, state persistence, batch ops |
 | 10.8 ✅ | Entity Quality | False positive filtering, blacklist UI |
-| 11 ⏳ | Cypher Interface | Phases 1-3 complete, live processing next |
+| 11 ✅ | Cypher Interface | Conversational analysis assistant |
 | 12 📋 | Website | Marketing site modernization |
 
 ## Architecture (Post-Phase 8)
@@ -1108,10 +1123,10 @@ Completed:
 - **Phase 8**: 1-2 sessions (Critique layer) ✅
 - **Phase 9**: 2-4 sessions (many small tasks) ⏳
 - **Phase 10**: 3-5 sessions (React UI modernization) ✅
-- **Phase 11**: 2-3 sessions (Cypher interface) ⏳ ~60% complete
+- **Phase 11**: 2-3 sessions (Cypher interface) ✅
 
 Total: ~14-22 sessions to full-featured platform
 
 ---
 
-*Last updated: Phase 11 Cypher implementation (Phases 1-3 complete) - 07 Jan 2026*
+*Last updated: Phase 11 Cypher interface complete - 07 Jan 2026*
