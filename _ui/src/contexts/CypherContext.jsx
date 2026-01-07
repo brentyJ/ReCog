@@ -16,6 +16,7 @@ export function CypherProvider({ children, caseId: propCaseId }) {
   const [currentView, setCurrentView] = useState(
     window.location.hash.replace('#', '').split('/')[0] || 'dashboard'
   )
+  const [pendingValidation, setPendingValidation] = useState(null)
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -132,27 +133,35 @@ export function CypherProvider({ children, caseId: propCaseId }) {
         const data = response.data || response
         const prevState = prevExtractionRef.current
 
+        // Skip polling updates entirely when events are driving progress
+        // This prevents polling from overwriting event-driven status with stale backend data
+        if (eventDrivenRef.current) {
+          // Only update if backend confirms processing/complete (sync state)
+          if (data.status === 'processing' || data.status === 'complete') {
+            // Don't overwrite - events are more real-time than polling
+          }
+          return
+        }
+
         if (prevState.status === 'idle' || data.status !== extractionStatus?.status) {
           // Only send messages from polling if NOT event-driven (prevents duplicates)
-          if (!eventDrivenRef.current) {
-            if (data.status === 'processing' && prevState.status !== 'processing') {
-              setIsOpen(true)
-              addCypherMessageInternal(
-                `Processing started. ${data.total} document${data.total !== 1 ? 's' : ''} queued.`,
-                []
-              )
-            }
+          if (data.status === 'processing' && prevState.status !== 'processing') {
+            setIsOpen(true)
+            addCypherMessageInternal(
+              `Processing started. ${data.total} document${data.total !== 1 ? 's' : ''} queued.`,
+              []
+            )
+          }
 
-            if (data.status === 'complete' && prevState.status === 'processing') {
-              addCypherMessageInternal(
-                `Processing complete. ${data.insights_extracted || 0} insights extracted. ` +
-                `${data.entities_identified || 0} entities identified. Review findings?`,
-                [
-                  { text: 'View insights', action: 'navigate_insights', icon: 'Lightbulb' },
-                  { text: 'Review entities', action: 'navigate_entities', icon: 'Users' }
-                ]
-              )
-            }
+          if (data.status === 'complete' && prevState.status === 'processing') {
+            addCypherMessageInternal(
+              `Processing complete. ${data.insights_extracted || 0} insights extracted. ` +
+              `${data.entities_identified || 0} entities identified. Review findings?`,
+              [
+                { text: 'View insights', action: 'navigate_insights', icon: 'Lightbulb' },
+                { text: 'Review entities', action: 'navigate_entities', icon: 'Users' }
+              ]
+            )
           }
 
           setExtractionStatus(data)
@@ -207,7 +216,9 @@ export function CypherProvider({ children, caseId: propCaseId }) {
         const context = {
           current_view: currentView,
           processing_status: extractionStatus?.status || 'idle',
-          extraction_progress: extractionStatus
+          extraction_progress: extractionStatus,
+          pending_validation: pendingValidation,
+          original_message: text
         }
         const caseId = activeCaseId || propCaseId
         const response = await sendCypherMessage(text, caseId, context)
@@ -223,6 +234,13 @@ export function CypherProvider({ children, caseId: propCaseId }) {
           window.location.hash = `#${data.ui_updates.navigate}`
         }
         if (data.actions?.some((a) => a.type === 'entity_remove')) {
+          window.dispatchEvent(new CustomEvent('refresh-entities'))
+        }
+        // Handle pending validation state
+        if ('pending_validation' in (data.ui_updates || {})) {
+          setPendingValidation(data.ui_updates.pending_validation)
+        }
+        if (data.actions?.some((a) => a.type === 'entities_removed')) {
           window.dispatchEvent(new CustomEvent('refresh-entities'))
         }
 
@@ -263,6 +281,25 @@ export function CypherProvider({ children, caseId: propCaseId }) {
       sendMessage(lastUserMessage, true)
     }
   }, [lastUserMessage, isProcessing, sendMessage])
+
+  // Listen for external Cypher message triggers (e.g., from action buttons)
+  useEffect(() => {
+    const handleCypherMessage = (e) => {
+      const { message } = e.detail || {}
+      if (message) {
+        setIsOpen(true) // Open Cypher panel
+        sendMessage(message)
+      }
+    }
+    const handleCypherClose = () => setIsOpen(false)
+
+    window.addEventListener('cypher-send-message', handleCypherMessage)
+    window.addEventListener('cypher-close', handleCypherClose)
+    return () => {
+      window.removeEventListener('cypher-send-message', handleCypherMessage)
+      window.removeEventListener('cypher-close', handleCypherClose)
+    }
+  }, [sendMessage])
 
   const clearHistory = useCallback(() => setMessages([]), [])
 

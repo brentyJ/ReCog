@@ -151,6 +151,51 @@ export function UploadPage() {
     localStorage.setItem('upload_files', JSON.stringify(files))
   }, [files])
 
+  // Sync with localStorage when page becomes visible or storage changes
+  useEffect(() => {
+    function syncFromLocalStorage() {
+      const saved = localStorage.getItem('upload_files')
+      const parsed = saved ? JSON.parse(saved) : []
+      // Always set from localStorage - React will skip if unchanged
+      setFiles(parsed)
+    }
+
+    // Listen for storage events (from other tabs/pages)
+    function handleStorageChange(e) {
+      if (e.key === 'upload_files') {
+        syncFromLocalStorage()
+      }
+    }
+
+    // Sync when page becomes visible (user navigates back)
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        syncFromLocalStorage()
+      }
+    }
+
+    // Sync when hash changes (user navigates via hash)
+    function handleHashChange() {
+      if (window.location.hash === '#upload' || window.location.hash === '') {
+        // Small delay to ensure localStorage is updated first
+        setTimeout(syncFromLocalStorage, 50)
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('hashchange', handleHashChange)
+
+    // Also sync on mount (in case localStorage was modified while unmounted)
+    syncFromLocalStorage()
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('hashchange', handleHashChange)
+    }
+  }, []) // Empty deps - we want this to run once and set up listeners
+
   // Load cases on mount
   useEffect(() => {
     async function loadCases() {

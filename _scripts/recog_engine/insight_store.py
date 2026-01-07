@@ -253,9 +253,12 @@ class InsightStore:
             count_query = f"SELECT COUNT(*) FROM insights WHERE {where_clause}"
             total = conn.execute(count_query, params).fetchone()[0]
             
-            # Get results
+            # Get results with source info (first source for each insight)
             query = f"""
-                SELECT * FROM insights 
+                SELECT i.*,
+                       (SELECT source_id FROM insight_sources WHERE insight_id = i.id ORDER BY added_at LIMIT 1) as source_id,
+                       (SELECT source_type FROM insight_sources WHERE insight_id = i.id ORDER BY added_at LIMIT 1) as source_type
+                FROM insights i
                 WHERE {where_clause}
                 ORDER BY {order_by} {order_dir}
                 LIMIT ? OFFSET ?
@@ -647,7 +650,8 @@ class InsightStore:
     
     def _row_to_dict(self, row: sqlite3.Row) -> Dict:
         """Convert a database row to a dict with parsed JSON fields."""
-        return {
+        keys = row.keys()
+        result = {
             "id": row["id"],
             "summary": row["summary"],
             "themes": json.loads(row["themes_json"] or "[]"),
@@ -661,8 +665,14 @@ class InsightStore:
             "excerpt": row["excerpt"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
-            "case_id": row["case_id"] if "case_id" in row.keys() else None,
+            "case_id": row["case_id"] if "case_id" in keys else None,
         }
+        # Include source info if available (from joined query)
+        if "source_id" in keys:
+            result["source_id"] = row["source_id"]
+        if "source_type" in keys:
+            result["source_type"] = row["source_type"]
+        return result
 
 
 # =============================================================================

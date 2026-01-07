@@ -5,6 +5,9 @@ import { Zap, FileUp, Clipboard, Users, Lightbulb, Waypoints, FolderOpen, Activi
 import { CypherProvider } from './contexts/CypherContext'
 import { Cypher } from './components/cypher'
 
+// Error Boundary for catching rendering errors
+import { ErrorBoundary } from './components/ui/error-boundary'
+
 // Import all page components
 import { SignalExtraction } from './components/pages/SignalExtraction'
 import { UploadPage } from './components/pages/UploadPage'
@@ -237,15 +240,17 @@ function App() {
 
         {/* Page Content */}
         <div className="flex-1 p-8 overflow-y-auto scrollbar-thin">
-          {activePage === 'dashboard' && <Dashboard />}
-          {activePage === 'cases' && <CasesPage />}
-          {activePage === 'analyse' && <SignalExtraction />}
-          {activePage === 'upload' && <UploadPage />}
-          {activePage === 'preflight' && <PreflightPage />}
-          {activePage === 'entities' && <EntitiesPage />}
-          {activePage === 'insights' && <InsightsPage />}
-          {activePage === 'patterns' && <PatternsPage />}
-          {activePage === 'document' && <DocumentViewerPage />}
+          <ErrorBoundary key={activePage}>
+            {activePage === 'dashboard' && <Dashboard />}
+            {activePage === 'cases' && <CasesPage />}
+            {activePage === 'analyse' && <SignalExtraction />}
+            {activePage === 'upload' && <UploadPage />}
+            {activePage === 'preflight' && <PreflightPage />}
+            {activePage === 'entities' && <EntitiesPage />}
+            {activePage === 'insights' && <InsightsPage />}
+            {activePage === 'patterns' && <PatternsPage />}
+            {activePage === 'document' && <DocumentViewerPage />}
+          </ErrorBoundary>
         </div>
       </main>
     </div>

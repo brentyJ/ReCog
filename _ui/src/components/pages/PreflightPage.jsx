@@ -254,6 +254,34 @@ export function PreflightPage() {
       // Clear the session storage
       sessionStorage.removeItem(`preflight_case_${sessionId}`)
 
+      // Clear this session from the upload_files localStorage to prevent stale data
+      // Note: sessionId from URL is always a string, but localStorage might have numbers
+      try {
+        const sessionIdStr = String(sessionId)
+        const savedUploads = localStorage.getItem('upload_files')
+        if (savedUploads) {
+          const uploads = JSON.parse(savedUploads)
+          // Remove files belonging to this session (compare as strings to avoid type mismatch)
+          const filteredUploads = uploads.filter(f => String(f.sessionId) !== sessionIdStr)
+          localStorage.setItem('upload_files', JSON.stringify(filteredUploads))
+          console.log(`Cleared session ${sessionIdStr} from localStorage. Remaining: ${filteredUploads.length} files`)
+        }
+        // Also clear from preflight_sessions if present
+        const savedSessions = localStorage.getItem('preflight_sessions')
+        if (savedSessions) {
+          const sessions = JSON.parse(savedSessions)
+          const filteredSessions = sessions.filter(s => String(s) !== sessionIdStr)
+          localStorage.setItem('preflight_sessions', JSON.stringify(filteredSessions))
+        }
+        // Clear current_preflight_session if it matches
+        const currentSession = localStorage.getItem('current_preflight_session')
+        if (currentSession && String(currentSession) === sessionIdStr) {
+          localStorage.removeItem('current_preflight_session')
+        }
+      } catch (e) {
+        console.warn('Failed to clear localStorage:', e)
+      }
+
       // Dispatch extraction complete event for Cypher
       window.dispatchEvent(new CustomEvent('recog-extraction-complete', {
         detail: {

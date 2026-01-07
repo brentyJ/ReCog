@@ -189,6 +189,13 @@ export async function getEntityStats() {
   return fetchAPI('/entities/stats')
 }
 
+export async function validateEntities(batchSize = 50) {
+  return fetchAPI('/entities/validate', {
+    method: 'POST',
+    body: JSON.stringify({ batch_size: batchSize }),
+  })
+}
+
 // Entity Graph
 export async function getEntityRelationships(entityId) {
   return fetchAPI(`/entities/${entityId}/relationships`)

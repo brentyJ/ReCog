@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Virtuoso } from 'react-virtuoso'
-import { Lightbulb, Filter, FolderOpen, CheckCircle, Star, Loader2 } from 'lucide-react'
+import { Lightbulb, Filter, FolderOpen, CheckCircle, Star, Loader2, FileText } from 'lucide-react'
+import { DocumentViewerModal } from '@/components/ui/document-viewer-modal'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -17,7 +18,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StatCard, StatGrid } from '@/components/ui/stat-card'
-import { StatusBadge } from '@/components/ui/status-badge'
 import {
   getInsights,
   getInsightStats,
@@ -36,11 +36,12 @@ export function InsightsPage() {
   const [loading, setLoading] = useState(true)
   const [promoting, setPromoting] = useState({}) // Track which insights are being promoted
   const [bulkPromoting, setBulkPromoting] = useState(false)
+  const [viewingDoc, setViewingDoc] = useState(null)
   const [filters, setFilters] = useState({
-    status: '',
+    status: '__all__',  // Use placeholder instead of empty string for Radix Select
     min_significance: '',
-    insight_type: '',
-    case_id: '',
+    insight_type: '__all__',  // Use placeholder instead of empty string for Radix Select
+    case_id: '__none__',  // Use placeholder instead of empty string for Radix Select
   })
   const [activeTab, setActiveTab] = useState('all')
 
@@ -50,7 +51,7 @@ export function InsightsPage() {
 
   useEffect(() => {
     // When case filter changes, load findings for that case
-    if (filters.case_id) {
+    if (filters.case_id && filters.case_id !== '__none__') {
       loadFindingsForCase(filters.case_id)
     } else {
       setFindings({})
@@ -60,8 +61,15 @@ export function InsightsPage() {
   async function loadInitialData() {
     setLoading(true)
     try {
+      // Clean filters before API call (remove placeholder values)
+      const apiFilters = { ...filters }
+      Object.keys(apiFilters).forEach(key => {
+        if (!apiFilters[key] || (typeof apiFilters[key] === 'string' && apiFilters[key].startsWith('__'))) {
+          delete apiFilters[key]
+        }
+      })
       const [insightsData, statsData, casesData] = await Promise.all([
-        getInsights(filters),
+        getInsights(apiFilters),
         getInsightStats(),
         getCases({ status: 'active' }),
       ])
@@ -93,9 +101,12 @@ export function InsightsPage() {
     setLoading(true)
     try {
       const apiFilters = { ...filters }
-      // Remove empty values
+      // Remove empty values and placeholder values
       Object.keys(apiFilters).forEach(key => {
-        if (!apiFilters[key]) delete apiFilters[key]
+        const val = apiFilters[key]
+        if (!val || (typeof val === 'string' && val.startsWith('__'))) {
+          delete apiFilters[key]
+        }
       })
       const data = await getInsights(apiFilters)
       setInsights(data.data?.insights || data.insights || [])
@@ -107,7 +118,7 @@ export function InsightsPage() {
   }
 
   async function handlePromote(insightId) {
-    if (!filters.case_id) {
+    if (!filters.case_id || filters.case_id === '__none__') {
       alert('Please select a case first to promote insights')
       return
     }
@@ -126,7 +137,7 @@ export function InsightsPage() {
   }
 
   async function handleBulkPromote() {
-    if (!filters.case_id) {
+    if (!filters.case_id || filters.case_id === '__none__') {
       alert('Please select a case first')
       return
     }
@@ -167,17 +178,21 @@ export function InsightsPage() {
     }
   }
 
+  // Defensive: ensure insights is always an array
+  const safeInsights = Array.isArray(insights) ? insights : []
+  const safeCases = Array.isArray(cases) ? cases : []
+
   const statusCounts = {
-    raw: insights.filter(i => i.status === 'raw').length,
-    refined: insights.filter(i => i.status === 'refined').length,
-    surfaced: insights.filter(i => i.status === 'surfaced').length,
+    raw: safeInsights.filter(i => i?.status === 'raw').length,
+    refined: safeInsights.filter(i => i?.status === 'refined').length,
+    surfaced: safeInsights.filter(i => i?.status === 'surfaced').length,
   }
 
-  const selectedCase = cases.find(c => c.id === filters.case_id)
-  const promotedCount = Object.keys(findings).length
-  const eligibleForPromotion = insights.filter(i => 
-    !findings[i.id] && 
-    (i.significance_score >= 7 || i.confidence >= 0.7)
+  const selectedCase = safeCases.find(c => c?.id === filters.case_id)
+  const promotedCount = Object.keys(findings || {}).length
+  const eligibleForPromotion = safeInsights.filter(i =>
+    i && !findings?.[i.id] &&
+    ((i.significance_score ?? 0) >= 7 || (i.confidence ?? 0) >= 0.7)
   ).length
 
   return (
@@ -226,7 +241,7 @@ export function InsightsPage() {
                   <SelectValue placeholder="Select a case..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No case selected</SelectItem>
+                  <SelectItem value="__none__">No case selected</SelectItem>
                   {cases.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.title}
@@ -236,7 +251,7 @@ export function InsightsPage() {
               </Select>
             </div>
 
-            {filters.case_id && (
+            {filters.case_id && filters.case_id !== '__none__' && (
               <Button
                 onClick={handleBulkPromote}
                 disabled={bulkPromoting || eligibleForPromotion === 0}
@@ -294,7 +309,7 @@ export function InsightsPage() {
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="__all__">All</SelectItem>
                   <SelectItem value="raw">Raw</SelectItem>
                   <SelectItem value="refined">Refined</SelectItem>
                   <SelectItem value="surfaced">Surfaced</SelectItem>
@@ -324,7 +339,7 @@ export function InsightsPage() {
                   <SelectValue placeholder="All types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="__all__">All</SelectItem>
                   <SelectItem value="observation">Observation</SelectItem>
                   <SelectItem value="correlation">Correlation</SelectItem>
                   <SelectItem value="question">Question</SelectItem>
@@ -344,7 +359,7 @@ export function InsightsPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="all">
-            All ({insights.length})
+            All ({safeInsights.length})
           </TabsTrigger>
           <TabsTrigger value="raw">
             Raw ({statusCounts.raw})
@@ -358,60 +373,78 @@ export function InsightsPage() {
         </TabsList>
 
         <TabsContent value="all" className="mt-6">
-          <InsightsList 
-            insights={insights} 
+          <InsightsList
+            insights={safeInsights}
             loading={loading}
             findings={findings}
             promoting={promoting}
-            caseSelected={!!filters.case_id}
+            caseSelected={!!filters.case_id && filters.case_id !== '__none__'}
             onPromote={handlePromote}
+            onViewSource={setViewingDoc}
           />
         </TabsContent>
         <TabsContent value="raw" className="mt-6">
-          <InsightsList 
-            insights={insights.filter(i => i.status === 'raw')} 
+          <InsightsList
+            insights={safeInsights.filter(i => i?.status === 'raw')}
             loading={loading}
             findings={findings}
             promoting={promoting}
-            caseSelected={!!filters.case_id}
+            caseSelected={!!filters.case_id && filters.case_id !== '__none__'}
             onPromote={handlePromote}
+            onViewSource={setViewingDoc}
           />
         </TabsContent>
         <TabsContent value="refined" className="mt-6">
-          <InsightsList 
-            insights={insights.filter(i => i.status === 'refined')} 
+          <InsightsList
+            insights={safeInsights.filter(i => i?.status === 'refined')}
             loading={loading}
             findings={findings}
             promoting={promoting}
-            caseSelected={!!filters.case_id}
+            caseSelected={!!filters.case_id && filters.case_id !== '__none__'}
             onPromote={handlePromote}
+            onViewSource={setViewingDoc}
           />
         </TabsContent>
         <TabsContent value="surfaced" className="mt-6">
-          <InsightsList 
-            insights={insights.filter(i => i.status === 'surfaced')} 
+          <InsightsList
+            insights={safeInsights.filter(i => i?.status === 'surfaced')}
             loading={loading}
             findings={findings}
             promoting={promoting}
-            caseSelected={!!filters.case_id}
+            caseSelected={!!filters.case_id && filters.case_id !== '__none__'}
             onPromote={handlePromote}
+            onViewSource={setViewingDoc}
           />
         </TabsContent>
       </Tabs>
+
+      {/* Document Viewer Modal */}
+      <DocumentViewerModal
+        documentId={viewingDoc}
+        isOpen={!!viewingDoc}
+        onClose={() => setViewingDoc(null)}
+      />
     </div>
   )
 }
 
-function InsightsList({ insights, loading, findings, promoting, caseSelected, onPromote }) {
+function InsightsList({ insights, loading, findings, promoting, caseSelected, onPromote, onViewSource }) {
+  // Defensive: ensure props are safe
+  const safeInsights = Array.isArray(insights) ? insights : []
+  const safeFindings = findings || {}
+  const safePromoting = promoting || {}
+
   function getSignificanceColor(score) {
-    if (score >= 8) return 'text-orange-light'
-    if (score >= 5) return 'text-blue-light'
+    const s = score ?? 0
+    if (s >= 8) return 'text-orange-light'
+    if (s >= 5) return 'text-blue-light'
     return 'text-muted-foreground'
   }
 
   function getSignificanceBadge(score) {
-    if (score >= 8) return { label: 'High', color: 'bg-orange-mid/20 text-orange-light border-orange-mid/30' }
-    if (score >= 5) return { label: 'Medium', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' }
+    const s = score ?? 0
+    if (s >= 8) return { label: 'High', color: 'bg-orange-mid/20 text-orange-light border-orange-mid/30' }
+    if (s >= 5) return { label: 'Medium', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' }
     return { label: 'Low', color: 'bg-muted text-muted-foreground border-border' }
   }
 
@@ -425,7 +458,7 @@ function InsightsList({ insights, loading, findings, promoting, caseSelected, on
     )
   }
 
-  if (insights.length === 0) {
+  if (safeInsights.length === 0) {
     return (
       <Card>
         <CardContent>
@@ -442,12 +475,13 @@ function InsightsList({ insights, loading, findings, promoting, caseSelected, on
   return (
     <div style={{ height: 'calc(100vh - 420px)', minHeight: '300px' }}>
       <Virtuoso
-        data={insights}
+        data={safeInsights}
         {...VIRTUOSO_CONFIG}
         itemContent={(index, insight) => {
+          if (!insight) return null
           const sigBadge = getSignificanceBadge(insight.significance_score)
-          const finding = findings[insight.id]
-          const isPromoting = promoting[insight.id]
+          const finding = safeFindings[insight.id]
+          const isPromoting = safePromoting[insight.id]
 
           return (
             <div className="pb-3">
@@ -475,6 +509,19 @@ function InsightsList({ insights, loading, findings, promoting, caseSelected, on
                           <Badge variant="outline" className={sigBadge.color}>
                             {sigBadge.label}
                           </Badge>
+
+                          {/* View Source button */}
+                          {insight.source_id && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => onViewSource(insight.source_id)}
+                              className="gap-1 h-7 text-xs"
+                            >
+                              <FileText className="w-3 h-3" />
+                              Source
+                            </Button>
+                          )}
 
                           {/* Finding status / Promote button */}
                           {finding ? (

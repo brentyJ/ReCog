@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Virtuoso } from 'react-virtuoso'
-import { Users, UserPlus, AlertCircle, Check, X, Ban } from 'lucide-react'
+import { Users, UserPlus, AlertCircle, Check, X, Ban, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +36,15 @@ export function EntitiesPage() {
 
   useEffect(() => {
     loadData()
+
+    // Listen for refresh events from Cypher
+    const handleRefresh = () => loadData()
+    window.addEventListener('refresh-entities', handleRefresh)
+    window.addEventListener('refresh-entities_page', handleRefresh)
+    return () => {
+      window.removeEventListener('refresh-entities', handleRefresh)
+      window.removeEventListener('refresh-entities_page', handleRefresh)
+    }
   }, [])
 
   async function loadData() {
@@ -90,6 +99,13 @@ export function EntitiesPage() {
     }
   }
 
+  function handleValidate() {
+    // Trigger Cypher to do interactive validation
+    window.dispatchEvent(new CustomEvent('cypher-send-message', {
+      detail: { message: 'validate entities' }
+    }))
+  }
+
   const relationshipTypes = [
     'family',
     'work',
@@ -126,13 +142,25 @@ export function EntitiesPage() {
       {unknownEntities.length > 0 && (
         <Card className="border-orange-mid/30">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-orange-light" />
-              Entities Needing Identification
-            </CardTitle>
-            <CardDescription>
-              {unknownEntities.length} entities need to be identified before processing
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-orange-light" />
+                  Entities Needing Identification
+                </CardTitle>
+                <CardDescription className="mt-1.5">
+                  {unknownEntities.length} entities need to be identified before processing
+                </CardDescription>
+              </div>
+              <Button
+                onClick={handleValidate}
+                variant="outline"
+                className="gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                AI Validate
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div style={{ height: Math.min(unknownEntities.length * 80, 300), minHeight: '80px' }}>

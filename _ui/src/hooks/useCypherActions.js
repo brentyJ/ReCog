@@ -1,45 +1,31 @@
 import { useCallback } from 'react'
 
+// Helper to navigate and close Cypher panel
+const navigateTo = (hash) => {
+  window.location.hash = hash
+  window.dispatchEvent(new CustomEvent('cypher-close'))
+}
+
 export function useCypherActions() {
   const executeAction = useCallback(async (actionType, params = {}) => {
     const handlers = {
-      // Hash-based navigation
-      navigate_findings: () => {
-        window.location.hash = '#findings'
-      },
-      navigate_entities: () => {
-        window.location.hash = '#entities'
-      },
-      navigate_timeline: () => {
-        window.location.hash = '#timeline'
-      },
-      navigate_insights: () => {
-        window.location.hash = '#insights'
-      },
-      navigate_preflight: () => {
-        window.location.hash = '#preflight'
-      },
-      navigate_dashboard: () => {
-        window.location.hash = '#dashboard'
-      },
-      navigate_upload: () => {
-        window.location.hash = '#upload'
-      },
-      navigate_cases: () => {
-        window.location.hash = '#cases'
-      },
-      navigate_patterns: () => {
-        window.location.hash = '#patterns'
-      },
+      // Hash-based navigation (hash value without # - browser adds it)
+      navigate_findings: () => navigateTo('findings'),
+      navigate_entities: () => navigateTo('entities'),
+      navigate_timeline: () => navigateTo('timeline'),
+      navigate_insights: () => navigateTo('insights'),
+      navigate_preflight: () => navigateTo('preflight'),
+      navigate_dashboard: () => navigateTo('dashboard'),
+      navigate_upload: () => navigateTo('upload'),
+      navigate_cases: () => navigateTo('cases'),
+      navigate_patterns: () => navigateTo('patterns'),
 
       apply_filter: (params) => {
         const filterQuery = encodeURIComponent(params?.filters?.query || '')
-        window.location.hash = `#insights?filter=${filterQuery}`
+        navigateTo(`insights?filter=${filterQuery}`)
       },
 
-      clear_filter: () => {
-        window.location.hash = '#insights'
-      },
+      clear_filter: () => navigateTo('insights'),
 
       entity_remove: () => {
         window.dispatchEvent(new CustomEvent('refresh-entities'))
@@ -48,6 +34,18 @@ export function useCypherActions() {
       retry_last: () => {
         // This would need message history access - handled in context
         console.log('Retry requested')
+      },
+
+      // Entity validation actions - these trigger Cypher messages
+      validate_entities: () => {
+        // Dispatch event to trigger Cypher validation
+        window.dispatchEvent(new CustomEvent('cypher-send-message', { detail: { message: 'validate entities' } }))
+      },
+      confirm_validation: () => {
+        window.dispatchEvent(new CustomEvent('cypher-send-message', { detail: { message: 'yes remove them' } }))
+      },
+      cancel_validation: () => {
+        window.dispatchEvent(new CustomEvent('cypher-send-message', { detail: { message: 'no keep all' } }))
       },
     }
 

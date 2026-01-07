@@ -88,13 +88,13 @@ python recog_cli.py preflight scan <id>
 - `db.py` - SQLite database utilities
 
 **recog_engine/** - Core processing:
-- `tier0.py` - Free signal extraction (emotions, entities, temporal)
+- `tier0.py` - Free signal extraction (emotions, entities, temporal) with blacklist support
 - `extraction.py` - LLM insight extraction with entity context
 - `synth.py` - Pattern synthesis and clustering
 - `critique.py` - Validation layer with reflexion loop
-- `entity_registry.py` - Entity management/normalization
+- `entity_registry.py` - Entity management/normalization, LLM-powered validation
 - `entity_graph.py` - Relationship graph between entities
-- `insight_store.py` - Insight persistence
+- `insight_store.py` - Insight persistence with source tracking
 - `preflight.py` - Upload session management
 - `case_store.py` - Case management
 - `findings_store.py` - Findings storage
@@ -159,11 +159,34 @@ Files → Ingestion (parse) → Tier 0 (signals) → Tier 1 (insights) → Tier 
 - `GET/POST /api/preflight/<id>/*` - Preflight workflow
 - `GET/PATCH /api/entities/*` - Entity management
 - `POST /api/entities/<id>/reject` - Blacklist false positive entity
+- `POST /api/entities/validate` - LLM-powered entity validation (batch)
 - `GET/PATCH /api/insights/*` - Insight management
 - `POST /api/synth/run` - Run synthesis
 - `POST /api/critique/insight` - Validate insight
 - `POST /api/cypher/message` - Send message to Cypher conversational interface
 - `GET /api/extraction/status/<case_id>` - Poll extraction progress
+
+## Cypher Intents
+
+The conversational interface (Cypher) supports these intent categories:
+
+| Intent | Example Phrases | Action |
+|--------|-----------------|--------|
+| `entity_correction` | "Webb isn't a person", "Remove Foundation" | Remove entity, add to blacklist |
+| `entity_validation` | "validate entities", "AI validate", "check entities" | Run LLM validation, suggest false positives |
+| `entity_validation_confirm` | "yes remove them", "keep Webb", "no keep all" | Confirm/reject/modify validation suggestions |
+| `navigation` | "show entities", "go to insights" | Navigate to view |
+| `filter_request` | "focus on Seattle", "filter by date" | Apply filter to current view |
+
+### Entity Validation Flow
+
+1. User triggers validation via "AI Validate" button or Cypher command
+2. LLM analyzes unconfirmed person entities for false positives (e.g., "Foundation", "Protocol")
+3. Cypher presents suggestions: "Found 5 likely false positives: Foundation, Research..."
+4. User can:
+   - Confirm: "yes remove them" → removes all suggested
+   - Keep specific: "keep Webb" → removes from suggestion list
+   - Cancel: "no keep all" → aborts validation
 
 ## Environment Variables
 

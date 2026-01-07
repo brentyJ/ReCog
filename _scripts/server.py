@@ -214,6 +214,7 @@ def info():
             "/api/entities/unknown",
             "/api/entities/<id>",
             "/api/entities/stats",
+            "/api/entities/validate",
             "/api/entities/<id>/relationships",
             "/api/entities/<id>/network",
             "/api/entities/<id>/timeline",
@@ -810,6 +811,47 @@ def entity_stats():
     """Get entity registry statistics."""
     stats = entity_registry.get_stats()
     return api_response(stats)
+
+
+@app.route("/api/entities/validate", methods=["POST"])
+def validate_entities():
+    """
+    Validate unconfirmed person entities using LLM.
+
+    Uses AI to identify false positives (e.g., "Foundation", "Research", "Protocol")
+    and removes them from the registry, adding to the blacklist.
+
+    Request body (optional):
+        {
+            "batch_size": 50  // Number of entities to validate (default 50)
+        }
+
+    Returns:
+        {
+            "validated": int,        // Total entities checked
+            "removed": int,          // Number removed as false positives
+            "kept": int,             // Number kept as valid
+            "removed_names": [...],  // Names that were removed
+            "message": str
+        }
+    """
+    try:
+        data = request.get_json() or {}
+        batch_size = int(data.get("batch_size", 50))
+
+        # Validate using the registry method
+        result = entity_registry.validate_unconfirmed_persons(batch_size=batch_size)
+
+        # Refresh tier0 blacklist after validation
+        if result.get('removed', 0) > 0:
+            from recog_engine.tier0 import load_blacklist_from_db
+            load_blacklist_from_db(Config.DB_PATH)
+
+        return api_response(result)
+
+    except Exception as e:
+        logger.error(f"Entity validation failed: {e}", exc_info=True)
+        return api_response(error=str(e), status=500)
 
 
 # =============================================================================
@@ -3117,7 +3159,7 @@ def extraction_status(case_id: str):
 
         # Get insight/entity counts for this case
         cursor.execute("""
-            SELECT COUNT(*) FROM insights WHERE case_id = ? AND deleted_at IS NULL
+            SELECT COUNT(*) FROM insights WHERE case_id = ?
         """, (case_id,))
         insights_count = cursor.fetchone()[0]
 

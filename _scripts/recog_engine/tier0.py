@@ -220,6 +220,22 @@ NON_NAME_CAPITALS = {
     "Library", "Museum", "Gallery", "Theater", "Theatre", "Arena", "Stadium",
     "Hospital", "Clinic", "School", "University", "College", "Academy",
     "Church", "Temple", "Mosque", "Cathedral", "Chapel",
+
+    # Institutional/organizational terms (often capitalized but not names)
+    "Foundation", "Institute", "Organization", "Organisation", "Society",
+    "Association", "Corporation", "Company", "Enterprise", "Agency",
+    "Board", "Committee", "Council", "Panel", "Commission", "Authority",
+    "Program", "Programme", "Project", "Initiative", "Campaign", "Movement",
+    "Fund", "Trust", "Endowment", "Grant", "Donation", "Charity",
+    "Award", "Prize", "Fellowship", "Scholarship", "Medal", "Honor", "Honour",
+    "Network", "Alliance", "Coalition", "Federation", "Union", "League",
+    "Ministry", "Embassy", "Consulate", "Bureau", "Administration",
+    "Service", "Services", "Support", "Solutions", "Systems", "Technologies",
+    "Research", "Development", "Innovation", "Strategy", "Operations",
+    "Marketing", "Communications", "Relations", "Affairs", "Resources",
+    "Management", "Consulting", "Advisory", "Partners", "Associates",
+    "International", "National", "Regional", "Local", "Global", "Worldwide",
+    "Annual", "Monthly", "Weekly", "Daily", "Quarterly",
     # More common words that appear capitalised
     "Street", "Avenue", "Road", "Lane", "Drive", "Boulevard", "Way", "Place",
     "Park", "Garden", "Square", "Plaza", "Court", "Circle", "Terrace",
@@ -306,6 +322,16 @@ COMMON_ENGLISH_WORDS = {
     "just", "only", "even", "still", "yet", "already", "always", "never",
     "ever", "often", "sometimes", "usually", "rarely", "perhaps", "maybe",
     "probably", "possibly", "certainly", "definitely", "absolutely",
+
+    # Additional institutional/organizational terms (lowercase)
+    "foundation", "institute", "research", "development", "association",
+    "organization", "organisation", "committee", "council", "board",
+    "program", "programme", "initiative", "campaign", "project",
+    "fund", "trust", "grant", "award", "prize", "fellowship",
+    "network", "alliance", "coalition", "federation", "union",
+    "service", "services", "support", "solutions", "systems",
+    "management", "consulting", "advisory", "partners", "associates",
+    "international", "national", "regional", "local", "global",
 }
 
 # Pre-compute lowercase sets for case-insensitive matching

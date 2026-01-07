@@ -13,6 +13,8 @@ import {
   GitBranch,
   FolderOpen,
   RefreshCw,
+  Check,
+  Sparkles,
 } from 'lucide-react'
 
 // Map icon names to components
@@ -28,6 +30,8 @@ const ICONS = {
   GitBranch,
   FolderOpen,
   RefreshCw,
+  Check,
+  Sparkles,
 }
 
 export function CypherSuggestions({ suggestions }) {

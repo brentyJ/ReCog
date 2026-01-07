@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 # Intent definitions
 INTENTS = {
     "entity_correction": "Remove/reclassify entity",
+    "entity_validation": "Validate entities with AI",
+    "entity_validation_confirm": "Confirm/reject validation suggestions",
     "filter_request": "Show subset of data",
     "navigation": "Go to specific page/view",
     "analysis_query": "Answer question about data",
@@ -42,6 +44,29 @@ INTENT_PATTERNS = {
         r"exclude\s+['\"]?(\w+)['\"]?",
         # "blacklist X"
         r"blacklist\s+['\"]?(\w+)['\"]?",
+    ],
+    "entity_validation": [
+        # "validate entities" / "check entities"
+        r"(validate|check|review|clean\s*up)\s+(the\s+)?(entities|names|people)",
+        # "find false positives"
+        r"find\s+(false\s+positives?|bad\s+entities|wrong\s+names)",
+        # "clean up entities"
+        r"clean\s*up\s+(the\s+)?(entities|names|entity\s+list)",
+        # "AI validate"
+        r"(ai|llm)\s+validat",
+    ],
+    "entity_validation_confirm": [
+        # "yes remove them/those" / "remove those"
+        r"(yes,?\s+)?(remove|delete)\s+(them|those|all)",
+        # "keep X" / "X is a name" / "X is valid"
+        r"keep\s+['\"]?(\w+)['\"]?",
+        r"['\"]?(\w+)['\"]?\s+is\s+(a\s+)?(valid\s+)?(name|person)",
+        # "confirm (the) removal"
+        r"confirm\s+(the\s+)?removal",
+        # "looks good" / "that's correct"
+        r"(looks?\s+good|that('s|\s+is)\s+(correct|right))",
+        # "no, keep them"
+        r"no,?\s+keep\s+(them|those|all)",
     ],
     "navigation": [
         # "show me (the) entities/insights/timeline" - MUST come before filter_request
