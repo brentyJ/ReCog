@@ -1,25 +1,27 @@
 # ReCog - Recursive Cognition Engine
 
-**v0.6.0** | Text analysis engine that extracts, correlates, and synthesises insights from unstructured text.
+**v0.7.0** | Text analysis engine that extracts, correlates, and synthesises insights from unstructured text.
 
-ReCog processes documents through tiered analysis—from free signal extraction to LLM-powered insight synthesis—while maintaining quality through a built-in critique layer. Designed for enterprise document intelligence with applications in legal, research, operations, and compliance.
+ReCog processes documents through tiered analysis—from free signal extraction to LLM-powered insight synthesis—while maintaining quality through a built-in critique layer. Features a conversational assistant (Cypher) for natural language interaction. Designed for enterprise document intelligence with applications in legal, research, operations, and compliance.
 
 ## Features
 
+- **Cypher Assistant** — Conversational AI interface for natural language queries and commands
 - **Case-Centric Workflow** — Organize documents into cases with context injection for focused analysis
 - **Tiered Processing** — Start free with signal extraction, escalate to LLM when needed
-- **Entity Intelligence** — Registry with relationship graphs, sentiment tracking, context injection
+- **Entity Intelligence** — Registry with relationship graphs, sentiment tracking, LLM-powered validation
 - **Pattern Synthesis** — Cluster insights and synthesise higher-order patterns
 - **Critique Layer** — Self-correcting validation prevents hallucination propagation
 - **Findings Validation** — Promote insights to verified findings with status tracking
 - **Multi-Provider LLM** — OpenAI and Anthropic support with automatic fallback
 - **Preflight Workflow** — Review and filter before processing, with cost estimates
+- **Modern React UI** — Responsive interface with real-time extraction progress
 - **Export-First** — SQLite database, human-readable formats, no lock-in
 
 ## Quick Start
 
 ```bash
-# Clone and install
+# Clone and install backend
 git clone https://github.com/brentyJ/recog.git
 cd recog/_scripts
 pip install -r requirements.txt
@@ -30,11 +32,19 @@ cp .env.example .env
 # Initialize database
 python recog_cli.py db init
 
-# Start server
+# Start backend server
 python server.py
 ```
 
-Server runs at **http://localhost:5100**
+```bash
+# Install and start frontend (in another terminal)
+cd recog/_ui
+npm install
+npm run dev
+```
+
+- **Backend API**: http://localhost:5100
+- **Frontend UI**: http://localhost:3100
 
 ## Architecture
 
@@ -120,6 +130,37 @@ ReCog uses **Cases** to organize document analysis around specific questions or 
 | **Timeline** | Auto-generated chronicle of case activities |
 | **Context Injection** | Case context injected into LLM prompts |
 
+## Cypher: Conversational Interface
+
+Cypher is ReCog's AI assistant that provides natural language interaction with the system. Access it via the slide-in panel in the UI or the `/api/cypher/message` endpoint.
+
+### Capabilities
+
+| Intent | Example Commands | Action |
+|--------|------------------|--------|
+| **Entity Correction** | "Webb isn't a person", "Remove Foundation" | Remove entity, add to blacklist |
+| **Entity Validation** | "validate entities", "AI validate" | LLM suggests false positives for review |
+| **Navigation** | "show entities", "go to insights" | Navigate to views |
+| **Filtering** | "focus on Seattle", "filter by date" | Apply search filters |
+| **Status** | "what's processing?", "extraction status" | Show current progress |
+
+### Interactive Validation Flow
+
+```
+User: "validate entities"
+Cypher: "Found 5 likely false positives: Foundation, Research, Protocol,
+         Institute, Committee. Remove them?"
+         [Yes, remove them] [No, keep all] [Let me review]
+
+User: "keep Foundation"
+Cypher: "Kept 'Foundation'. Still 4 to remove: Research, Protocol,
+         Institute, Committee. Continue?"
+         [Yes, remove rest] [No, keep all]
+
+User: "yes"
+Cypher: "Removed 4 false positives. View entities?"
+```
+
 ## API Reference
 
 ### Health & Info
@@ -157,6 +198,8 @@ ReCog uses **Cases** to organize document analysis around specific questions or 
 | `/api/entities/unknown` | GET | Entities needing identification |
 | `/api/entities/<id>` | GET | Get entity details |
 | `/api/entities/<id>` | PATCH | Update entity (display_name, relationship, anonymise) |
+| `/api/entities/<id>/reject` | POST | Blacklist entity as false positive |
+| `/api/entities/validate` | POST | LLM-powered batch validation |
 | `/api/entities/stats` | GET | Entity registry statistics |
 
 ### Entity Graph
@@ -221,6 +264,14 @@ ReCog uses **Cases** to organize document analysis around specific questions or 
 | `/api/queue/<id>/retry` | POST | Retry failed item |
 | `/api/queue/<id>` | DELETE | Remove from queue |
 | `/api/queue/clear` | POST | Clear failed/complete items |
+
+### Cypher (Conversational Interface)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/cypher/message` | POST | Send message to Cypher assistant |
+| `/api/extraction/status/<case_id>` | GET | Poll extraction progress |
+| `/api/extraction/status/global` | GET | Global extraction status |
 
 ### Cases
 
@@ -366,40 +417,46 @@ RECOG_DEBUG=true python server.py
 ### Project Structure
 
 ```
-ReCog/ (Backend - This Repository)
-├── _scripts/
+ReCog/
+├── _scripts/                  # Backend (Python/Flask)
 │   ├── server.py              # Flask API server (localhost:5100)
 │   ├── worker.py              # Background queue processor
 │   ├── recog_cli.py           # Command-line interface
-│   ├── recog_engine/          # Core engine modules
-│   │   ├── tier0.py           # Signal extraction
+│   ├── db.py                  # Database utilities
+│   ├── recog_engine/          # Core processing modules
+│   │   ├── tier0.py           # Signal extraction (emotions, entities, temporal)
 │   │   ├── extraction.py      # LLM insight extraction
 │   │   ├── synth.py           # Pattern synthesis
 │   │   ├── critique.py        # Validation layer
-│   │   ├── entity_registry.py # Entity management
+│   │   ├── entity_registry.py # Entity management + LLM validation
 │   │   ├── entity_graph.py    # Relationship graph
 │   │   ├── insight_store.py   # Insight persistence
-│   │   └── core/providers/    # LLM provider adapters
-│   ├── ingestion/             # File parsers
-│   └── db.py                  # Database utilities
+│   │   ├── cypher/            # Conversational interface
+│   │   │   ├── intent_classifier.py  # Hybrid regex + LLM classification
+│   │   │   ├── action_router.py      # Routes intents to operations
+│   │   │   └── response_formatter.py # Consistent Cypher voice
+│   │   └── core/providers/    # LLM adapters (OpenAI, Anthropic)
+│   └── ingestion/             # File parsers (PDF, Excel, chat exports)
+│
+├── _ui/                       # Frontend (React/Vite)
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── pages/         # Dashboard, Upload, Preflight, Entities, Insights
+│   │   │   ├── cypher/        # Conversational UI components
+│   │   │   └── ui/            # shadcn/ui components
+│   │   ├── contexts/          # React context (CypherContext)
+│   │   ├── hooks/             # Custom hooks (useCypherActions)
+│   │   └── lib/api.js         # API client
+│   └── package.json           # React 18 + Vite (localhost:3100)
+│
 ├── _data/                     # Database and uploads
 ├── _docs/                     # Documentation
-├── _archive/                  # Deprecated UI versions
-├── tests/                     # Test suite
+├── _archive/                  # Deprecated versions
+├── CLAUDE.md                  # AI assistant instructions
 ├── Dockerfile
 ├── docker-compose.yml
 └── requirements.txt
-
-C:\EhkoDev\recog-ui/ (Frontend - Separate Repository)
-├── src/
-│   ├── components/            # shadcn/ui components
-│   ├── pages/                 # 6 main pages (Signal, Upload, etc.)
-│   └── lib/                   # API client, utilities
-├── public/                    # Static assets
-└── package.json               # React + Vite (port 3101)
 ```
-
-**Note:** The React UI is developed separately in `C:\EhkoDev\recog-ui`. Old UI versions have been archived in `_archive/`.
 
 ## License
 
