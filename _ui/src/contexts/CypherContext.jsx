@@ -9,6 +9,7 @@ export function CypherProvider({ children, caseId: propCaseId }) {
   const [extractionStatus, setExtractionStatus] = useState(null)
   const [isOpen, setIsOpen] = useState(false)
   const [activeCaseId, setActiveCaseId] = useState(propCaseId)
+  const [lastUserMessage, setLastUserMessage] = useState(null)
   const prevExtractionRef = useRef({ current: 0, status: 'idle', currentDoc: null })
   // Track if events are driving progress (prevents polling from duplicating messages)
   const eventDrivenRef = useRef(false)
@@ -192,9 +193,15 @@ export function CypherProvider({ children, caseId: propCaseId }) {
   const addCypherMessage = addCypherMessageInternal
 
   const sendMessage = useCallback(
-    async (text) => {
+    async (text, isRetry = false) => {
       if (!text.trim()) return
-      addUserMessage(text)
+
+      // Store for retry (only on fresh messages, not retries)
+      if (!isRetry) {
+        setLastUserMessage(text)
+        addUserMessage(text)
+      }
+
       setIsProcessing(true)
       try {
         const context = {
@@ -222,16 +229,40 @@ export function CypherProvider({ children, caseId: propCaseId }) {
         return data
       } catch (error) {
         console.error('Cypher message failed:', error)
-        addCypherMessage(
-          'Communication error. Request failed to process.',
-          [{ text: 'Retry', action: 'retry_last' }]
-        )
+
+        // Determine error type for better messaging
+        let errorMsg = 'Communication error. Request failed to process.'
+        if (error.message?.includes('fetch') || error.message?.includes('network')) {
+          errorMsg = 'Network error. Check your connection.'
+        } else if (error.message?.includes('500') || error.message?.includes('server')) {
+          errorMsg = 'Server error. The backend may be down.'
+        } else if (error.message?.includes('timeout')) {
+          errorMsg = 'Request timed out. Try again.'
+        }
+
+        addCypherMessage(errorMsg, [
+          { text: 'Retry', action: 'retry_last', icon: 'RefreshCw' }
+        ])
       } finally {
         setIsProcessing(false)
       }
     },
     [activeCaseId, propCaseId, currentView, extractionStatus, addUserMessage, addCypherMessage]
   )
+
+  const retryLast = useCallback(() => {
+    if (lastUserMessage && !isProcessing) {
+      // Remove the error message before retrying
+      setMessages((prev) => {
+        const lastMsg = prev[prev.length - 1]
+        if (lastMsg?.role === 'assistant' && lastMsg.content.includes('error')) {
+          return prev.slice(0, -1)
+        }
+        return prev
+      })
+      sendMessage(lastUserMessage, true)
+    }
+  }, [lastUserMessage, isProcessing, sendMessage])
 
   const clearHistory = useCallback(() => setMessages([]), [])
 
@@ -240,6 +271,7 @@ export function CypherProvider({ children, caseId: propCaseId }) {
     isProcessing,
     extractionStatus,
     sendMessage,
+    retryLast,
     clearHistory,
     isOpen,
     setIsOpen,

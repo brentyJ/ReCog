@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { useCypherActions } from '@/hooks/useCypherActions'
+import { useCypher } from '@/contexts/CypherContext'
 import {
   Users,
   Lightbulb,
@@ -11,6 +12,7 @@ import {
   LayoutDashboard,
   GitBranch,
   FolderOpen,
+  RefreshCw,
 } from 'lucide-react'
 
 // Map icon names to components
@@ -25,14 +27,20 @@ const ICONS = {
   LayoutDashboard,
   GitBranch,
   FolderOpen,
+  RefreshCw,
 }
 
 export function CypherSuggestions({ suggestions }) {
   const { executeAction } = useCypherActions()
+  const { retryLast } = useCypher()
 
   if (!suggestions || suggestions.length === 0) return null
 
   const handleClick = async (suggestion) => {
+    if (suggestion.action === 'retry_last') {
+      retryLast()
+      return
+    }
     if (suggestion.action) {
       await executeAction(suggestion.action, suggestion.params)
     }

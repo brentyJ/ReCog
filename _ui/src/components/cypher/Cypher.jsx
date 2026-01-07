@@ -7,6 +7,57 @@ import { CypherMessage } from './CypherMessage'
 import { CypherProgress } from './CypherProgress'
 import { CypherTyping } from './CypherTyping'
 
+// Contextual empty state based on current view
+function EmptyState({ currentView }) {
+  const hints = {
+    entities: {
+      title: 'Entity Management',
+      examples: ['"Webb isn\'t a person"', '"Mark Sarah as family"', '"Who appears most?"'],
+    },
+    insights: {
+      title: 'Insights Browser',
+      examples: ['"Show high significance"', '"Filter by emotions"', '"What patterns emerged?"'],
+    },
+    preflight: {
+      title: 'Preflight Review',
+      examples: ['"Process all items"', '"Skip short documents"', '"What\'s queued?"'],
+    },
+    upload: {
+      title: 'File Upload',
+      examples: ['"What formats supported?"', '"Start processing"', '"Link to a case"'],
+    },
+    cases: {
+      title: 'Case Management',
+      examples: ['"Show active cases"', '"What\'s in this case?"', '"Add focus area"'],
+    },
+    patterns: {
+      title: 'Pattern Synthesis',
+      examples: ['"Run synthesis"', '"Show strongest patterns"', '"Cluster by entity"'],
+    },
+    default: {
+      title: 'Cypher ready.',
+      examples: ['"Show me entities"', '"Webb isn\'t a person"', '"Focus on Seattle"'],
+    },
+  }
+
+  const { title, examples } = hints[currentView] || hints.default
+
+  return (
+    <div className="text-center text-muted-foreground text-sm font-mono py-8 px-4">
+      <div className="text-teal-400 text-3xl mb-3">⟨⟩</div>
+      <div className="mb-2">{title}</div>
+      <div className="text-xs">
+        Ask questions, correct entities, or request navigation.
+      </div>
+      <div className="mt-4 text-[10px] text-muted-foreground/60 space-y-1">
+        {examples.map((ex, i) => (
+          <div key={i}>{ex}</div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function Cypher() {
   const {
     messages,
@@ -16,6 +67,7 @@ export function Cypher() {
     clearHistory,
     isOpen,
     setIsOpen,
+    currentView,
   } = useCypher()
 
   const [input, setInput] = useState('')
@@ -129,22 +181,7 @@ export function Cypher() {
           <CypherProgress extractionStatus={extractionStatus} />
 
           {messages.length === 0 && !isExtracting && (
-            <div className="text-center text-muted-foreground text-sm font-mono py-8 px-4">
-              <div className="text-teal-400 text-3xl mb-3">⟨⟩</div>
-              <div className="mb-2">Cypher ready.</div>
-              <div className="text-xs">
-                Ask questions, correct entities, or request navigation.
-              </div>
-              <div className="mt-4 text-[10px] text-muted-foreground/60">
-                Examples:
-                <br />
-                "Webb isn't a person"
-                <br />
-                "Show me entities"
-                <br />
-                "Focus on Seattle"
-              </div>
-            </div>
+            <EmptyState currentView={currentView} />
           )}
 
           {messages.map((message, i) => (
