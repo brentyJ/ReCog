@@ -3146,6 +3146,81 @@ def extraction_status(case_id: str):
         return api_response(error=str(e), status=500)
 
 
+
+@app.route("/api/extraction/status", methods=["GET"])
+def extraction_status_global():
+    """Get global extraction/processing status across all cases."""
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(Config.DB_PATH))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT status, COUNT(*) as count
+            FROM processing_queue
+            GROUP BY status
+        """)
+        queue_status = {row["status"]: row["count"] for row in cursor.fetchall()}
+
+        pending = queue_status.get("pending", 0)
+        processing = queue_status.get("processing", 0)
+        completed = queue_status.get("completed", 0)
+        failed = queue_status.get("failed", 0)
+        total = pending + processing + completed + failed
+
+        if processing > 0:
+            status = "processing"
+        elif pending > 0:
+            status = "pending"
+        elif total > 0:
+            status = "complete"
+        else:
+            status = "idle"
+
+        current_doc = None
+        active_case_id = None
+        if status in ("processing", "pending"):
+            cursor.execute("""
+                SELECT source_name, case_id FROM processing_queue
+                WHERE status IN ('processing', 'pending')
+                ORDER BY status DESC, queued_at ASC
+                LIMIT 1
+            """)
+            row = cursor.fetchone()
+            if row:
+                current_doc = row["source_name"]
+                active_case_id = row["case_id"]
+
+        cursor.execute("""
+            SELECT DISTINCT pq.case_id, c.title
+            FROM processing_queue pq
+            LEFT JOIN cases c ON c.id = pq.case_id
+            WHERE pq.status IN ('processing', 'pending')
+        """)
+        active_cases = [
+            {"case_id": row["case_id"], "title": row["title"] or "Untitled"}
+            for row in cursor.fetchall() if row["case_id"]
+        ]
+
+        conn.close()
+
+        return api_response({
+            "status": status,
+            "current": completed,
+            "total": total,
+            "pending": pending,
+            "processing": processing,
+            "current_doc": current_doc,
+            "active_case_id": active_case_id,
+            "active_cases": active_cases,
+        })
+
+    except Exception as e:
+        logger.error(f"Global extraction status failed: {e}")
+        return api_response(error=str(e), status=500)
+
+
 # =============================================================================
 # STATIC FILES (for future frontend)
 # =============================================================================

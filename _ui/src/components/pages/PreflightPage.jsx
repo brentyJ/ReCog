@@ -190,6 +190,15 @@ export function PreflightPage() {
     setProcessing(true)
     setProcessedCount(0)
 
+    // Dispatch extraction started event for Cypher
+    window.dispatchEvent(new CustomEvent('recog-extraction-start', {
+      detail: {
+        caseId,
+        total: includedItems.length,
+        caseName: caseData?.title,
+      }
+    }))
+
     try {
       // First confirm the preflight session
       await confirmPreflight(sessionId)
@@ -197,10 +206,20 @@ export function PreflightPage() {
       // Extract insights from each included item
       let successCount = 0
       let errorCount = 0
+      let skippedCount = 0
 
       for (let i = 0; i < includedItems.length; i++) {
         const item = includedItems[i]
         setProcessedCount(i + 1)
+
+        // Dispatch progress event for Cypher
+        window.dispatchEvent(new CustomEvent('recog-extraction-progress', {
+          detail: {
+            current: i + 1,
+            total: includedItems.length,
+            currentDoc: item.title || item.source_name || 'Item ' + (i + 1),
+          }
+        }))
 
         try {
           // Fetch the document text
@@ -209,6 +228,7 @@ export function PreflightPage() {
 
           if (!text || text.trim().length < 50) {
             console.warn(`Skipping item ${item.id}: insufficient text`)
+            skippedCount++
             continue
           }
 
@@ -234,25 +254,29 @@ export function PreflightPage() {
       // Clear the session storage
       sessionStorage.removeItem(`preflight_case_${sessionId}`)
 
-      const message = errorCount > 0
-        ? `Extracted insights from ${successCount} items. ${errorCount} failed.`
-        : `Successfully extracted insights from ${successCount} items!`
+      // Dispatch extraction complete event for Cypher
+      window.dispatchEvent(new CustomEvent('recog-extraction-complete', {
+        detail: {
+          caseId,
+          successCount,
+          errorCount,
+          skippedCount,
+          total: includedItems.length,
+        }
+      }))
 
-      alert(
-        message +
-        (caseData ? ` Insights linked to "${caseData.title}".` : '') +
-        '\n\nCheck the Insights page for results.'
-      )
-
-      // Navigate to insights or case page
-      if (caseData) {
-        window.location.hash = ''  // Back to dashboard
-      } else {
-        window.location.hash = 'insights'
-      }
+      // Navigation happens after a short delay to allow Cypher to show completion
+      // Cypher will display the completion message with suggestions
+      setTimeout(() => {
+        if (caseData) {
+          window.location.hash = ''  // Back to dashboard
+        } else {
+          window.location.hash = 'insights'
+        }
+      }, 1500)
       
     } catch (error) {
-      alert(`Failed to start processing: ${error.message}`)
+      console.error('Processing failed:', error)
     } finally {
       setProcessing(false)
     }

@@ -482,3 +482,7 @@ export async function sendCypherMessage(message, caseId, context = {}) {
 export async function getExtractionStatus(caseId) {
   return fetchAPI(`/extraction/status/${caseId}`)
 }
+
+export async function getGlobalExtractionStatus() {
+  return fetchAPI('/extraction/status')
+}

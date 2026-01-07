@@ -1,4 +1,5 @@
 export { Cypher } from './Cypher'
 export { CypherMessage } from './CypherMessage'
+export { CypherProgress } from './CypherProgress'
 export { CypherSuggestions } from './CypherSuggestions'
 export { CypherTyping } from './CypherTyping'

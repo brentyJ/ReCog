@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCypher } from '@/contexts/CypherContext'
 import { CypherMessage } from './CypherMessage'
+import { CypherProgress } from './CypherProgress'
 import { CypherTyping } from './CypherTyping'
 
 export function Cypher() {
@@ -50,13 +51,9 @@ export function Cypher() {
     }
   }
 
-  // Processing status indicator
-  const statusText =
-    extractionStatus?.status === 'processing'
-      ? `Processing ${extractionStatus.current}/${extractionStatus.total}`
-      : extractionStatus?.status === 'complete'
-        ? 'Complete'
-        : null
+  // Check if extraction is active
+  const isExtracting =
+    extractionStatus?.status === 'processing' || extractionStatus?.status === 'pending'
 
   return (
     <>
@@ -68,7 +65,7 @@ export function Cypher() {
       >
         <span className="text-teal-400">⟨⟩</span>
         Cypher
-        {extractionStatus?.status === 'processing' && (
+        {isExtracting && (
           <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-teal-400/20 text-teal-400 animate-pulse">
             {extractionStatus.current}/{extractionStatus.total}
           </span>
@@ -126,22 +123,12 @@ export function Cypher() {
           </div>
         </div>
 
-        {/* Status bar (if processing) */}
-        {statusText && (
-          <div className="px-4 py-2 bg-teal-400/10 border-b border-teal-400/20 text-xs font-mono text-teal-400 flex items-center gap-2">
-            <span className="w-2 h-2 bg-teal-400 rounded-full animate-pulse" />
-            {statusText}
-            {extractionStatus?.current_doc && (
-              <span className="text-muted-foreground truncate">
-                - {extractionStatus.current_doc}
-              </span>
-            )}
-          </div>
-        )}
-
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
-          {messages.length === 0 && (
+          {/* Progress indicator at top when extracting */}
+          <CypherProgress extractionStatus={extractionStatus} />
+
+          {messages.length === 0 && !isExtracting && (
             <div className="text-center text-muted-foreground text-sm font-mono py-8 px-4">
               <div className="text-teal-400 text-3xl mb-3">⟨⟩</div>
               <div className="mb-2">Cypher ready.</div>
