@@ -99,6 +99,9 @@ python recog_cli.py preflight scan <id>
 - `case_store.py` - Case management
 - `findings_store.py` - Findings storage
 - `timeline_store.py` - Timeline events
+- `state_machine.py` - Case state machine (v0.8: uploading→scanning→clarifying→processing→complete)
+- `cost_estimator.py` - Token/cost estimation for LLM operations (v0.8)
+- `auto_progress.py` - Background worker for automatic state advancement (v0.8)
 
 **recog_engine/cypher/** - Conversational interface:
 - `intent_classifier.py` - Hybrid regex + LLM intent classification
@@ -136,11 +139,14 @@ React 18 + Vite + shadcn/ui + Tailwind CSS
   - `PatternsPage.jsx` - Synthesized patterns
 - `src/components/ui/` - shadcn components
 - `src/components/cypher/` - Conversational interface:
-  - `Cypher.jsx` - Slide-in panel with message history
+  - `Cypher.jsx` - Slide-in panel with message history, assistant mode toggle (v0.8)
   - `CypherMessage.jsx` - User/assistant message bubbles
   - `CypherSuggestions.jsx` - Action buttons from responses
   - `CypherTyping.jsx` - Animated typing indicator
-- `src/contexts/CypherContext.jsx` - State management for Cypher
+- `src/components/case/` - Case workflow components (v0.8):
+  - `CaseTerminal.jsx` - Real-time analysis monitor with progress bar, top insights, log stream
+  - `CostWarningDialog.jsx` - Cost confirmation dialog before LLM processing
+- `src/contexts/CypherContext.jsx` - State management for Cypher, assistant mode (v0.8)
 - `src/hooks/useCypherActions.js` - Navigation and action execution
 
 ### Data Flow
@@ -165,6 +171,9 @@ Files → Ingestion (parse) → Tier 0 (signals) → Tier 1 (insights) → Tier 
 - `POST /api/critique/insight` - Validate insight
 - `POST /api/cypher/message` - Send message to Cypher conversational interface
 - `GET /api/extraction/status/<case_id>` - Poll extraction progress
+- `GET /api/cases/<id>/progress` - Get real-time case processing progress (v0.8)
+- `GET /api/cases/<id>/estimate` - Get cost estimate for LLM processing (v0.8)
+- `POST /api/cases/<id>/start-processing` - Start LLM extraction with cost confirmation (v0.8)
 
 ## Cypher Intents
 
@@ -208,6 +217,7 @@ SQLite at `_scripts/_data/recog.db` with tables:
 - `preflight_sessions`, `preflight_items`
 - `processing_queue`
 - `cases`, `findings`, `timeline_events`
+- `case_progress` - Real-time processing progress tracking (v0.8)
 
 ## Supported File Formats
 
