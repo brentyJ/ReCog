@@ -230,3 +230,95 @@ def format_error_message(error_type: str, details: str = None) -> str:
     }
 
     return messages.get(error_type, messages["unknown"])
+
+
+# =============================================================================
+# v0.8: State-aware response enhancements
+# =============================================================================
+
+# Suggested actions based on case state
+STATE_SUGGESTIONS = {
+    "uploading": [
+        {"text": "Check formats", "action": "show_formats", "icon": "FileQuestion"},
+        {"text": "View queue", "action": "navigate_preflight", "icon": "List"},
+    ],
+    "scanning": [
+        {"text": "View progress", "action": "show_progress", "icon": "Activity"},
+        {"text": "What's scanning?", "action": "explain_tier0", "icon": "HelpCircle"},
+    ],
+    "clarifying": [
+        {"text": "Review entities", "action": "navigate_entities", "icon": "Users"},
+        {"text": "Start analysis", "action": "start_processing", "icon": "Play"},
+        {"text": "Why review?", "action": "explain_entity_review", "icon": "HelpCircle"},
+    ],
+    "processing": [
+        {"text": "View terminal", "action": "show_terminal", "icon": "Terminal"},
+        {"text": "Estimated time?", "action": "estimate_completion", "icon": "Clock"},
+    ],
+    "complete": [
+        {"text": "View findings", "action": "navigate_findings", "icon": "Lightbulb"},
+        {"text": "Export report", "action": "export_report", "icon": "Download"},
+        {"text": "Run synthesis", "action": "run_synthesis", "icon": "GitMerge"},
+    ],
+    "watching": [
+        {"text": "Stop watching", "action": "stop_watch", "icon": "StopCircle"},
+        {"text": "View monitored", "action": "show_monitored", "icon": "FolderOpen"},
+    ],
+}
+
+
+def get_state_suggestions(case_state: str) -> list:
+    """Get suggested actions based on current case state."""
+    return STATE_SUGGESTIONS.get(case_state, [])
+
+
+def enhance_response_for_state(
+    result: Dict[str, Any],
+    context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Enhance response with state-aware suggestions if in assistant mode.
+
+    Args:
+        result: The action router result dict
+        context: Session context including assistant_mode and case_state
+
+    Returns:
+        Enhanced result dict with state-aware suggestions
+    """
+    if not context.get("assistant_mode"):
+        return result
+
+    case_state = context.get("case_state", "complete")
+
+    # Only add state suggestions if response doesn't already have suggestions
+    existing_suggestions = result.get("suggestions", [])
+    if not existing_suggestions:
+        result["suggestions"] = get_state_suggestions(case_state)
+    elif len(existing_suggestions) < 3:
+        # Append up to 3 total suggestions
+        state_suggestions = get_state_suggestions(case_state)
+        for sug in state_suggestions:
+            if len(existing_suggestions) >= 3:
+                break
+            # Avoid duplicates
+            if not any(s.get("action") == sug.get("action") for s in existing_suggestions):
+                existing_suggestions.append(sug)
+
+    return result
+
+
+def format_assistant_hint(case_state: str, context: Dict[str, Any]) -> Optional[str]:
+    """
+    Generate a contextual hint for assistant mode based on state.
+    Returns None if no hint is appropriate.
+    """
+    hints = {
+        "uploading": "Tip: Batch upload works best. Drag multiple files at once.",
+        "scanning": "Initial scan extracts entities and emotions locally (free). No API calls yet.",
+        "clarifying": "Entity review prevents false positives. Check names that seem generic or technical.",
+        "processing": "LLM extraction in progress. This uses API tokens. Watch the terminal for live updates.",
+        "complete": "Analysis complete. Promote key insights to findings for your final report.",
+    }
+
+    return hints.get(case_state)

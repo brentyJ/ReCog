@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
-import { X, Send, Trash2 } from 'lucide-react'
+import { X, Send, Trash2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import { useCypher } from '@/contexts/CypherContext'
 import { CypherMessage } from './CypherMessage'
 import { CypherProgress } from './CypherProgress'
 import { CypherTyping } from './CypherTyping'
 
 // Contextual empty state based on current view
-function EmptyState({ currentView }) {
+function EmptyState({ currentView, assistantMode }) {
   const hints = {
     entities: {
       title: 'Entity Management',
@@ -35,19 +36,24 @@ function EmptyState({ currentView }) {
       examples: ['"Run synthesis"', '"Show strongest patterns"', '"Cluster by entity"'],
     },
     default: {
-      title: 'Cypher ready.',
-      examples: ['"Show me entities"', '"Webb isn\'t a person"', '"Focus on Seattle"'],
+      title: assistantMode ? 'Assistant ready to guide.' : 'Cypher ready.',
+      examples: assistantMode
+        ? ['"Help me understand"', '"What should I do next?"', '"Explain this step"']
+        : ['"Show me entities"', '"Webb isn\'t a person"', '"Focus on Seattle"'],
     },
   }
 
   const { title, examples } = hints[currentView] || hints.default
+  const accentClass = assistantMode ? 'text-amber-400' : 'text-teal-400'
 
   return (
     <div className="text-center text-muted-foreground text-sm font-mono py-8 px-4">
-      <div className="text-teal-400 text-3xl mb-3">⟨⟩</div>
+      <div className={`${accentClass} text-3xl mb-3`}>⟨⟩</div>
       <div className="mb-2">{title}</div>
       <div className="text-xs">
-        Ask questions, correct entities, or request navigation.
+        {assistantMode
+          ? 'Ask anything - I\'ll explain the process step by step.'
+          : 'Ask questions, correct entities, or request navigation.'}
       </div>
       <div className="mt-4 text-[10px] text-muted-foreground/60 space-y-1">
         {examples.map((ex, i) => (
@@ -68,11 +74,21 @@ export function Cypher() {
     isOpen,
     setIsOpen,
     currentView,
+    // v0.8: Assistant mode
+    assistantMode,
+    toggleAssistantMode,
+    caseState,
   } = useCypher()
 
   const [input, setInput] = useState('')
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
+
+  // v0.8: Color scheme based on assistant mode
+  const accentColor = assistantMode ? 'amber' : 'teal'
+  const accentText = assistantMode ? 'text-amber-400' : 'text-teal-400'
+  const accentBg = assistantMode ? 'bg-amber-400/20' : 'bg-teal-400/20'
+  const accentBorder = assistantMode ? 'border-amber-400/30' : 'border-teal-400/30'
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -115,10 +131,13 @@ export function Cypher() {
         onClick={() => setIsOpen(true)}
         className="font-mono text-sm gap-2 h-9"
       >
-        <span className="text-teal-400">⟨⟩</span>
+        <span className={accentText}>⟨⟩</span>
         Cypher
+        {assistantMode && (
+          <Sparkles className={`h-3 w-3 ${accentText}`} />
+        )}
         {isExtracting && (
-          <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-teal-400/20 text-teal-400 animate-pulse">
+          <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] ${accentBg} ${accentText} animate-pulse`}>
             {extractionStatus.current}/{extractionStatus.total}
           </span>
         )}
@@ -144,15 +163,33 @@ export function Cypher() {
         {/* Header */}
         <div className="p-4 border-b border-border bg-card flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-2xl text-teal-400 font-mono">⟨⟩</span>
+            <span className={`text-2xl ${accentText} font-mono`}>⟨⟩</span>
             <div>
-              <div className="font-mono font-bold text-base">Cypher</div>
+              <div className="font-mono font-bold text-base flex items-center gap-2">
+                Cypher
+                {assistantMode && (
+                  <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${accentText} ${accentBorder}`}>
+                    <Sparkles className="h-2.5 w-2.5 mr-1" />
+                    Guide
+                  </Badge>
+                )}
+              </div>
               <div className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider">
-                terminal scribe
+                {assistantMode ? 'tutorial assistant' : 'terminal scribe'}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {/* Assistant Mode Toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleAssistantMode}
+              className={`h-8 w-8 ${assistantMode ? accentText : 'text-muted-foreground'} hover:${accentText}`}
+              title={assistantMode ? 'Disable assistant mode' : 'Enable assistant mode'}
+            >
+              <Sparkles className="h-4 w-4" />
+            </Button>
             {messages.length > 0 && (
               <Button
                 variant="ghost"
@@ -181,7 +218,7 @@ export function Cypher() {
           <CypherProgress extractionStatus={extractionStatus} />
 
           {messages.length === 0 && !isExtracting && (
-            <EmptyState currentView={currentView} />
+            <EmptyState currentView={currentView} assistantMode={assistantMode} />
           )}
 
           {messages.map((message, i) => (

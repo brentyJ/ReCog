@@ -1,6 +1,6 @@
 # RECOG INSTRUCTIONS
 
-*Last updated: 2026-01-06*
+*Last updated: 2026-01-10*
 
 ---
 
@@ -301,7 +301,83 @@ Mirrorwell (raw) → ReCog (process) → EhkoForge (curate) → Ehko (final)
 
 ---
 
-## 11. QUICK REFERENCE
+## 11. CLAUDE CLI SETTINGS
+
+⚠️ **CRITICAL: Read `.claude/SETTINGS_GUIDELINES.md` before modifying settings!**
+
+### The Golden Rule
+
+**Use wildcards, NEVER pre-built complex commands.**
+
+✅ **CORRECT:**
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh issue:*)",
+      "Bash(gh label:*)",
+      "Bash(git:*)"
+    ]
+  }
+}
+```
+
+❌ **WRONG (will break CLI):**
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh issue create --body \"$(cat <<'EOF'...EOF)\")"
+    ]
+  }
+}
+```
+
+### Why This Matters
+
+**Problem:** Complex commands with here-docs, nested quotes, or command substitution create impossible-to-escape scenarios in JSON.
+
+**Solution:** Use wildcard permissions (e.g., `"Bash(gh:*)"`) and construct actual commands at runtime.
+
+### Recovery from Broken Settings
+
+If Claude CLI won't start:
+
+1. **Read:** `.claude/SETTINGS_GUIDELINES.md`
+2. **Replace settings** with minimal safe config:
+   ```json
+   {
+     "permissions": {
+       "allow": [
+         "Bash(git:*)",
+         "Bash(python:*)",
+         "Bash(gh:*)"
+       ]
+     }
+   }
+   ```
+3. **Test:** `claude --version`
+
+### For Complex GitHub Issues
+
+**Instead of pre-building in settings, use temp files:**
+
+```bash
+# Step 1: Write body to temp file
+echo "Multi-line issue body" > /tmp/issue.txt
+
+# Step 2: Create issue using file
+gh issue create --repo brentyJ/ReCog \
+  --title "Issue Title" \
+  --body-file /tmp/issue.txt \
+  --label "enhancement"
+```
+
+**See full guidelines:** `.claude/SETTINGS_GUIDELINES.md`
+
+---
+
+## 12. QUICK REFERENCE
 
 **At session start:**
 1. Check if ReCog server is needed (ask Brent)
@@ -332,6 +408,7 @@ Mirrorwell (raw) → ReCog (process) → EhkoForge (curate) → Ehko (final)
 | 1.0 | 2024-12-22 | Initial instructions created (technical README existed, but not Claude-specific instructions) |
 | 1.1 | 2026-01-06 | Added Case Architecture: cases, findings, timeline, context injection |
 | 1.2 | 2026-01-06 | Added Claude Interfaces section (CLI vs Desktop guidance) |
+| 1.3 | 2026-01-10 | Added Claude CLI Settings section + reference to SETTINGS_GUIDELINES.md |
 
 ---
 

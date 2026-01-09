@@ -493,3 +493,23 @@ export async function getExtractionStatus(caseId) {
 export async function getGlobalExtractionStatus() {
   return fetchAPI('/extraction/status')
 }
+
+// =============================================================================
+// CASE PROGRESS & COST ESTIMATION (v0.8)
+// =============================================================================
+
+export async function getCaseProgress(caseId) {
+  return fetchAPI(`/cases/${caseId}/progress`)
+}
+
+export async function getCaseCostEstimate(caseId, model = null) {
+  const params = model ? `?model=${model}` : ''
+  return fetchAPI(`/cases/${caseId}/estimate${params}`)
+}
+
+export async function startCaseProcessing(caseId, confirmCost = false) {
+  return fetchAPI(`/cases/${caseId}/start-processing`, {
+    method: 'POST',
+    body: JSON.stringify({ confirm_cost: confirmCost }),
+  })
+}

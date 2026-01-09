@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
-import { sendCypherMessage, getExtractionStatus, getGlobalExtractionStatus } from '@/lib/api'
+import { sendCypherMessage, getExtractionStatus, getGlobalExtractionStatus, getCase } from '@/lib/api'
 
 const CypherContext = createContext(null)
 
@@ -18,6 +18,23 @@ export function CypherProvider({ children, caseId: propCaseId }) {
   )
   const [pendingValidation, setPendingValidation] = useState(null)
 
+  // v0.8: Assistant Mode state
+  const [assistantMode, setAssistantMode] = useState(() => {
+    // Persist preference in localStorage
+    const saved = localStorage.getItem('cypher_assistant_mode')
+    return saved === 'true'
+  })
+  const [caseState, setCaseState] = useState(null) // uploading, scanning, clarifying, processing, complete
+
+  // Toggle assistant mode with persistence
+  const toggleAssistantMode = useCallback(() => {
+    setAssistantMode(prev => {
+      const newValue = !prev
+      localStorage.setItem('cypher_assistant_mode', String(newValue))
+      return newValue
+    })
+  }, [])
+
   useEffect(() => {
     const handleHashChange = () => {
       const newView = window.location.hash.replace('#', '').split('/')[0] || 'dashboard'
@@ -26,6 +43,38 @@ export function CypherProvider({ children, caseId: propCaseId }) {
     window.addEventListener('hashchange', handleHashChange)
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
+
+  // v0.8: Poll case state when we have an active case
+  useEffect(() => {
+    const caseId = activeCaseId || propCaseId
+    if (!caseId) {
+      setCaseState(null)
+      return
+    }
+
+    let isMounted = true
+
+    const pollCaseState = async () => {
+      try {
+        const response = await getCase(caseId)
+        if (isMounted && response.success && response.data) {
+          setCaseState(response.data.state || 'complete')
+        }
+      } catch (err) {
+        // Silently fail - case state is supplementary info
+        console.debug('Failed to poll case state:', err)
+      }
+    }
+
+    pollCaseState()
+    // Poll less frequently than extraction status
+    const interval = setInterval(pollCaseState, 10000)
+
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
+  }, [activeCaseId, propCaseId])
 
   const addCypherMessageInternal = useCallback((content, suggestions = []) => {
     setMessages((prev) => [...prev, { role: 'assistant', content, suggestions, timestamp: Date.now() }])
@@ -218,7 +267,10 @@ export function CypherProvider({ children, caseId: propCaseId }) {
           processing_status: extractionStatus?.status || 'idle',
           extraction_progress: extractionStatus,
           pending_validation: pendingValidation,
-          original_message: text
+          original_message: text,
+          // v0.8: Assistant mode and case state
+          assistant_mode: assistantMode,
+          case_state: caseState,
         }
         const caseId = activeCaseId || propCaseId
         const response = await sendCypherMessage(text, caseId, context)
@@ -314,7 +366,11 @@ export function CypherProvider({ children, caseId: propCaseId }) {
     setIsOpen,
     currentView,
     caseId: activeCaseId || propCaseId,
-    addCypherMessage
+    addCypherMessage,
+    // v0.8: Assistant mode
+    assistantMode,
+    toggleAssistantMode,
+    caseState,
   }
 
   return <CypherContext.Provider value={value}>{children}</CypherContext.Provider>

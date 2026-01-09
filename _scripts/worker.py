@@ -35,6 +35,8 @@ from recog_engine import (
 )
 from recog_engine.case_store import CaseStore
 from recog_engine.timeline_store import TimelineStore
+from recog_engine.state_machine import CaseStateMachine
+from recog_engine.cost_estimator import CostEstimator
 from recog_engine.core.providers import (
     create_provider,
     get_available_providers,
@@ -206,6 +208,8 @@ def get_source_content(conn: sqlite3.Connection, source_type: str, source_id: st
 synth_engine: Optional[SynthEngine] = None
 case_store: Optional[CaseStore] = None
 timeline_store: Optional[TimelineStore] = None
+state_machine: Optional[CaseStateMachine] = None
+cost_estimator_instance: Optional[CostEstimator] = None
 
 
 def process_extract_job(
@@ -383,17 +387,22 @@ def process_job(
 ) -> bool:
     """
     Process a single job.
-    
+
     Returns True if successful, False otherwise.
     """
     job_id = job["id"]
     op_type = job["operation_type"]
-    
+    case_id = job["case_id"] if "case_id" in job.keys() else None
+
     logger.info(f"Processing job {job_id}: {op_type} ({job['source_type']}:{job['source_id']})")
-    
+
     # Mark as processing
     update_job_status(conn, job_id, "processing")
-    
+
+    # v0.8: Update case progress if case_id present
+    if case_id and state_machine:
+        _update_case_progress(conn, case_id, op_type, job["source_id"])
+
     try:
         if op_type == "extract":
             result = process_extract_job(conn, job, provider, insight_store, case_store, timeline_store)
@@ -404,7 +413,7 @@ def process_job(
             result = {"success": False, "error": "Correlation not yet implemented"}
         else:
             result = {"success": False, "error": f"Unknown operation type: {op_type}"}
-        
+
         if result["success"]:
             notes = json.dumps({
                 "insights": result.get("insights_count", 0),
@@ -416,7 +425,26 @@ def process_job(
             update_job_status(conn, job_id, "complete", notes=notes, increment_pass=True)
             state.processed_count += 1
             state.add_cost(result.get("cost_cents", 0))
-            
+
+            # v0.8: Record actual cost and update progress
+            if case_id and cost_estimator_instance:
+                cost_usd = result.get("cost_cents", 0) / 100
+                cost_estimator_instance.record_actual_cost(case_id, cost_usd, op_type)
+
+                # Update progress with recent insight
+                recent_insight = None
+                if result.get("insights_count", 0) > 0:
+                    # Get the most recent insight for this case
+                    recent = conn.execute("""
+                        SELECT summary FROM insights
+                        WHERE case_id = ?
+                        ORDER BY created_at DESC LIMIT 1
+                    """, (case_id,)).fetchone()
+                    if recent:
+                        recent_insight = recent["summary"][:100]
+
+                _update_case_progress_complete(conn, case_id, op_type, recent_insight)
+
             logger.info(f"  ✓ Completed: {result.get('insights_count', 0)} insights, ${result.get('cost_cents', 0)/100:.4f}")
             return True
         else:
@@ -430,12 +458,79 @@ def process_job(
                 state.failed_count += 1
                 logger.error(f"  ✗ Failed (max retries): {result.get('error')}")
             return False
-            
+
     except Exception as e:
         logger.exception(f"  ✗ Exception processing job {job_id}")
         update_job_status(conn, job_id, "failed", notes=str(e), increment_pass=True)
         state.failed_count += 1
         return False
+
+
+def _update_case_progress(conn: sqlite3.Connection, case_id: str, stage: str, current_item: str):
+    """Update case progress when starting a job."""
+    now = datetime.utcnow().isoformat() + "Z"
+
+    # Get or create progress record
+    progress = conn.execute("""
+        SELECT id, completed_items, total_items FROM case_progress
+        WHERE case_id = ? AND stage = ?
+        ORDER BY updated_at DESC LIMIT 1
+    """, (case_id, stage)).fetchone()
+
+    if progress:
+        # Update existing progress
+        completed = progress["completed_items"] or 0
+        total = progress["total_items"] or 1
+        new_progress = min(completed / total, 0.99)  # Cap at 99% until complete
+
+        conn.execute("""
+            UPDATE case_progress
+            SET status = 'running', current_item = ?, progress = ?, updated_at = ?
+            WHERE id = ?
+        """, (current_item, new_progress, now, progress["id"]))
+    else:
+        # Get total items for this case/stage
+        if stage == "extract":
+            total = conn.execute("""
+                SELECT COUNT(*) FROM processing_queue
+                WHERE case_id = ? AND operation_type = 'extract'
+            """, (case_id,)).fetchone()[0]
+        else:
+            total = 1
+
+        # Create new progress record
+        from uuid import uuid4
+        conn.execute("""
+            INSERT INTO case_progress
+            (id, case_id, stage, status, total_items, completed_items, progress, current_item, created_at, updated_at)
+            VALUES (?, ?, ?, 'running', ?, 0, 0.0, ?, ?, ?)
+        """, (str(uuid4()), case_id, stage, total, current_item, now, now))
+
+    conn.commit()
+
+
+def _update_case_progress_complete(conn: sqlite3.Connection, case_id: str, stage: str, recent_insight: str = None):
+    """Update case progress when completing a job."""
+    now = datetime.utcnow().isoformat() + "Z"
+
+    progress = conn.execute("""
+        SELECT id, completed_items, total_items FROM case_progress
+        WHERE case_id = ? AND stage = ?
+        ORDER BY updated_at DESC LIMIT 1
+    """, (case_id, stage)).fetchone()
+
+    if progress:
+        completed = (progress["completed_items"] or 0) + 1
+        total = progress["total_items"] or 1
+        new_progress = min(completed / total, 1.0)
+        status = "complete" if completed >= total else "running"
+
+        conn.execute("""
+            UPDATE case_progress
+            SET status = ?, completed_items = ?, progress = ?, recent_insight = ?, updated_at = ?
+            WHERE id = ?
+        """, (status, completed, new_progress, recent_insight, now, progress["id"]))
+        conn.commit()
 
 
 # =============================================================================
@@ -466,11 +561,13 @@ def run_worker():
     logger.info("=" * 60)
     
     # Create stores
-    global synth_engine, case_store, timeline_store
+    global synth_engine, case_store, timeline_store, state_machine, cost_estimator_instance
     insight_store = InsightStore(WorkerConfig.DB_PATH)
     case_store = CaseStore(WorkerConfig.DB_PATH)
     timeline_store = TimelineStore(WorkerConfig.DB_PATH)
     synth_engine = SynthEngine(WorkerConfig.DB_PATH, insight_store)
+    state_machine = CaseStateMachine(WorkerConfig.DB_PATH)
+    cost_estimator_instance = CostEstimator(WorkerConfig.DB_PATH)
     
     while state.running:
         # Check budget

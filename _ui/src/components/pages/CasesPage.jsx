@@ -1,4 +1,4 @@
-import { useState, useEffect, forwardRef } from 'react'
+import { useState, useEffect, useCallback, forwardRef } from 'react'
 import { Virtuoso, GroupedVirtuoso } from 'react-virtuoso'
 import {
   Plus,
@@ -14,11 +14,26 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  Play,
+  Terminal,
 } from 'lucide-react'
 import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StatusBadge } from '@/components/ui/status-badge'
-import { getCases, createCase, deleteCase, getCaseTimeline, getCaseFindings, updateFinding } from '../../lib/api'
+import { Badge } from '@/components/ui/badge'
+import CaseTerminal from '@/components/case/CaseTerminal'
+import CostWarningDialog from '@/components/case/CostWarningDialog'
+import {
+  getCases,
+  createCase,
+  deleteCase,
+  getCaseTimeline,
+  getCaseFindings,
+  updateFinding,
+  getCase,
+  getCaseCostEstimate,
+  startCaseProcessing,
+} from '../../lib/api'
 import { VIRTUOSO_CONFIG, GROUPED_VIRTUOSO_CONFIG, groupEventsByDate } from '../../lib/virtualization'
 
 // Case Card Component
@@ -258,8 +273,29 @@ function CreateCaseModal({ isOpen, onClose, onCreate }) {
   )
 }
 
+// Case State Badge Component
+function CaseStateBadge({ state }) {
+  const stateConfig = {
+    uploading: { label: 'Uploading', className: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+    scanning: { label: 'Scanning', className: 'bg-teal-500/20 text-teal-400 border-teal-500/30' },
+    clarifying: { label: 'Needs Input', className: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+    processing: { label: 'Processing', className: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+    complete: { label: 'Complete', className: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+    watching: { label: 'Watching', className: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
+  }
+
+  const config = stateConfig[state] || { label: state, className: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30' }
+
+  return (
+    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${config.className}`}>
+      {config.label}
+    </span>
+  )
+}
+
 // Case Detail View
-function CaseDetail({ caseData, onBack }) {
+function CaseDetail({ caseData: initialCaseData, onBack }) {
+  const [caseData, setCaseData] = useState(initialCaseData)
   const [timeline, setTimeline] = useState([])
   const [findings, setFindings] = useState([])
   const [loadingTimeline, setLoadingTimeline] = useState(true)
@@ -267,10 +303,45 @@ function CaseDetail({ caseData, onBack }) {
   const [updatingFinding, setUpdatingFinding] = useState({})
   const [activeTab, setActiveTab] = useState('findings')
 
+  // v0.8: New state for workflow
+  const [caseState, setCaseState] = useState(initialCaseData.state || 'complete')
+  const [costEstimate, setCostEstimate] = useState(null)
+  const [showCostDialog, setShowCostDialog] = useState(false)
+  const [isStartingProcessing, setIsStartingProcessing] = useState(false)
+  const [showTerminal, setShowTerminal] = useState(false)
+
+  // Determine if terminal should be visible
+  const terminalVisible = showTerminal || ['scanning', 'processing'].includes(caseState)
+
+  // Poll case state for active cases
+  const pollCaseState = useCallback(async () => {
+    try {
+      const response = await getCase(caseData.id)
+      if (response.success && response.data) {
+        setCaseData(response.data)
+        setCaseState(response.data.state || 'complete')
+      }
+    } catch (err) {
+      console.error('Failed to poll case state:', err)
+    }
+  }, [caseData.id])
+
   useEffect(() => {
     loadTimeline()
     loadFindings()
-  }, [caseData.id])
+
+    // v0.8: Start polling if case is active
+    const isActive = ['uploading', 'scanning', 'clarifying', 'processing'].includes(caseState)
+    let pollInterval = null
+
+    if (isActive) {
+      pollInterval = setInterval(pollCaseState, 5000)
+    }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval)
+    }
+  }, [caseData.id, caseState, pollCaseState])
 
   async function loadTimeline() {
     try {
@@ -309,6 +380,41 @@ function CaseDetail({ caseData, onBack }) {
     }
   }
 
+  // v0.8: Handler for starting processing
+  async function handleStartProcessing() {
+    try {
+      // Get cost estimate first
+      const estimateResponse = await getCaseCostEstimate(caseData.id)
+      if (estimateResponse.success) {
+        setCostEstimate(estimateResponse.data)
+        setShowCostDialog(true)
+      }
+    } catch (err) {
+      console.error('Failed to get cost estimate:', err)
+      alert('Failed to get cost estimate: ' + err.message)
+    }
+  }
+
+  // v0.8: Handler for confirming processing start
+  async function handleConfirmProcessing() {
+    setIsStartingProcessing(true)
+    try {
+      const response = await startCaseProcessing(caseData.id, true)
+      if (response.success) {
+        setCaseState('processing')
+        setShowCostDialog(false)
+        setShowTerminal(true)
+        // Refresh case data
+        pollCaseState()
+      }
+    } catch (err) {
+      console.error('Failed to start processing:', err)
+      alert('Failed to start processing: ' + err.message)
+    } finally {
+      setIsStartingProcessing(false)
+    }
+  }
+
   const eventIcons = {
     case_created: FolderOpen,
     doc_added: FileText,
@@ -321,9 +427,9 @@ function CaseDetail({ caseData, onBack }) {
   const needsVerificationCount = findings.filter(f => f.status === 'needs_verification').length
 
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between mb-4">
         <div>
           <button
             onClick={onBack}
@@ -336,18 +442,40 @@ function CaseDetail({ caseData, onBack }) {
             <p className="text-muted-foreground mt-1">{caseData.context}</p>
           )}
         </div>
-        <span className={`px-3 py-1 rounded text-sm font-medium ${
-          caseData.status === 'active'
-            ? 'bg-emerald-500/20 text-emerald-400'
-            : 'bg-zinc-500/20 text-zinc-400'
-        }`}>
-          {caseData.status}
-        </span>
+        <div className="flex items-center gap-2">
+          {/* Terminal toggle */}
+          <button
+            onClick={() => setShowTerminal(!showTerminal)}
+            className={`p-2 rounded-md transition-colors ${
+              terminalVisible
+                ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+            title={terminalVisible ? 'Hide terminal' : 'Show terminal'}
+          >
+            <Terminal size={18} />
+          </button>
+
+          {/* Start Processing button - show in clarifying state */}
+          {caseState === 'clarifying' && (
+            <button
+              onClick={handleStartProcessing}
+              className="px-3 py-1.5 bg-orange-mid text-background rounded-md text-sm font-medium hover:bg-orange-light transition-colors flex items-center gap-2"
+            >
+              <Play size={14} />
+              Start Analysis
+            </button>
+          )}
+
+          {/* State badges */}
+          <CaseStateBadge state={caseState} />
+          <StatusBadge status={caseData.status} />
+        </div>
       </div>
 
       {/* Focus Areas */}
       {caseData.focus_areas && caseData.focus_areas.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 mb-4">
           {caseData.focus_areas.map((area, i) => (
             <span
               key={i}
@@ -359,218 +487,243 @@ function CaseDetail({ caseData, onBack }) {
         </div>
       )}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-3xl font-bold text-foreground">{caseData.document_count || 0}</div>
-          <div className="text-sm text-muted-foreground">Documents</div>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-3xl font-bold text-foreground">{findings.length}</div>
-          <div className="text-sm text-muted-foreground">Findings</div>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-3xl font-bold text-emerald-400">{verifiedCount}</div>
-          <div className="text-sm text-muted-foreground">Verified</div>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-3xl font-bold text-amber-400">{needsVerificationCount}</div>
-          <div className="text-sm text-muted-foreground">To Review</div>
-        </div>
-      </div>
+      {/* Split Screen Layout */}
+      <div className={`flex-1 grid gap-4 min-h-0 ${terminalVisible ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        {/* Left: Terminal Monitor (when visible) */}
+        {terminalVisible && (
+          <div className="min-h-[400px]">
+            <CaseTerminal caseId={caseData.id} caseState={caseState} />
+          </div>
+        )}
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-border">
-        <button
-          onClick={() => setActiveTab('findings')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'findings'
-              ? 'border-orange-light text-orange-light'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Lightbulb className="w-4 h-4 inline mr-2" />
-          Findings ({findings.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('timeline')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'timeline'
-              ? 'border-orange-light text-orange-light'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Clock className="w-4 h-4 inline mr-2" />
-          Timeline ({timeline.length})
-        </button>
-      </div>
+        {/* Right: Case Details */}
+        <div className="flex flex-col space-y-4 overflow-hidden">
+          {/* Stats Grid */}
+          <div className="grid grid-cols-4 gap-3">
+            <div className="bg-card border border-border rounded-lg p-3">
+              <div className="text-2xl font-bold text-foreground">{caseData.document_count || 0}</div>
+              <div className="text-xs text-muted-foreground">Documents</div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-3">
+              <div className="text-2xl font-bold text-foreground">{findings.length}</div>
+              <div className="text-xs text-muted-foreground">Findings</div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-3">
+              <div className="text-2xl font-bold text-emerald-400">{verifiedCount}</div>
+              <div className="text-xs text-muted-foreground">Verified</div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-3">
+              <div className="text-2xl font-bold text-amber-400">{needsVerificationCount}</div>
+              <div className="text-xs text-muted-foreground">To Review</div>
+            </div>
+          </div>
 
-      {/* Findings Tab */}
-      {activeTab === 'findings' && (
-        <div className="bg-card border border-border rounded-lg p-6">
-          {loadingFindings ? (
-            <LoadingState message="Loading findings..." />
-          ) : findings.length === 0 ? (
-            <EmptyState
-              icon={Lightbulb}
-              title="No findings yet"
-              description="Upload documents and extract insights, then promote them to findings."
-            />
-          ) : (
-            <div style={{ height: 'calc(100vh - 500px)', minHeight: '300px' }}>
-              <Virtuoso
-                data={findings}
-                {...VIRTUOSO_CONFIG}
-                itemContent={(index, finding) => (
-                  <div className="pb-3">
-                    <div
-                      className={`p-4 rounded-lg border transition-all ${
-                        finding.status === 'verified'
-                          ? 'border-emerald-500/30 bg-emerald-500/5'
-                          : finding.status === 'rejected'
-                          ? 'border-red-500/30 bg-red-500/5 opacity-60'
-                          : 'border-border'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="font-medium text-foreground">
-                              {finding.insight?.title || finding.insight?.claim || 'Untitled Finding'}
-                            </div>
-                            <StatusBadge status={finding.status} />
-                          </div>
+          {/* Tabs */}
+          <div className="flex gap-2 border-b border-border">
+            <button
+              onClick={() => setActiveTab('findings')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'findings'
+                  ? 'border-orange-light text-orange-light'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Lightbulb className="w-4 h-4 inline mr-2" />
+              Findings ({findings.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('timeline')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'timeline'
+                  ? 'border-orange-light text-orange-light'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Clock className="w-4 h-4 inline mr-2" />
+              Timeline ({timeline.length})
+            </button>
+          </div>
 
-                          {finding.insight?.excerpt && (
-                            <div className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                              {finding.insight.excerpt}
-                            </div>
-                          )}
-
-                          {finding.tags && finding.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mb-3">
-                              {finding.tags.map((tag, i) => (
-                                <span key={i} className="px-2 py-0.5 bg-muted text-xs rounded">
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {finding.user_notes && (
-                            <div className="text-sm text-orange-light italic mb-3">
-                              Note: {finding.user_notes}
-                            </div>
-                          )}
-
-                          <div className="flex items-center justify-between">
-                            <div className="text-xs text-muted-foreground">
-                              Added {new Date(finding.created_at).toLocaleDateString()}
-                              {finding.verified_at && (
-                                <> • Verified {new Date(finding.verified_at).toLocaleDateString()}</>
-                              )}
-                            </div>
-
-                            {finding.status !== 'rejected' && (
-                              <div className="flex gap-2">
-                                {finding.status !== 'verified' && (
-                                  <button
-                                    onClick={() => handleUpdateFindingStatus(finding.id, 'verified')}
-                                    disabled={updatingFinding[finding.id]}
-                                    className="px-3 py-1 text-xs bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/30 transition-colors flex items-center gap-1 disabled:opacity-50"
-                                  >
-                                    {updatingFinding[finding.id] ? (
-                                      <Loader2 className="w-3 h-3 animate-spin" />
-                                    ) : (
-                                      <CheckCircle className="w-3 h-3" />
-                                    )}
-                                    Verify
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleUpdateFindingStatus(finding.id, 'rejected')}
-                                  disabled={updatingFinding[finding.id]}
-                                  className="px-3 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors flex items-center gap-1 disabled:opacity-50"
-                                >
-                                  <XCircle className="w-3 h-3" />
-                                  Reject
-                                </button>
+          {/* Findings Tab */}
+          {activeTab === 'findings' && (
+            <div className="bg-card border border-border rounded-lg p-6 flex-1 overflow-hidden">
+              {loadingFindings ? (
+                <LoadingState message="Loading findings..." />
+              ) : findings.length === 0 ? (
+                <EmptyState
+                  icon={Lightbulb}
+                  title="No findings yet"
+                  description="Upload documents and extract insights, then promote them to findings."
+                />
+              ) : (
+                <div className="h-full min-h-[250px]">
+                  <Virtuoso
+                    data={findings}
+                    {...VIRTUOSO_CONFIG}
+                    itemContent={(index, finding) => (
+                      <div className="pb-3">
+                        <div
+                          className={`p-4 rounded-lg border transition-all ${
+                            finding.status === 'verified'
+                              ? 'border-emerald-500/30 bg-emerald-500/5'
+                              : finding.status === 'rejected'
+                              ? 'border-red-500/30 bg-red-500/5 opacity-60'
+                              : 'border-border'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="font-medium text-foreground">
+                                  {finding.insight?.title || finding.insight?.claim || 'Untitled Finding'}
+                                </div>
+                                <StatusBadge status={finding.status} />
                               </div>
-                            )}
+
+                              {finding.insight?.excerpt && (
+                                <div className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                                  {finding.insight.excerpt}
+                                </div>
+                              )}
+
+                              {finding.tags && finding.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mb-3">
+                                  {finding.tags.map((tag, i) => (
+                                    <span key={i} className="px-2 py-0.5 bg-muted text-xs rounded">
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {finding.user_notes && (
+                                <div className="text-sm text-orange-light italic mb-3">
+                                  Note: {finding.user_notes}
+                                </div>
+                              )}
+
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs text-muted-foreground">
+                                  Added {new Date(finding.created_at).toLocaleDateString()}
+                                  {finding.verified_at && (
+                                    <> • Verified {new Date(finding.verified_at).toLocaleDateString()}</>
+                                  )}
+                                </div>
+
+                                {finding.status !== 'rejected' && (
+                                  <div className="flex gap-2">
+                                    {finding.status !== 'verified' && (
+                                      <button
+                                        onClick={() => handleUpdateFindingStatus(finding.id, 'verified')}
+                                        disabled={updatingFinding[finding.id]}
+                                        className="px-3 py-1 text-xs bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/30 transition-colors flex items-center gap-1 disabled:opacity-50"
+                                      >
+                                        {updatingFinding[finding.id] ? (
+                                          <Loader2 className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                          <CheckCircle className="w-3 h-3" />
+                                        )}
+                                        Verify
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleUpdateFindingStatus(finding.id, 'rejected')}
+                                      disabled={updatingFinding[finding.id]}
+                                      className="px-3 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      <XCircle className="w-3 h-3" />
+                                      Reject
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                )}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Timeline Tab */}
-      {activeTab === 'timeline' && (
-        <div className="bg-card border border-border rounded-lg p-6">
-          {loadingTimeline ? (
-            <LoadingState message="Loading timeline..." />
-          ) : timeline.length === 0 ? (
-            <EmptyState
-              icon={Clock}
-              title="No events yet"
-              description="Timeline events will appear as you work with this case."
-            />
-          ) : (
-            <div style={{ height: 'calc(100vh - 500px)', minHeight: '300px' }}>
-              {(() => {
-                const groupedTimeline = groupEventsByDate(timeline)
-                const flatEvents = groupedTimeline.flatMap(g => g.events)
-                return (
-                  <GroupedVirtuoso
-                    groupCounts={groupedTimeline.map(g => g.events.length)}
-                    {...GROUPED_VIRTUOSO_CONFIG}
-                    groupContent={(index) => {
-                      const group = groupedTimeline[index]
-                      return (
-                        <div className="sticky top-0 bg-card/95 backdrop-blur-sm py-2 px-4 border-b border-border z-10">
-                          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                            <Clock className="w-4 h-4" />
-                            {group.date}
-                          </div>
-                        </div>
-                      )
-                    }}
-                    itemContent={(index) => {
-                      const event = flatEvents[index]
-                      const Icon = eventIcons[event.event_type] || Clock
-                      return (
-                        <div className="py-2 px-4">
-                          <div className="flex gap-3">
-                            <div className="flex-shrink-0 w-8 h-8 bg-orange-mid/10 rounded-full flex items-center justify-center">
-                              <Icon className="w-4 h-4 text-orange-light" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm text-foreground">{event.description}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {new Date(event.timestamp).toLocaleString()}
-                              </div>
-                              {event.human_annotation && (
-                                <div className="mt-1 text-xs text-orange-light italic">
-                                  Note: {event.human_annotation}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    }}
+                    )}
                   />
-                )
-              })()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Timeline Tab */}
+          {activeTab === 'timeline' && (
+            <div className="bg-card border border-border rounded-lg p-6 flex-1 overflow-hidden">
+              {loadingTimeline ? (
+                <LoadingState message="Loading timeline..." />
+              ) : timeline.length === 0 ? (
+                <EmptyState
+                  icon={Clock}
+                  title="No events yet"
+                  description="Timeline events will appear as you work with this case."
+                />
+              ) : (
+                <div className="h-full min-h-[250px]">
+                  {(() => {
+                    const groupedTimeline = groupEventsByDate(timeline)
+                    const flatEvents = groupedTimeline.flatMap(g => g.events)
+                    return (
+                      <GroupedVirtuoso
+                        groupCounts={groupedTimeline.map(g => g.events.length)}
+                        {...GROUPED_VIRTUOSO_CONFIG}
+                        groupContent={(index) => {
+                          const group = groupedTimeline[index]
+                          return (
+                            <div className="sticky top-0 bg-card/95 backdrop-blur-sm py-2 px-4 border-b border-border z-10">
+                              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                <Clock className="w-4 h-4" />
+                                {group.date}
+                              </div>
+                            </div>
+                          )
+                        }}
+                        itemContent={(index) => {
+                          const event = flatEvents[index]
+                          const Icon = eventIcons[event.event_type] || Clock
+                          return (
+                            <div className="py-2 px-4">
+                              <div className="flex gap-3">
+                                <div className="flex-shrink-0 w-8 h-8 bg-orange-mid/10 rounded-full flex items-center justify-center">
+                                  <Icon className="w-4 h-4 text-orange-light" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm text-foreground">{event.description}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {new Date(event.timestamp).toLocaleString()}
+                                  </div>
+                                  {event.human_annotation && (
+                                    <div className="mt-1 text-xs text-orange-light italic">
+                                      Note: {event.human_annotation}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        }}
+                      />
+                    )
+                  })()}
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+        {/* End Right Panel */}
+      </div>
+      {/* End Split Screen Layout */}
+
+      {/* Cost Warning Dialog */}
+      <CostWarningDialog
+        open={showCostDialog}
+        onOpenChange={setShowCostDialog}
+        onConfirm={handleConfirmProcessing}
+        onCancel={() => setShowCostDialog(false)}
+        estimate={costEstimate}
+        isLoading={isStartingProcessing}
+      />
     </div>
   )
 }

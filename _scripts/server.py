@@ -53,6 +53,8 @@ from recog_engine import (
     CritiqueEngine,
     StrictnessLevel,
 )
+from recog_engine.state_machine import CaseStateMachine
+from recog_engine.cost_estimator import CostEstimator
 from recog_engine.core.providers import (
     create_provider,
     get_available_providers,
@@ -120,6 +122,10 @@ critique_engine = CritiqueEngine(Config.DB_PATH, StrictnessLevel.STANDARD)
 case_store = CaseStore(Config.DB_PATH)
 findings_store = FindingsStore(Config.DB_PATH)
 timeline_store = TimelineStore(Config.DB_PATH)
+
+# Workflow state machine (v0.8)
+state_machine = CaseStateMachine(Config.DB_PATH)
+cost_estimator = CostEstimator(Config.DB_PATH)
 
 # Load entity blacklist into tier0 module at startup
 try:
@@ -199,10 +205,11 @@ def info():
     """Server info endpoint."""
     return api_response({
         "name": "ReCog Server",
-        "version": "0.7.0",
+        "version": "0.8.0",
         "endpoints": [
             "/api/health",
             "/api/upload",
+            "/api/upload/batch",
             "/api/detect",
             "/api/tier0",
             "/api/extract",
@@ -248,6 +255,9 @@ def info():
             "/api/cases/<id>/documents",
             "/api/cases/<id>/stats",
             "/api/cases/<id>/context",
+            "/api/cases/<id>/progress",
+            "/api/cases/<id>/estimate",
+            "/api/cases/<id>/start-processing",
             "/api/cases/<id>/findings",
             "/api/cases/<id>/findings/auto-promote",
             "/api/cases/<id>/findings/stats",
@@ -259,6 +269,8 @@ def info():
             "/api/findings/<id>",
             "/api/findings/<id>/note",
             "/api/timeline/<id>/annotate",
+            "/api/cypher/message",
+            "/api/extraction/status/<case_id>",
         ],
     })
 
@@ -302,35 +314,39 @@ def detect_format():
 @app.route("/api/upload", methods=["POST"])
 def upload_file():
     """
-    Upload file and create preflight session.
-    
+    Upload file and create preflight session with auto-progression.
+
     Accepts multipart form data:
         - file: The file to upload
         - case_id: Optional case UUID to link for context injection
-    
-    Returns preflight session ID for review workflow.
+        - auto_process: Optional bool to enable auto-progression (default: true)
+
+    Returns preflight session ID and case state for workflow.
+
+    v0.8: Auto-creates case if none provided, transitions to scanning state.
     """
     if "file" not in request.files:
         return api_response(error="No file provided", status=400)
-    
+
     file = request.files["file"]
     if file.filename == "":
         return api_response(error="No file selected", status=400)
-    
+
     # Get optional case_id from form data
     case_id = request.form.get("case_id")
-    
+    auto_process = request.form.get("auto_process", "true").lower() != "false"
+
     # Save file
     filename = secure_filename(file.filename)
     file_id = uuid4().hex[:8]
     saved_path = Config.UPLOAD_DIR / f"{file_id}_{filename}"
     file.save(str(saved_path))
-    
+
     logger.info(f"Uploaded: {saved_path}" + (f" (case: {case_id})" if case_id else ""))
-    
+
     # Detect format
     detection = detect_file(str(saved_path))
-    
+
     if not detection.supported:
         return api_response({
             "uploaded": True,
@@ -340,18 +356,29 @@ def upload_file():
             "message": detection.action_message,
             "suggestions": detection.suggestions,
         })
-    
+
     # Create preflight session with optional case link
     try:
+        # v0.8: Auto-create case if not provided
+        case_created = False
+        if not case_id and auto_process:
+            case = case_store.create_case(
+                title=f"Analysis {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
+                context="",
+            )
+            case_id = case.id
+            case_created = True
+            logger.info(f"Auto-created case {case_id}")
+
         session_id = preflight_manager.create_session(
             session_type="single_file",
             source_files=[str(saved_path)],
             case_id=case_id,
         )
-        
+
         # Ingest and add to preflight
         documents = ingest_file(str(saved_path))
-        
+
         for doc in documents:
             preflight_manager.add_item(
                 session_id=session_id,
@@ -360,16 +387,43 @@ def upload_file():
                 source_id=doc.id,
                 title=doc.metadata.get("title", filename) if doc.metadata else filename,
             )
-        
-        # Scan session
+
+        # Scan session (runs Tier 0)
         scan_result = preflight_manager.scan_session(session_id)
-        
+
+        # v0.8: Transition case state after Tier 0 completes
+        case_state = None
+        if case_id and auto_process:
+            # Tier 0 is complete, advance from uploading -> scanning -> next
+            state_machine.transition_to(case_id, "scanning")
+
+            # Determine next state based on unknown entities
+            if scan_result["unknown_entities"] > 0:
+                state_machine.advance_case(case_id, {
+                    "tier0_complete": True,
+                    "unknown_entities": True
+                })
+                case_state = "clarifying"
+            else:
+                state_machine.advance_case(case_id, {
+                    "tier0_complete": True,
+                    "unknown_entities": False
+                })
+                case_state = "processing"
+
+            # Update estimated cost on case
+            estimate = cost_estimator.estimate_extraction_cost(case_id)
+            cost_estimator.update_estimated_cost(case_id, estimate["estimated_cost_usd"])
+
         return api_response({
             "uploaded": True,
             "file_id": file_id,
             "filename": filename,
             "supported": True,
             "preflight_session_id": session_id,
+            "case_id": case_id,
+            "case_created": case_created,
+            "case_state": case_state,
             "items": scan_result["item_count"],
             "words": scan_result["total_words"],
             "entities": scan_result["total_entities"],
@@ -377,7 +431,7 @@ def upload_file():
             "estimated_cost_cents": scan_result["estimated_cost_cents"],
             "questions": scan_result["questions"][:5],
         })
-    
+
     except Exception as e:
         logger.error(f"Upload processing error: {e}")
         return api_response(error=str(e), status=500)
@@ -386,13 +440,16 @@ def upload_file():
 @app.route("/api/upload/batch", methods=["POST"])
 def upload_batch():
     """
-    Upload multiple files into a single preflight session.
+    Upload multiple files into a single preflight session with auto-progression.
 
     Accepts multipart form data with multiple files:
         - files: Multiple files to upload
         - case_id: Optional case UUID to link for context injection
+        - auto_process: Optional bool to enable auto-progression (default: true)
 
     Returns preflight session ID with all items for review.
+
+    v0.8: Auto-creates case if none provided, transitions to scanning state.
     """
     if "files" not in request.files:
         return api_response(error="No files provided", status=400)
@@ -403,6 +460,7 @@ def upload_batch():
 
     # Get optional case_id from form data
     case_id = request.form.get("case_id")
+    auto_process = request.form.get("auto_process", "true").lower() != "false"
 
     # Save all files first
     saved_files = []
@@ -426,6 +484,17 @@ def upload_batch():
 
     # Create ONE preflight session for all files
     try:
+        # v0.8: Auto-create case if not provided
+        case_created = False
+        if not case_id and auto_process:
+            case = case_store.create_case(
+                title=f"Analysis {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
+                context="",
+            )
+            case_id = case.id
+            case_created = True
+            logger.info(f"Auto-created case {case_id}")
+
         session_id = preflight_manager.create_session(
             session_type="batch",
             source_files=[str(f["path"]) for f in saved_files],
@@ -478,13 +547,40 @@ def upload_batch():
                     "error": str(e),
                 })
 
-        # Scan session
+        # Scan session (runs Tier 0)
         scan_result = preflight_manager.scan_session(session_id)
+
+        # v0.8: Transition case state after Tier 0 completes
+        case_state = None
+        if case_id and auto_process:
+            # Tier 0 is complete, advance from uploading -> scanning -> next
+            state_machine.transition_to(case_id, "scanning")
+
+            # Determine next state based on unknown entities
+            if scan_result["unknown_entities"] > 0:
+                state_machine.advance_case(case_id, {
+                    "tier0_complete": True,
+                    "unknown_entities": True
+                })
+                case_state = "clarifying"
+            else:
+                state_machine.advance_case(case_id, {
+                    "tier0_complete": True,
+                    "unknown_entities": False
+                })
+                case_state = "processing"
+
+            # Update estimated cost on case
+            estimate = cost_estimator.estimate_extraction_cost(case_id)
+            cost_estimator.update_estimated_cost(case_id, estimate["estimated_cost_usd"])
 
         return api_response({
             "uploaded": True,
             "file_count": len(saved_files),
             "preflight_session_id": session_id,
+            "case_id": case_id,
+            "case_created": case_created,
+            "case_state": case_state,
             "items": scan_result["item_count"],
             "words": scan_result["total_words"],
             "entities": scan_result["total_entities"],
@@ -2982,6 +3078,137 @@ def get_case_activity(case_id: str):
         "case_id": case_id,
         "recent_activity": activity,
     })
+
+
+# =============================================================================
+# CASE PROGRESS & COST ESTIMATION (v0.8)
+# =============================================================================
+
+@app.route("/api/cases/<case_id>/progress", methods=["GET"])
+def get_case_progress(case_id: str):
+    """
+    Get real-time progress for case processing.
+
+    Returns:
+        - stage: Current processing stage (tier0, extraction, synthesis)
+        - status: Stage status (pending, running, complete, failed)
+        - progress: 0.0-1.0 completion percentage
+        - current_item: What's being processed
+        - total_items: Total items to process
+        - completed_items: Items done
+        - recent_insight: Latest discovery for terminal display
+        - top_insights: Top 5 insights by significance
+    """
+    # Get case to verify it exists
+    case = case_store.get_case(case_id)
+    if not case:
+        return api_response(error="Case not found", status=404)
+
+    # Get progress from state machine
+    progress = state_machine.get_case_progress(case_id)
+
+    # Get top insights for this case
+    conn = _get_db_connection()
+    try:
+        top_insights = conn.execute("""
+            SELECT id, summary, significance, confidence
+            FROM insights
+            WHERE case_id = ?
+            ORDER BY significance DESC
+            LIMIT 5
+        """, (case_id,)).fetchall()
+
+        progress["top_insights"] = [
+            {
+                "id": row["id"],
+                "content": row["summary"],
+                "significance": row["significance"],
+                "confidence": row["confidence"],
+            }
+            for row in top_insights
+        ]
+    finally:
+        conn.close()
+
+    # Add case state
+    progress["case_state"] = case.status if hasattr(case, 'status') else state_machine.get_case_state(case_id)
+
+    return api_response(progress)
+
+
+@app.route("/api/cases/<case_id>/estimate", methods=["GET"])
+def get_case_cost_estimate(case_id: str):
+    """
+    Get cost estimate for case processing.
+
+    Query params:
+        - model: Optional model override (default: gpt-4o-mini)
+
+    Returns:
+        - extraction: Extraction cost breakdown
+        - synthesis: Synthesis cost breakdown
+        - total_tokens: Combined token estimate
+        - total_cost_usd: Combined cost in USD
+    """
+    case = case_store.get_case(case_id)
+    if not case:
+        return api_response(error="Case not found", status=404)
+
+    model = request.args.get("model")
+    estimate = cost_estimator.estimate_total_cost(case_id, model)
+
+    return api_response({
+        "case_id": case_id,
+        **estimate
+    })
+
+
+@app.route("/api/cases/<case_id>/start-processing", methods=["POST"])
+def start_case_processing(case_id: str):
+    """
+    Manually start processing for a case in 'clarifying' state.
+
+    This allows the user to confirm cost and begin extraction/synthesis
+    after entity clarification is complete.
+
+    Body: {
+        "confirm_cost": true  # Required to acknowledge cost
+    }
+    """
+    case = case_store.get_case(case_id)
+    if not case:
+        return api_response(error="Case not found", status=404)
+
+    current_state = state_machine.get_case_state(case_id)
+    if current_state not in ("clarifying", "complete"):
+        return api_response(
+            error=f"Cannot start processing from state: {current_state}",
+            status=400
+        )
+
+    data = request.get_json() or {}
+    if not data.get("confirm_cost"):
+        # Return cost estimate for confirmation
+        estimate = cost_estimator.estimate_extraction_cost(case_id)
+        return api_response({
+            "requires_confirmation": True,
+            "estimated_cost_usd": estimate["estimated_cost_usd"],
+            "document_count": estimate["document_count"],
+            "message": "Set confirm_cost: true to proceed"
+        })
+
+    # Transition to processing
+    success = state_machine.transition_to(case_id, "processing")
+
+    if success:
+        return api_response({
+            "started": True,
+            "case_id": case_id,
+            "state": "processing",
+            "message": "Processing started. Watch progress via /api/cases/<id>/progress"
+        })
+
+    return api_response(error="Failed to start processing", status=500)
 
 
 # =============================================================================

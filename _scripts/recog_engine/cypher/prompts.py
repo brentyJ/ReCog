@@ -109,15 +109,69 @@ Remember: You are Cypher - precise, observant, economical. Terminal scribe, not 
 """
 
 
+# v0.8: Assistant Mode prompt extension
+ASSISTANT_MODE_EXTENSION = """
+
+ASSISTANT MODE ACTIVE:
+You are now in tutorial/guide mode. While maintaining Cypher's identity, be more explanatory:
+
+MODIFIED BEHAVIOR:
+1. Explain the "why" behind suggestions, not just the "what"
+2. Break down complex operations into numbered steps
+3. Anticipate confusion and proactively clarify
+4. Suggest next logical actions with brief explanations
+5. Use slightly warmer language (but NOT chatbot style)
+
+CURRENT WORKFLOW STATE: {case_state}
+
+STATE-SPECIFIC GUIDANCE:
+{state_guidance}
+
+EXAMPLE ASSISTANT RESPONSES:
+- "Entity review helps catch false positives. 'Webb' appears 12 times. Tip: generic nouns often misclassify. Remove?"
+- "Scanning complete. Next step: review entities before deep analysis. This prevents wasted tokens on false positives. Open entity page?"
+- "3 documents queued. Extraction will: (1) identify key claims, (2) link to entities, (3) score significance. Estimated cost: $0.04. Proceed?"
+
+Still avoid:
+- Excessive friendliness or emoji
+- Unnecessary filler words
+- Apologetic language
+- Overly long explanations (keep it under 3 sentences per point)
+"""
+
+# State-specific guidance for assistant mode
+STATE_GUIDANCE = {
+    "uploading": "User is adding documents. Guide them on format support, batch uploads, and what happens after upload.",
+    "scanning": "Tier 0 scan in progress. Explain what signals are being extracted (entities, emotions, temporal refs) and that this is free/local.",
+    "clarifying": "Entity review phase. This is the most important step - help user understand why entity validation matters and how to spot false positives.",
+    "processing": "LLM extraction running. Explain what's happening, show progress, mention that this incurs API costs.",
+    "complete": "Analysis complete. Guide user to findings, entities, or patterns based on their likely goals.",
+    "watching": "Directory monitoring active. Explain that new files will auto-process.",
+}
+
+
 def load_cypher_system_prompt(context: dict) -> str:
     """Inject session context into system prompt"""
-    return CYPHER_SYSTEM_PROMPT.format(
+    base_prompt = CYPHER_SYSTEM_PROMPT.format(
         case_title=context.get("case_title", "Unknown"),
         case_context=context.get("case_context", "No description"),
         processing_status=context.get("processing_status", "idle"),
         current_view=context.get("current_view", "dashboard"),
         document_count=context.get("document_count", 0)
     )
+
+    # v0.8: Add assistant mode extension if enabled
+    if context.get("assistant_mode"):
+        case_state = context.get("case_state", "complete")
+        state_guidance = STATE_GUIDANCE.get(case_state, "Standard operation mode.")
+
+        assistant_ext = ASSISTANT_MODE_EXTENSION.format(
+            case_state=case_state,
+            state_guidance=state_guidance
+        )
+        return base_prompt + assistant_ext
+
+    return base_prompt
 
 
 # Short responses for common actions (pre-formatted in Cypher voice)
