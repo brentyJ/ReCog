@@ -37,3 +37,6 @@ _private/
 
 # Claude Code local config
 .claude/
+
+# Claude Code temp files
+tmpclaude-*
