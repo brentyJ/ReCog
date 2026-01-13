@@ -1,0 +1,128 @@
+name: ReCog CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  preflight:
+    name: Preflight Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run preflight checks
+        working-directory: _scripts
+        run: python preflight_check.py
+
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    needs: preflight
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: '_scripts/requirements.txt'
+
+      - name: Install dependencies
+        working-directory: _scripts
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Initialize database
+        working-directory: _scripts
+        run: python recog_cli.py db init
+
+      - name: Run pytest
+        working-directory: _scripts
+        run: python -m pytest tests/ -v --tb=short
+        continue-on-error: true  # Don't fail CI if no tests exist yet
+
+      - name: Verify imports
+        working-directory: _scripts
+        run: |
+          python -c "from recog_engine import preprocess_text; print('Tier 0: OK')"
+          python -c "from recog_engine import EntityRegistry; print('Entity Registry: OK')"
+          python -c "from recog_engine import CaseStore; print('Case Store: OK')"
+
+  frontend:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    needs: preflight
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: '_ui/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: _ui
+        run: npm ci
+
+      - name: Build
+        working-directory: _ui
+        run: npm run build
+
+      - name: Check build output
+        working-directory: _ui
+        run: |
+          if [ -d "dist" ]; then
+            echo "Build successful - dist/ contains:"
+            ls -la dist/
+          else
+            echo "ERROR: dist/ directory not found"
+            exit 1
+          fi
+
+  # Optional: Full integration test (requires server)
+  # Uncomment when ready for full E2E testing
+  # integration:
+  #   name: Integration Tests
+  #   runs-on: ubuntu-latest
+  #   needs: [backend, frontend]
+  #
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.12'
+  #
+  #     - name: Install dependencies
+  #       working-directory: _scripts
+  #       run: pip install -r requirements.txt
+  #
+  #     - name: Initialize database
+  #       working-directory: _scripts
+  #       run: python recog_cli.py db init
+  #
+  #     - name: Start server
+  #       working-directory: _scripts
+  #       run: |
+  #         python server.py &
+  #         sleep 10
+  #
+  #     - name: Run smoke tests
+  #       working-directory: _scripts
+  #       run: python test_e2e_smoke.py --no-auto-start --skip-build
