@@ -1,6 +1,6 @@
 # RECOG INSTRUCTIONS
 
-*Last updated: 2026-01-10*
+*Last updated: 2026-01-13*
 
 ---
 
@@ -377,7 +377,58 @@ gh issue create --repo brentyJ/ReCog \
 
 ---
 
-## 12. QUICK REFERENCE
+## 12. TESTING & QUALITY ASSURANCE
+
+**Vibe Coding Philosophy:**
+- AI writes plausible code that often doesn't work
+- Solution: Trust but verify RUTHLESSLY with real tests
+- E2E tests catch integration failures unit tests miss
+
+**Running Tests:**
+```bash
+# Smoke tests (E2E verification)
+python _scripts\test_e2e_smoke.py
+
+# Preflight checks (pre-git validation)
+python _scripts\preflight_check.py
+
+# Full test suite
+python -m pytest _scripts\tests\
+```
+
+**Before Any Git Push:**
+- `git_push.bat` now runs `preflight_check.py` automatically
+- Fix any ❌ failures before code reaches GitHub
+- Check architecture diagram if structure changed
+
+**What Preflight Catches:**
+| Check | Issue |
+|-------|-------|
+| Repo Identity | Wrong repo (EhkoForge vs ReCog) |
+| Cross-contamination | EhkoForge imports in ReCog code |
+| License Headers | Missing AGPLv3 in new files |
+| Private Protection | _private/ not gitignored |
+
+**What Smoke Tests Verify:**
+- Flask server starts on port 5100
+- API endpoints respond correctly
+- Case creation/listing works
+- Tier 0 extraction runs (no LLM cost)
+- Database connection healthy
+- React frontend builds
+
+**Architecture Documentation:**
+```bash
+# Generate Mermaid diagram
+python _scripts\generate_architecture.py
+# Outputs: _docs/ARCHITECTURE.mmd, _docs/ARCHITECTURE_SUMMARY.md
+```
+
+**See Also:** `README_TESTING.md` for detailed testing guide
+
+---
+
+## 13. QUICK REFERENCE
 
 **At session start:**
 1. Check if ReCog server is needed (ask Brent)
@@ -409,6 +460,7 @@ gh issue create --repo brentyJ/ReCog \
 | 1.1 | 2026-01-06 | Added Case Architecture: cases, findings, timeline, context injection |
 | 1.2 | 2026-01-06 | Added Claude Interfaces section (CLI vs Desktop guidance) |
 | 1.3 | 2026-01-10 | Added Claude CLI Settings section + reference to SETTINGS_GUIDELINES.md |
+| 1.4 | 2026-01-13 | Added Testing & Quality Assurance section (preflight checks, smoke tests, architecture generator) |
 
 ---
 
