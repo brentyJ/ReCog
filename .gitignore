@@ -40,3 +40,4 @@ _private/
 
 # Claude Code temp files
 tmpclaude-*
+.python-version
