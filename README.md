@@ -1,5 +1,7 @@
 # ReCog - Recursive Cognition Engine
 
+![CI](https://github.com/brentyJ/ReCog/actions/workflows/test.yml/badge.svg)
+
 **v0.7.0** | Text analysis engine that extracts, correlates, and synthesises insights from unstructured text.
 
 ReCog processes documents through tiered analysis—from free signal extraction to LLM-powered insight synthesis—while maintaining quality through a built-in critique layer. Features a conversational assistant (Cypher) for natural language interaction. Designed for enterprise document intelligence with applications in legal, research, operations, and compliance.
