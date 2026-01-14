@@ -96,6 +96,10 @@ from recog_engine.rate_limiter import (
     rate_limit_health,
     get_rate_limit_status,
 )
+from recog_engine.config_validator import (
+    validate_on_startup,
+    get_config_summary,
+)
 from recog_engine.core.providers import (
     create_provider,
     create_router,
@@ -112,6 +116,11 @@ from db import init_database, check_database
 # Load .env file before Config class
 _scripts_dir = Path(__file__).parent
 load_env_file(_scripts_dir / ".env")
+
+# Validate configuration on startup (v0.9)
+# Set RECOG_SKIP_VALIDATION=true to skip (for development)
+if os.environ.get("RECOG_SKIP_VALIDATION", "").lower() != "true":
+    validate_on_startup(strict=False, exit_on_error=True)
 
 
 class Config:

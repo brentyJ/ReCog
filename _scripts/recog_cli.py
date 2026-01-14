@@ -18,6 +18,9 @@ Usage:
     python recog_cli.py cost-report                - View LLM cost summary (last 7 days)
     python recog_cli.py cost-report --last-30-days - View costs for last 30 days
     python recog_cli.py cost-report --daily        - Show day-by-day breakdown
+    python recog_cli.py config                     - Validate configuration
+    python recog_cli.py config --summary           - Show current config values
+    python recog_cli.py config --help              - Show all config options
 """
 
 import sys
@@ -560,6 +563,38 @@ def cmd_cost_report(args: list):
 
 
 # =============================================================================
+# CONFIG VALIDATION COMMANDS
+# =============================================================================
+
+def cmd_config(args: list):
+    """Validate configuration."""
+    from recog_engine.config_validator import (
+        validate_on_startup,
+        get_config_summary,
+        print_config_help,
+    )
+
+    if "--help" in args or "-h" in args:
+        print_config_help()
+        return
+
+    if "--summary" in args:
+        print("\nConfiguration Summary:")
+        print("-" * 40)
+        for key, value in get_config_summary().items():
+            print(f"  {key}: {value}")
+        print()
+        return
+
+    strict = "--strict" in args
+
+    try:
+        validate_on_startup(strict=strict, exit_on_error=False)
+    except SystemExit:
+        pass
+
+
+# =============================================================================
 # MAIN
 # =============================================================================
 
@@ -626,6 +661,10 @@ def main():
     # cost-report
     elif cmd == "cost-report":
         cmd_cost_report(sys.argv[2:])
+
+    # config
+    elif cmd == "config":
+        cmd_config(sys.argv[2:])
 
     else:
         print(__doc__)

@@ -290,6 +290,21 @@ from .response_cache import (
 
 
 # =============================================================================
+# CONFIG VALIDATION
+# =============================================================================
+
+from .config_validator import (
+    ConfigCheck,
+    ConfigValidationResult,
+    CONFIG_SCHEMA,
+    validate_config,
+    validate_on_startup,
+    get_config_summary,
+    print_config_help,
+)
+
+
+# =============================================================================
 # RATE LIMITING
 # =============================================================================
 
@@ -480,6 +495,15 @@ __all__ = [
     'get_response_cache',
     'init_response_cache',
     'DEFAULT_TTL_SECONDS',
+
+    # === Config Validation ===
+    'ConfigCheck',
+    'ConfigValidationResult',
+    'CONFIG_SCHEMA',
+    'validate_config',
+    'validate_on_startup',
+    'get_config_summary',
+    'print_config_help',
 
     # === Rate Limiting ===
     'init_rate_limiter',
