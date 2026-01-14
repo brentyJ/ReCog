@@ -61,12 +61,18 @@ from recog_engine.errors import (
     EmptyFileError,
     CorruptedFileError,
     UnsupportedFileTypeError,
+    NoExtractableTextError,
     LLMNotConfiguredError,
     LLMProviderError,
     LLMAuthError,
     ValidationError,
     MissingFieldError,
     ResourceNotFoundError,
+)
+from recog_engine.file_validator import (
+    FileValidator,
+    validate_upload,
+    DEFAULT_MAX_SIZE_MB,
 )
 from recog_engine.core.providers import (
     create_provider,
@@ -91,11 +97,13 @@ class Config:
     DATA_DIR = Path(os.environ.get("RECOG_DATA_DIR", "./_data"))
     UPLOAD_DIR = DATA_DIR / "uploads"
     DB_PATH = DATA_DIR / "recog.db"
-    
-    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
+
+    # File upload limits
+    MAX_FILE_SIZE_MB = float(os.environ.get("RECOG_MAX_FILE_SIZE_MB", DEFAULT_MAX_SIZE_MB))
+    MAX_CONTENT_LENGTH = int(MAX_FILE_SIZE_MB * 1024 * 1024)
     ALLOWED_EXTENSIONS = {
         'txt', 'md', 'json', 'pdf', 'csv',
-        'eml', 'msg', 'mbox', 'xml', 'xlsx',
+        'eml', 'msg', 'mbox', 'xml', 'xlsx', 'docx',
     }
     
     # LLM config - uses provider factory
@@ -797,13 +805,38 @@ def upload_file():
     case_id = request.form.get("case_id")
     auto_process = request.form.get("auto_process", "true").lower() != "false"
 
-    # Save file
     filename = secure_filename(file.filename)
     file_id = uuid4().hex[:8]
+
+    # Validate file BEFORE saving (checks size, type, and basic integrity)
+    try:
+        validation = validate_upload(
+            file_storage=file,
+            filename=filename,
+            max_size_mb=Config.MAX_FILE_SIZE_MB,
+        )
+        logger.debug(f"File validated: {filename} ({validation.mime_type}, {validation.size_mb:.2f}MB)")
+    except (FileTooLargeError, EmptyFileError, UnsupportedFileTypeError) as e:
+        # These are expected validation failures - return user-friendly error
+        logger.warning(f"Upload validation failed for {filename}: {e.user_message}")
+        raise
+
+    # Save file after validation passes
     saved_path = Config.UPLOAD_DIR / f"{file_id}_{filename}"
     file.save(str(saved_path))
 
-    logger.info(f"Uploaded: {saved_path}" + (f" (case: {case_id})" if case_id else ""))
+    # Full content validation (PDF text extraction, JSON parsing, etc.)
+    # This catches corrupted files and files without extractable text
+    try:
+        from recog_engine.file_validator import validate_file
+        validate_file(saved_path, max_size_mb=Config.MAX_FILE_SIZE_MB)
+    except (CorruptedFileError, NoExtractableTextError) as e:
+        # Clean up the saved file on validation failure
+        saved_path.unlink(missing_ok=True)
+        logger.warning(f"Content validation failed for {filename}: {e.user_message}")
+        raise
+
+    logger.info(f"Uploaded: {saved_path} ({validation.mime_type})" + (f" (case: {case_id})" if case_id else ""))
 
     # Detect format
     detection = detect_file(str(saved_path))
@@ -923,25 +956,60 @@ def upload_batch():
     case_id = request.form.get("case_id")
     auto_process = request.form.get("auto_process", "true").lower() != "false"
 
-    # Save all files first
+    # Validate and save all files
     saved_files = []
+    validation_errors = []
+
     for file in files:
         if file.filename == "":
             continue
+
         filename = secure_filename(file.filename)
         file_id = uuid4().hex[:8]
-        saved_path = Config.UPLOAD_DIR / f"{file_id}_{filename}"
-        file.save(str(saved_path))
-        saved_files.append({
-            "path": saved_path,
-            "filename": filename,
-            "file_id": file_id,
-        })
+
+        # Validate each file before saving
+        try:
+            validation = validate_upload(
+                file_storage=file,
+                filename=filename,
+                max_size_mb=Config.MAX_FILE_SIZE_MB,
+            )
+
+            # Save file after validation passes
+            saved_path = Config.UPLOAD_DIR / f"{file_id}_{filename}"
+            file.save(str(saved_path))
+
+            # Full content validation after saving
+            try:
+                from recog_engine.file_validator import validate_file
+                validate_file(saved_path, max_size_mb=Config.MAX_FILE_SIZE_MB)
+            except (CorruptedFileError, NoExtractableTextError) as e:
+                saved_path.unlink(missing_ok=True)
+                validation_errors.append({"filename": filename, "error": e.user_message})
+                continue
+
+            saved_files.append({
+                "path": saved_path,
+                "filename": filename,
+                "file_id": file_id,
+                "mime_type": validation.mime_type,
+            })
+
+        except (FileTooLargeError, EmptyFileError, UnsupportedFileTypeError) as e:
+            validation_errors.append({"filename": filename, "error": e.user_message})
+            continue
 
     if not saved_files:
-        return api_response(error="No valid files to process", status=400)
+        # All files failed validation
+        return api_response(
+            error="All files failed validation",
+            data={"validation_errors": validation_errors},
+            status=400
+        )
 
-    logger.info(f"Batch upload: {len(saved_files)} files" + (f" (case: {case_id})" if case_id else ""))
+    logger.info(f"Batch upload: {len(saved_files)} files validated" + (f" (case: {case_id})" if case_id else ""))
+    if validation_errors:
+        logger.warning(f"Batch upload: {len(validation_errors)} files failed validation")
 
     # Create ONE preflight session for all files
     try:
@@ -1035,7 +1103,7 @@ def upload_batch():
             estimate = cost_estimator.estimate_extraction_cost(case_id)
             cost_estimator.update_estimated_cost(case_id, estimate["estimated_cost_usd"])
 
-        return api_response({
+        response_data = {
             "uploaded": True,
             "file_count": len(saved_files),
             "preflight_session_id": session_id,
@@ -1049,7 +1117,13 @@ def upload_batch():
             "estimated_cost_cents": scan_result["estimated_cost_cents"],
             "questions": scan_result["questions"][:5],
             "file_results": results,
-        })
+        }
+
+        # Include validation errors if any files failed
+        if validation_errors:
+            response_data["validation_errors"] = validation_errors
+
+        return api_response(response_data)
 
     except Exception as e:
         logger.error(f"Batch upload processing error: {e}")

@@ -261,6 +261,21 @@ from .cost_tracker import (
 
 
 # =============================================================================
+# FILE VALIDATION
+# =============================================================================
+
+from .file_validator import (
+    FileValidator,
+    ValidationResult,
+    validate_file,
+    validate_upload,
+    get_validator,
+    DEFAULT_MAX_SIZE_MB,
+    SUPPORTED_MIME_TYPES,
+)
+
+
+# =============================================================================
 # LOGGING UTILITIES
 # =============================================================================
 
@@ -415,6 +430,15 @@ __all__ = [
     'PRICING',
     'get_cost_tracker',
     'log_llm_cost',
+
+    # === File Validation ===
+    'FileValidator',
+    'ValidationResult',
+    'validate_file',
+    'validate_upload',
+    'get_validator',
+    'DEFAULT_MAX_SIZE_MB',
+    'SUPPORTED_MIME_TYPES',
 
     # === Logging ===
     'setup_logging',
