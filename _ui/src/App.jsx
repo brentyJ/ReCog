@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Zap, FileUp, Clipboard, Users, Lightbulb, Waypoints, FolderOpen, Activity, FileText } from 'lucide-react'
+import { Zap, FileUp, Clipboard, Users, Lightbulb, Waypoints, FolderOpen, Activity, FileText, Settings, Shield, AlertTriangle } from 'lucide-react'
+import { getProvidersStatus } from './lib/api'
 
 // Cypher - Conversational Analysis Interface
 import { CypherProvider } from './contexts/CypherContext'
@@ -18,10 +19,12 @@ import { PatternsPage } from './components/pages/PatternsPage'
 import { CasesPage } from './components/pages/CasesPage'
 import { Dashboard } from './components/pages/Dashboard'
 import { DocumentViewerPage } from './components/pages/DocumentViewerPage'
+import { SettingsPage } from './components/pages/SettingsPage'
 
 function App() {
   const [activePage, setActivePage] = useState('dashboard')
   const [serverStatus, setServerStatus] = useState('checking')
+  const [providerStatus, setProviderStatus] = useState(null)
   const [badges, setBadges] = useState({
     cases: 0,
     preflight: 0,
@@ -39,7 +42,7 @@ function App() {
       if (match) {
         const page = match[1]
         // Validate it's a known page
-        const validPages = ['dashboard', 'cases', 'analyse', 'upload', 'preflight', 'entities', 'insights', 'patterns', 'document']
+        const validPages = ['dashboard', 'cases', 'analyse', 'upload', 'preflight', 'entities', 'insights', 'patterns', 'document', 'settings']
         if (validPages.includes(page)) {
           setActivePage(page)
           return
@@ -84,6 +87,23 @@ function App() {
     return () => clearInterval(interval)
   }, [])
 
+  // Fetch provider status
+  useEffect(() => {
+    async function fetchProviderStatus() {
+      try {
+        const res = await getProvidersStatus()
+        setProviderStatus(res?.data || res)
+      } catch (e) {
+        setProviderStatus(null)
+      }
+    }
+    fetchProviderStatus()
+    // Refresh on settings changes
+    const handleRefresh = () => fetchProviderStatus()
+    window.addEventListener('providers-updated', handleRefresh)
+    return () => window.removeEventListener('providers-updated', handleRefresh)
+  }, [])
+
   const navSections = [
     {
       title: 'OVERVIEW',
@@ -112,6 +132,12 @@ function App() {
         { id: 'insights', label: 'Insights', icon: Lightbulb, badge: badges.insights },
         { id: 'patterns', label: 'Patterns', icon: Waypoints, badge: badges.patterns },
       ]
+    },
+    {
+      title: 'SYSTEM',
+      items: [
+        { id: 'settings', label: 'Settings', icon: Settings, badge: null },
+      ]
     }
   ]
 
@@ -125,6 +151,7 @@ function App() {
     'insights': { title: 'Insights', icon: Lightbulb },
     'patterns': { title: 'Patterns', icon: Waypoints },
     'document': { title: 'Document Viewer', icon: FileText },
+    'settings': { title: 'Settings', icon: Settings },
   }
 
   const currentPage = pageConfig[activePage]
@@ -216,6 +243,49 @@ function App() {
             {currentPage.title}
           </h1>
           <div className="flex items-center gap-3">
+            {/* Provider Status Indicator */}
+            <button
+              onClick={() => {
+                window.location.hash = '#settings'
+              }}
+              className={`
+                flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium
+                transition-colors cursor-pointer
+                ${providerStatus?.configured
+                  ? providerStatus?.failover_enabled
+                    ? 'bg-emerald-400/10 text-emerald-400 hover:bg-emerald-400/20'
+                    : 'bg-amber-400/10 text-amber-400 hover:bg-amber-400/20'
+                  : 'bg-red-400/10 text-red-400 hover:bg-red-400/20'
+                }
+              `}
+              title={
+                providerStatus?.configured
+                  ? `Primary: ${providerStatus.primary_name}${providerStatus.fallback ? ` → Fallback: ${providerStatus.fallback_name}` : ''}`
+                  : 'No AI provider configured'
+              }
+            >
+              {providerStatus?.configured ? (
+                <>
+                  {providerStatus?.failover_enabled ? (
+                    <Shield className="w-3.5 h-3.5" />
+                  ) : (
+                    <Zap className="w-3.5 h-3.5" />
+                  )}
+                  <span>{providerStatus.primary_name?.split(' ')[0]}</span>
+                  {providerStatus?.failover_enabled && (
+                    <span className="text-emerald-400/60">+1</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>No AI</span>
+                </>
+              )}
+            </button>
+
+            <span className="text-muted-foreground">|</span>
+
             {/* Cypher trigger */}
             <Cypher />
             <span className="text-muted-foreground">|</span>
@@ -250,6 +320,7 @@ function App() {
             {activePage === 'insights' && <InsightsPage />}
             {activePage === 'patterns' && <PatternsPage />}
             {activePage === 'document' && <DocumentViewerPage />}
+            {activePage === 'settings' && <SettingsPage />}
           </ErrorBoundary>
         </div>
       </main>

@@ -246,4 +246,17 @@ __all__ = [
     "ENV_OPENAI_KEY",
     "ENV_ANTHROPIC_KEY",
     "ENV_DEFAULT_PROVIDER",
+    "create_router",
 ]
+
+
+# Import create_router for re-export
+def create_router(*args, **kwargs):
+    """
+    Create a provider router for automatic failover.
+
+    Re-exported from router module for convenience.
+    See router.py for full implementation.
+    """
+    from .router import create_router as _create_router
+    return _create_router(*args, **kwargs)

@@ -513,3 +513,38 @@ export async function startCaseProcessing(caseId, confirmCost = false) {
     body: JSON.stringify({ confirm_cost: confirmCost }),
   })
 }
+
+// =============================================================================
+// PROVIDER MANAGEMENT
+// =============================================================================
+
+export async function getProviders() {
+  return fetchAPI('/providers')
+}
+
+export async function getProvider(providerName) {
+  return fetchAPI(`/providers/${providerName}`)
+}
+
+export async function configureProvider(providerName, apiKey, verify = true) {
+  return fetchAPI(`/providers/${providerName}`, {
+    method: 'POST',
+    body: JSON.stringify({ api_key: apiKey, verify }),
+  })
+}
+
+export async function removeProvider(providerName) {
+  return fetchAPI(`/providers/${providerName}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function verifyProvider(providerName) {
+  return fetchAPI(`/providers/${providerName}/verify`, {
+    method: 'POST',
+  })
+}
+
+export async function getProvidersStatus() {
+  return fetchAPI('/providers/status')
+}

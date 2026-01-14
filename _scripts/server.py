@@ -55,8 +55,22 @@ from recog_engine import (
 )
 from recog_engine.state_machine import CaseStateMachine
 from recog_engine.cost_estimator import CostEstimator
+from recog_engine.errors import (
+    RecogError,
+    FileTooLargeError,
+    EmptyFileError,
+    CorruptedFileError,
+    UnsupportedFileTypeError,
+    LLMNotConfiguredError,
+    LLMProviderError,
+    LLMAuthError,
+    ValidationError,
+    MissingFieldError,
+    ResourceNotFoundError,
+)
 from recog_engine.core.providers import (
     create_provider,
+    create_router,
     get_available_providers,
     load_env_file,
 )
@@ -170,6 +184,68 @@ def require_json(f):
 
 
 # =============================================================================
+# ERROR HANDLERS
+# =============================================================================
+
+@app.errorhandler(RecogError)
+def handle_recog_error(error: RecogError):
+    """Handle all ReCog custom errors with user-friendly messages."""
+    logger.error(f"ReCog error [{error.__class__.__name__}]: {error}")
+
+    return api_response(
+        error=error.user_message,
+        data={"error_type": error.__class__.__name__},
+        status=error.status_code
+    )
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(error: Exception):
+    """Handle unexpected errors - don't leak internal details."""
+    logger.error(f"Unexpected error: {error}", exc_info=True)
+
+    # Don't leak internal details in production
+    if app.debug:
+        error_detail = str(error)
+    else:
+        error_detail = "An unexpected error occurred. Please try again or contact support if the problem persists."
+
+    return api_response(
+        error=error_detail,
+        data={"error_type": "UnexpectedError"},
+        status=500
+    )
+
+
+@app.errorhandler(404)
+def handle_not_found(error):
+    """Handle 404 errors."""
+    return api_response(
+        error="Endpoint not found. Check /api/info for available endpoints.",
+        status=404
+    )
+
+
+@app.errorhandler(405)
+def handle_method_not_allowed(error):
+    """Handle 405 errors."""
+    return api_response(
+        error=f"Method {request.method} not allowed for this endpoint.",
+        status=405
+    )
+
+
+@app.errorhandler(413)
+def handle_request_too_large(error):
+    """Handle file too large errors from Flask/Werkzeug."""
+    max_mb = app.config.get('MAX_CONTENT_LENGTH', 50 * 1024 * 1024) / (1024 * 1024)
+    return api_response(
+        error=f"File too large. Maximum size is {max_mb:.0f}MB.",
+        status=413
+    )
+
+
+# =============================================================================
 # HEALTH & INFO
 # =============================================================================
 
@@ -271,7 +347,392 @@ def info():
             "/api/timeline/<id>/annotate",
             "/api/cypher/message",
             "/api/extraction/status/<case_id>",
+            "/api/providers",
+            "/api/providers/<provider>",
+            "/api/providers/<provider>/verify",
         ],
+    })
+
+
+# =============================================================================
+# PROVIDER MANAGEMENT
+# =============================================================================
+
+# Provider configuration with supported models
+PROVIDER_CONFIG = {
+    "openai": {
+        "display_name": "OpenAI",
+        "env_key": "RECOG_OPENAI_API_KEY",
+        "default_model": "gpt-4o-mini",
+        "models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
+        "verification_model": "gpt-4o-mini",
+    },
+    "anthropic": {
+        "display_name": "Anthropic (Claude)",
+        "env_key": "RECOG_ANTHROPIC_API_KEY",
+        "default_model": "claude-sonnet-4-20250514",
+        "models": ["claude-sonnet-4-20250514", "claude-opus-4-20250514"],
+        "verification_model": "claude-sonnet-4-20250514",
+    },
+}
+
+
+def _get_env_file_path():
+    """Get path to .env file."""
+    return Path(__file__).parent / ".env"
+
+
+def _read_env_file():
+    """Read .env file and return dict of key-value pairs."""
+    env_path = _get_env_file_path()
+    env_vars = {}
+
+    if env_path.exists():
+        with open(env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if '=' in line:
+                    key, _, value = line.partition('=')
+                    key = key.strip()
+                    value = value.strip()
+                    # Remove quotes
+                    if (value.startswith('"') and value.endswith('"')) or \
+                       (value.startswith("'") and value.endswith("'")):
+                        value = value[1:-1]
+                    env_vars[key] = value
+
+    return env_vars
+
+
+def _write_env_file(env_vars: dict):
+    """Write dict of key-value pairs to .env file, preserving comments."""
+    env_path = _get_env_file_path()
+
+    # Keys we manage - don't preserve these if not in env_vars
+    managed_keys = {config["env_key"] for config in PROVIDER_CONFIG.values()}
+
+    # Read existing file to preserve comments and order
+    lines = []
+    existing_keys = set()
+
+    if env_path.exists():
+        with open(env_path, 'r') as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith('#') or not stripped:
+                    lines.append(line.rstrip('\n'))
+                elif '=' in stripped:
+                    key = stripped.split('=')[0].strip()
+                    existing_keys.add(key)
+                    if key in env_vars:
+                        value = env_vars[key]
+                        # Quote if contains spaces
+                        if ' ' in value or not value:
+                            value = f'"{value}"'
+                        lines.append(f'{key}={value}')
+                    elif key not in managed_keys:
+                        # Preserve non-managed keys (user's other env vars)
+                        lines.append(line.rstrip('\n'))
+                    # else: managed key not in env_vars = deleted, skip it
+
+    # Add new keys not in file
+    for key, value in env_vars.items():
+        if key not in existing_keys:
+            if ' ' in value or not value:
+                value = f'"{value}"'
+            lines.append(f'{key}={value}')
+
+    # Write back
+    with open(env_path, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+
+
+def _mask_api_key(key: str) -> str:
+    """Mask API key for display (show first 4 and last 4 chars)."""
+    if not key or len(key) < 12:
+        return "****"
+    return f"{key[:7]}...{key[-4:]}"
+
+
+def _verify_provider(provider_name: str, api_key: str) -> dict:
+    """
+    Verify an API key works by making a minimal API call.
+    Returns dict with 'valid', 'message', 'model' keys.
+    """
+    config = PROVIDER_CONFIG.get(provider_name)
+    if not config:
+        return {"valid": False, "message": f"Unknown provider: {provider_name}"}
+
+    try:
+        if provider_name == "openai":
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            # List models - minimal cost operation
+            models = client.models.list()
+            return {
+                "valid": True,
+                "message": "API key verified successfully",
+                "model": config["default_model"],
+            }
+
+        elif provider_name == "anthropic":
+            from anthropic import Anthropic
+            client = Anthropic(api_key=api_key)
+            # Minimal message - costs fraction of a cent
+            response = client.messages.create(
+                model=config["verification_model"],
+                max_tokens=1,
+                messages=[{"role": "user", "content": "hi"}]
+            )
+            return {
+                "valid": True,
+                "message": "API key verified successfully",
+                "model": config["default_model"],
+            }
+
+    except Exception as e:
+        error_str = str(e).lower()
+        if "invalid" in error_str or "unauthorized" in error_str or "authentication" in error_str:
+            return {"valid": False, "message": "Invalid API key"}
+        elif "rate" in error_str or "quota" in error_str:
+            return {"valid": False, "message": "Rate limit or quota exceeded"}
+        elif "permission" in error_str:
+            return {"valid": False, "message": "API key lacks required permissions"}
+        else:
+            return {"valid": False, "message": f"Verification failed: {str(e)[:100]}"}
+
+    return {"valid": False, "message": "Unknown error during verification"}
+
+
+@app.route("/api/providers", methods=["GET"])
+def list_providers():
+    """
+    List all supported providers and their configuration status.
+
+    Returns for each provider:
+    - configured: Whether API key is set
+    - active: Whether it's available for use
+    - display_name: Human-readable name
+    - masked_key: Masked API key (if configured)
+    - last_verified: Timestamp of last verification (if any)
+    """
+    env_vars = _read_env_file()
+    providers = []
+
+    for name, config in PROVIDER_CONFIG.items():
+        key = env_vars.get(config["env_key"], "") or os.environ.get(config["env_key"], "")
+        is_configured = bool(key)
+
+        providers.append({
+            "name": name,
+            "display_name": config["display_name"],
+            "configured": is_configured,
+            "active": name in Config.AVAILABLE_PROVIDERS,
+            "masked_key": _mask_api_key(key) if is_configured else None,
+            "default_model": config["default_model"],
+            "models": config["models"],
+        })
+
+    # Sort: configured first, then alphabetically
+    providers.sort(key=lambda p: (not p["configured"], p["name"]))
+
+    return api_response({
+        "providers": providers,
+        "active_count": len([p for p in providers if p["active"]]),
+        "configured_count": len([p for p in providers if p["configured"]]),
+    })
+
+
+@app.route("/api/providers/<provider>", methods=["GET"])
+def get_provider(provider: str):
+    """Get details for a specific provider."""
+    if provider not in PROVIDER_CONFIG:
+        raise ResourceNotFoundError("provider", provider)
+
+    config = PROVIDER_CONFIG[provider]
+    env_vars = _read_env_file()
+    key = env_vars.get(config["env_key"], "") or os.environ.get(config["env_key"], "")
+    is_configured = bool(key)
+
+    return api_response({
+        "name": provider,
+        "display_name": config["display_name"],
+        "configured": is_configured,
+        "active": provider in Config.AVAILABLE_PROVIDERS,
+        "masked_key": _mask_api_key(key) if is_configured else None,
+        "default_model": config["default_model"],
+        "models": config["models"],
+        "env_key": config["env_key"],
+    })
+
+
+@app.route("/api/providers/<provider>", methods=["POST"])
+@require_json
+def configure_provider(provider: str):
+    """
+    Configure a provider with an API key.
+
+    Body: {
+        "api_key": "sk-...",
+        "verify": true  (optional, default true)
+    }
+
+    Saves key to .env file and optionally verifies it.
+    """
+    if provider not in PROVIDER_CONFIG:
+        raise ResourceNotFoundError("provider", provider)
+
+    data = request.get_json()
+    api_key = data.get("api_key", "").strip()
+    should_verify = data.get("verify", True)
+
+    if not api_key:
+        raise MissingFieldError("api_key")
+
+    config = PROVIDER_CONFIG[provider]
+
+    # Verify first if requested
+    verification = None
+    if should_verify:
+        verification = _verify_provider(provider, api_key)
+        if not verification["valid"]:
+            return api_response(
+                error=verification["message"],
+                data={"verified": False, "provider": provider},
+                status=400
+            )
+
+    # Save to .env file
+    env_vars = _read_env_file()
+    env_vars[config["env_key"]] = api_key
+    _write_env_file(env_vars)
+
+    # Update os.environ so it takes effect immediately
+    os.environ[config["env_key"]] = api_key
+
+    # Refresh available providers
+    Config.AVAILABLE_PROVIDERS = get_available_providers()
+    Config.LLM_CONFIGURED = len(Config.AVAILABLE_PROVIDERS) > 0
+
+    logger.info(f"Provider {provider} configured successfully")
+
+    return api_response({
+        "provider": provider,
+        "configured": True,
+        "verified": verification["valid"] if verification else None,
+        "message": f"{config['display_name']} API key saved successfully",
+        "active": provider in Config.AVAILABLE_PROVIDERS,
+    })
+
+
+@app.route("/api/providers/<provider>", methods=["DELETE"])
+def remove_provider(provider: str):
+    """
+    Remove a provider's API key.
+
+    This removes the key from .env and makes the provider unavailable.
+    """
+    if provider not in PROVIDER_CONFIG:
+        raise ResourceNotFoundError("provider", provider)
+
+    config = PROVIDER_CONFIG[provider]
+
+    # Remove from .env file
+    env_vars = _read_env_file()
+    if config["env_key"] in env_vars:
+        del env_vars[config["env_key"]]
+        _write_env_file(env_vars)
+
+    # Remove from os.environ
+    if config["env_key"] in os.environ:
+        del os.environ[config["env_key"]]
+
+    # Refresh available providers
+    Config.AVAILABLE_PROVIDERS = get_available_providers()
+    Config.LLM_CONFIGURED = len(Config.AVAILABLE_PROVIDERS) > 0
+
+    logger.info(f"Provider {provider} removed")
+
+    return api_response({
+        "provider": provider,
+        "configured": False,
+        "message": f"{config['display_name']} API key removed",
+    })
+
+
+@app.route("/api/providers/<provider>/verify", methods=["POST"])
+def verify_provider(provider: str):
+    """
+    Verify a provider's API key is working.
+
+    Makes a minimal API call to test the key.
+    Returns whether the key is valid and any error message.
+    """
+    if provider not in PROVIDER_CONFIG:
+        raise ResourceNotFoundError("provider", provider)
+
+    config = PROVIDER_CONFIG[provider]
+    env_vars = _read_env_file()
+    api_key = env_vars.get(config["env_key"], "") or os.environ.get(config["env_key"], "")
+
+    if not api_key:
+        return api_response(
+            error=f"No API key configured for {config['display_name']}",
+            data={"configured": False, "valid": False},
+            status=400
+        )
+
+    result = _verify_provider(provider, api_key)
+
+    if result["valid"]:
+        return api_response({
+            "provider": provider,
+            "valid": True,
+            "message": result["message"],
+            "model": result.get("model"),
+        })
+    else:
+        return api_response(
+            error=result["message"],
+            data={"provider": provider, "valid": False},
+            status=400
+        )
+
+
+@app.route("/api/providers/status", methods=["GET"])
+def providers_status():
+    """
+    Quick status check for all providers.
+
+    Returns a simple status for router display:
+    - primary: First available provider (preferred for quality)
+    - fallback: Second available provider (if any)
+    - failover_enabled: Whether automatic failover is possible
+    """
+    available = Config.AVAILABLE_PROVIDERS
+
+    # Determine primary and fallback based on preference
+    # Anthropic preferred for quality, OpenAI as fallback
+    primary = None
+    fallback = None
+
+    if "anthropic" in available:
+        primary = "anthropic"
+        if "openai" in available:
+            fallback = "openai"
+    elif "openai" in available:
+        primary = "openai"
+
+    return api_response({
+        "configured": len(available) > 0,
+        "primary": primary,
+        "primary_name": PROVIDER_CONFIG[primary]["display_name"] if primary else None,
+        "fallback": fallback,
+        "fallback_name": PROVIDER_CONFIG[fallback]["display_name"] if fallback else None,
+        "failover_enabled": primary is not None and fallback is not None,
+        "available_providers": available,
     })
 
 
@@ -1496,17 +1957,20 @@ def extract_insights():
         case_context=case_context_dict,
     )
     
-    # Call LLM via provider
+    # Call LLM via router with automatic failover
     try:
-        provider = create_provider(provider_name)
-        
-        response = provider.generate(
+        # Use router for automatic failover between providers
+        # If provider_name specified, prefer that provider first
+        preference = [provider_name] if provider_name else None
+        router = create_router(provider_preference=preference)
+
+        response = router.generate(
             prompt=prompt,
             system_prompt="You are an insight extraction system. Return valid JSON only.",
             temperature=0.3,
             max_tokens=2000,
         )
-        
+
         if not response.success:
             return api_response(error=response.error, status=500)
         

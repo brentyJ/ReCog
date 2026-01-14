@@ -10,6 +10,7 @@ Concrete LLM provider implementations.
 from .openai_provider import OpenAIProvider
 from .anthropic_provider import AnthropicProvider
 from .factory import create_provider, get_available_providers, load_env_file
+from .router import ProviderRouter, create_router
 
 __all__ = [
     "OpenAIProvider",
@@ -17,4 +18,6 @@ __all__ = [
     "create_provider",
     "get_available_providers",
     "load_env_file",
+    "ProviderRouter",
+    "create_router",
 ]
