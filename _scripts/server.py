@@ -89,6 +89,13 @@ from recog_engine.response_cache import (
     init_response_cache,
     get_response_cache,
 )
+from recog_engine.rate_limiter import (
+    init_rate_limiter,
+    rate_limit_expensive,
+    rate_limit_upload,
+    rate_limit_health,
+    get_rate_limit_status,
+)
 from recog_engine.core.providers import (
     create_provider,
     create_router,
@@ -191,6 +198,9 @@ if Config.CACHE_ENABLED:
 else:
     response_cache = None
     logger.info("Response cache disabled")
+
+# Rate limiter initialization (v0.9)
+limiter = init_rate_limiter(app)
 
 # Load entity blacklist into tier0 module at startup
 try:
@@ -369,6 +379,7 @@ def handle_request_too_large(error):
 # =============================================================================
 
 @app.route("/api/health", methods=["GET"])
+@rate_limit_health
 def health():
     """Health check endpoint."""
     db_status = check_database(Config.DB_PATH)
@@ -469,6 +480,7 @@ def info():
             "/api/providers",
             "/api/providers/<provider>",
             "/api/providers/<provider>/verify",
+            "/api/rate-limit/status",
         ],
     })
 
@@ -976,7 +988,26 @@ def cache_cleanup():
     })
 
 
+# =============================================================================
+# RATE LIMITING
+# =============================================================================
+
+@app.route("/api/rate-limit/status", methods=["GET"])
+def rate_limit_status():
+    """
+    Get current rate limit configuration and status.
+
+    Returns rate limit settings and current state.
+    """
+    return api_response(get_rate_limit_status())
+
+
+# =============================================================================
+# FILE UPLOAD
+# =============================================================================
+
 @app.route("/api/upload", methods=["POST"])
+@rate_limit_upload
 def upload_file():
     """
     Upload file and create preflight session with auto-progression.
@@ -1128,6 +1159,7 @@ def upload_file():
 
 
 @app.route("/api/upload/batch", methods=["POST"])
+@rate_limit_upload
 def upload_batch():
     """
     Upload multiple files into a single preflight session with auto-progression.
@@ -1641,6 +1673,7 @@ def entity_stats():
 
 
 @app.route("/api/entities/validate", methods=["POST"])
+@rate_limit_expensive
 def validate_entities():
     """
     Validate unconfirmed person entities using LLM.
@@ -2142,6 +2175,7 @@ def list_relationship_types():
 # =============================================================================
 
 @app.route("/api/extract", methods=["POST"])
+@rate_limit_expensive
 @require_json
 def extract_insights():
     """
@@ -2789,10 +2823,11 @@ def list_clusters():
 
 
 @app.route("/api/synth/run", methods=["POST"])
+@rate_limit_expensive
 def run_synthesis():
     """
     Run a full synthesis cycle.
-    
+
     Creates clusters from raw insights, synthesizes patterns via LLM.
     
     Body: {
@@ -2929,6 +2964,7 @@ def synth_stats():
 # =============================================================================
 
 @app.route("/api/critique/insight", methods=["POST"])
+@rate_limit_expensive
 @require_json
 def critique_insight():
     """
@@ -2997,6 +3033,7 @@ def critique_insight():
 
 
 @app.route("/api/critique/pattern", methods=["POST"])
+@rate_limit_expensive
 @require_json
 def critique_pattern():
     """
@@ -3070,6 +3107,7 @@ def critique_pattern():
 
 
 @app.route("/api/critique/refine", methods=["POST"])
+@rate_limit_expensive
 @require_json
 def critique_and_refine():
     """
@@ -4007,6 +4045,7 @@ except Exception as e:
 
 
 @app.route("/api/cypher/message", methods=["POST"])
+@rate_limit_expensive
 def cypher_message():
     """
     Handle Cypher conversational interface messages.

@@ -290,6 +290,25 @@ from .response_cache import (
 
 
 # =============================================================================
+# RATE LIMITING
+# =============================================================================
+
+from .rate_limiter import (
+    init_rate_limiter,
+    get_limiter,
+    rate_limit_expensive,
+    rate_limit_upload,
+    rate_limit_health,
+    exempt_from_rate_limit,
+    get_rate_limit_status,
+    DEFAULT_LIMIT,
+    EXPENSIVE_LIMIT,
+    UPLOAD_LIMIT,
+    RATE_LIMIT_ENABLED,
+)
+
+
+# =============================================================================
 # LOGGING UTILITIES
 # =============================================================================
 
@@ -461,6 +480,19 @@ __all__ = [
     'get_response_cache',
     'init_response_cache',
     'DEFAULT_TTL_SECONDS',
+
+    # === Rate Limiting ===
+    'init_rate_limiter',
+    'get_limiter',
+    'rate_limit_expensive',
+    'rate_limit_upload',
+    'rate_limit_health',
+    'exempt_from_rate_limit',
+    'get_rate_limit_status',
+    'DEFAULT_LIMIT',
+    'EXPENSIVE_LIMIT',
+    'UPLOAD_LIMIT',
+    'RATE_LIMIT_ENABLED',
 
     # === Logging ===
     'setup_logging',
