@@ -84,6 +84,11 @@ from recog_engine.logging_utils import (
     log_api_call,
     log_llm_call,
 )
+from recog_engine.response_cache import (
+    ResponseCache,
+    init_response_cache,
+    get_response_cache,
+)
 from recog_engine.core.providers import (
     create_provider,
     create_router,
@@ -121,6 +126,11 @@ class Config:
     LOG_LEVEL = os.environ.get("RECOG_LOG_LEVEL", "INFO")
     LOG_FILE = os.environ.get("RECOG_LOG_FILE", str(LOG_DIR / "recog.log"))
     LOG_JSON = os.environ.get("RECOG_LOG_JSON", "false").lower() == "true"
+
+    # Response cache configuration
+    CACHE_DIR = DATA_DIR / "cache"
+    CACHE_TTL_HOURS = int(os.environ.get("RECOG_CACHE_TTL_HOURS", "24"))
+    CACHE_ENABLED = os.environ.get("RECOG_CACHE_ENABLED", "true").lower() == "true"
 
     # LLM config - uses provider factory
     # Available providers determined by which API keys are configured
@@ -170,6 +180,17 @@ timeline_store = TimelineStore(Config.DB_PATH)
 # Workflow state machine (v0.8)
 state_machine = CaseStateMachine(Config.DB_PATH)
 cost_estimator = CostEstimator(Config.DB_PATH)
+
+# Response cache for LLM results (v0.9)
+if Config.CACHE_ENABLED:
+    response_cache = init_response_cache(
+        Config.CACHE_DIR,
+        ttl_seconds=Config.CACHE_TTL_HOURS * 3600,
+    )
+    logger.info(f"Response cache enabled: {Config.CACHE_DIR} (TTL: {Config.CACHE_TTL_HOURS}h)")
+else:
+    response_cache = None
+    logger.info("Response cache disabled")
 
 # Load entity blacklist into tier0 module at startup
 try:
@@ -868,6 +889,91 @@ def detect_format():
         })
     finally:
         temp_path.unlink(missing_ok=True)
+
+
+# =============================================================================
+# CACHE MANAGEMENT
+# =============================================================================
+
+@app.route("/api/cache/stats", methods=["GET"])
+def cache_stats():
+    """
+    Get response cache statistics.
+
+    Returns:
+        - total_entries: Number of cached items
+        - total_size_bytes: Total cache size
+        - hits: Cache hit count
+        - misses: Cache miss count
+        - hit_rate: Cache hit percentage
+        - enabled: Whether caching is enabled
+    """
+    if not response_cache:
+        return api_response({
+            "enabled": False,
+            "message": "Response cache is disabled",
+        })
+
+    stats = response_cache.get_stats()
+    return api_response({
+        "enabled": True,
+        "total_entries": stats.total_entries,
+        "total_size_mb": round(stats.total_size_bytes / (1024 * 1024), 2),
+        "hits": stats.hits,
+        "misses": stats.misses,
+        "hit_rate": round(stats.hit_rate, 1),
+        "oldest_entry": stats.oldest_entry.isoformat() if stats.oldest_entry else None,
+        "newest_entry": stats.newest_entry.isoformat() if stats.newest_entry else None,
+        "ttl_hours": Config.CACHE_TTL_HOURS,
+    })
+
+
+@app.route("/api/cache/clear", methods=["POST"])
+def cache_clear():
+    """
+    Clear the response cache.
+
+    Body (optional):
+        - feature: Only clear cache for specific feature (extraction, tier0)
+
+    Returns number of entries cleared.
+    """
+    if not response_cache:
+        return api_response({
+            "enabled": False,
+            "message": "Response cache is disabled",
+        })
+
+    data = request.get_json() or {}
+    feature = data.get("feature")
+
+    cleared = response_cache.clear(feature=feature)
+    logger.info(f"Cache cleared: {cleared} entries" + (f" (feature: {feature})" if feature else ""))
+
+    return api_response({
+        "cleared": cleared,
+        "feature": feature,
+    })
+
+
+@app.route("/api/cache/cleanup", methods=["POST"])
+def cache_cleanup():
+    """
+    Remove expired cache entries.
+
+    Returns number of entries removed.
+    """
+    if not response_cache:
+        return api_response({
+            "enabled": False,
+            "message": "Response cache is disabled",
+        })
+
+    removed = response_cache.cleanup_expired()
+
+    return api_response({
+        "removed": removed,
+    })
 
 
 @app.route("/api/upload", methods=["POST"])
@@ -2120,28 +2226,68 @@ def extract_insights():
         additional_context=entity_context,
         case_context=case_context_dict,
     )
-    
-    # Call LLM via router with automatic failover
+
+    # Generate content hash for caching
+    # Include entity context to ensure different contexts get different results
+    cache_context = {
+        "entity_context": entity_context[:200] if entity_context else "",
+        "case_context": case_context_dict.get("title", "") if case_context_dict else "",
+        "is_chat": is_chat,
+    }
+    content_hash = ResponseCache.hash_with_context(text, cache_context) if response_cache else None
+
+    # Check cache for existing extraction result
+    cached_response = None
+    cache_hit = False
+    if response_cache and content_hash:
+        cached_response = response_cache.get_extraction(content_hash)
+        if cached_response:
+            cache_hit = True
+            logger.info(f"Cache hit for extraction (hash: {content_hash[:12]}...)")
+
+    # Call LLM via router with automatic failover (or use cache)
     try:
-        # Use router for automatic failover between providers
-        # If provider_name specified, prefer that provider first
-        preference = [provider_name] if provider_name else None
-        router = create_router(provider_preference=preference)
+        if cache_hit and cached_response:
+            # Use cached response
+            response_content = cached_response.get("content", "")
+            response_model = cached_response.get("model", "cached")
+            response_tokens = cached_response.get("tokens", 0)
+            provider_name_used = cached_response.get("provider", "cache")
+        else:
+            # Use router for automatic failover between providers
+            # If provider_name specified, prefer that provider first
+            preference = [provider_name] if provider_name else None
+            router = create_router(provider_preference=preference)
 
-        response = router.generate(
-            prompt=prompt,
-            system_prompt="You are an insight extraction system. Return valid JSON only.",
-            temperature=0.3,
-            max_tokens=2000,
-            feature="extraction",
-            case_id=case_id,
-        )
+            response = router.generate(
+                prompt=prompt,
+                system_prompt="You are an insight extraction system. Return valid JSON only.",
+                temperature=0.3,
+                max_tokens=2000,
+                feature="extraction",
+                case_id=case_id,
+            )
 
-        if not response.success:
-            return api_response(error=response.error, status=500)
+            if not response.success:
+                return api_response(error=response.error, status=500)
+
+            response_content = response.content
+            response_model = response.model
+            response_tokens = response.usage.get("total_tokens", 0) if response.usage else 0
+            provider_name_used = provider_name or "auto"
+
+            # Cache the successful response
+            if response_cache and content_hash:
+                response_cache.set_extraction(content_hash, {
+                    "content": response_content,
+                    "model": response_model,
+                    "tokens": response_tokens,
+                    "provider": provider_name_used,
+                })
+                logger.debug(f"Cached extraction result (hash: {content_hash[:12]}...)")
         
         # Parse response
-        result = parse_extraction_response(response.content, source_type, source_id)
+        result = parse_extraction_response(response_content, source_type, source_id)
         
         # Save insights to database
         save_results = []
@@ -2206,9 +2352,10 @@ def extract_insights():
             "saved": save_results,
             "content_quality": result.content_quality,
             "notes": result.notes,
-            "provider": provider.name,
-            "model": response.model,
-            "tokens_used": response.usage.get("total_tokens", 0) if response.usage else 0,
+            "provider": provider_name_used,
+            "model": response_model,
+            "tokens_used": response_tokens,
+            "cached": cache_hit,
             "tier0": {
                 "flags": pre_annotation.get("flags", {}),
                 "emotion_categories": pre_annotation.get("emotion_signals", {}).get("categories", []),

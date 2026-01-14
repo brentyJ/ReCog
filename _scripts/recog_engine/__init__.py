@@ -276,6 +276,20 @@ from .file_validator import (
 
 
 # =============================================================================
+# RESPONSE CACHE
+# =============================================================================
+
+from .response_cache import (
+    ResponseCache,
+    CacheEntry,
+    CacheStats,
+    get_response_cache,
+    init_response_cache,
+    DEFAULT_TTL_SECONDS,
+)
+
+
+# =============================================================================
 # LOGGING UTILITIES
 # =============================================================================
 
@@ -439,6 +453,14 @@ __all__ = [
     'get_validator',
     'DEFAULT_MAX_SIZE_MB',
     'SUPPORTED_MIME_TYPES',
+
+    # === Response Cache ===
+    'ResponseCache',
+    'CacheEntry',
+    'CacheStats',
+    'get_response_cache',
+    'init_response_cache',
+    'DEFAULT_TTL_SECONDS',
 
     # === Logging ===
     'setup_logging',
