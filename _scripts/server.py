@@ -15,6 +15,7 @@ REST API for:
 import os
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -74,6 +75,15 @@ from recog_engine.file_validator import (
     validate_upload,
     DEFAULT_MAX_SIZE_MB,
 )
+from recog_engine.logging_utils import (
+    setup_logging,
+    get_logger,
+    set_request_id,
+    get_request_id,
+    set_case_id,
+    log_api_call,
+    log_llm_call,
+)
 from recog_engine.core.providers import (
     create_provider,
     create_router,
@@ -97,6 +107,7 @@ class Config:
     DATA_DIR = Path(os.environ.get("RECOG_DATA_DIR", "./_data"))
     UPLOAD_DIR = DATA_DIR / "uploads"
     DB_PATH = DATA_DIR / "recog.db"
+    LOG_DIR = DATA_DIR / "logs"
 
     # File upload limits
     MAX_FILE_SIZE_MB = float(os.environ.get("RECOG_MAX_FILE_SIZE_MB", DEFAULT_MAX_SIZE_MB))
@@ -105,7 +116,12 @@ class Config:
         'txt', 'md', 'json', 'pdf', 'csv',
         'eml', 'msg', 'mbox', 'xml', 'xlsx', 'docx',
     }
-    
+
+    # Logging configuration
+    LOG_LEVEL = os.environ.get("RECOG_LOG_LEVEL", "INFO")
+    LOG_FILE = os.environ.get("RECOG_LOG_FILE", str(LOG_DIR / "recog.log"))
+    LOG_JSON = os.environ.get("RECOG_LOG_JSON", "false").lower() == "true"
+
     # LLM config - uses provider factory
     # Available providers determined by which API keys are configured
     AVAILABLE_PROVIDERS = get_available_providers()
@@ -120,8 +136,14 @@ app = Flask(__name__)
 app.config.from_object(Config)
 CORS(app)
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Set up structured logging with file rotation
+Config.LOG_DIR.mkdir(parents=True, exist_ok=True)
+setup_logging(
+    level=Config.LOG_LEVEL,
+    json_output=Config.LOG_JSON,
+    log_file=Config.LOG_FILE,
+)
+logger = get_logger(__name__)
 
 # Ensure directories exist
 Config.DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -156,6 +178,74 @@ try:
     logger.info(f"Loaded entity blacklist: {len(_blacklist)} entries")
 except Exception as e:
     logger.warning(f"Could not load entity blacklist: {e}")
+
+
+# =============================================================================
+# REQUEST LOGGING MIDDLEWARE
+# =============================================================================
+
+@app.before_request
+def before_request_logging():
+    """Log incoming request and set up request context."""
+    # Generate or use provided request ID
+    request_id = request.headers.get("X-Request-ID", str(uuid4())[:8])
+    set_request_id(request_id)
+
+    # Store start time for duration calculation
+    request.start_time = time.time()
+
+    # Skip logging for health checks and static files
+    if request.path in ("/api/health", "/api/info", "/favicon.ico"):
+        return
+
+    # Log request start (DEBUG level to reduce noise)
+    logger.debug(
+        f"Request: {request.method} {request.path}",
+        extra={
+            "method": request.method,
+            "path": request.path,
+            "user_agent": request.headers.get("User-Agent", "")[:100],
+        }
+    )
+
+
+@app.after_request
+def after_request_logging(response):
+    """Log completed request with timing and status."""
+    # Skip logging for health checks and static files
+    if request.path in ("/api/health", "/api/info", "/favicon.ico"):
+        return response
+
+    # Calculate duration
+    duration_ms = 0
+    if hasattr(request, "start_time"):
+        duration_ms = (time.time() - request.start_time) * 1000
+
+    # Determine log level based on status code
+    status_code = response.status_code
+    if status_code >= 500:
+        log_level = logging.ERROR
+    elif status_code >= 400:
+        log_level = logging.WARNING
+    else:
+        log_level = logging.INFO
+
+    # Log completed request
+    logger.log(
+        log_level,
+        f"{request.method} {request.path} -> {status_code}",
+        extra={
+            "method": request.method,
+            "path": request.path,
+            "status_code": status_code,
+            "duration_ms": round(duration_ms, 2),
+        }
+    )
+
+    # Add request ID to response headers for debugging
+    response.headers["X-Request-ID"] = get_request_id()
+
+    return response
 
 
 # =============================================================================
