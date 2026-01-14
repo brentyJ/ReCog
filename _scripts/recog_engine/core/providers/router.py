@@ -6,15 +6,18 @@ Copyright (c) 2025 Brent Lefebure / EhkoLabs
 Licensed under AGPLv3 - See LICENSE in repository root
 
 Routes LLM requests across multiple providers with automatic failover.
+Includes cost tracking for visibility into LLM spending.
 """
 
 import logging
+import time
 from typing import List, Optional, Dict, Any
 from tenacity import retry, stop_after_attempt, wait_exponential
 from datetime import datetime, timedelta
 
 from ..llm import LLMProvider, LLMResponse
 from .factory import create_provider, get_available_providers
+from ...cost_tracker import log_llm_cost
 
 logger = logging.getLogger(__name__)
 
@@ -144,18 +147,23 @@ class ProviderRouter:
         system_prompt: Optional[str] = None,
         temperature: float = 0.3,
         max_tokens: int = 2000,
+        feature: str = "unknown",
+        case_id: Optional[str] = None,
         **kwargs
     ) -> LLMResponse:
         """
         Generate response with automatic failover.
 
         Tries each provider in chain until one succeeds.
+        Logs cost for every request (success or failure).
 
         Args:
             prompt: User prompt
             system_prompt: System prompt
             temperature: Sampling temperature
             max_tokens: Max response tokens
+            feature: Feature making the request (for cost tracking)
+            case_id: Optional case ID (for cost tracking)
             **kwargs: Additional provider-specific args
 
         Returns:
@@ -177,6 +185,9 @@ class ProviderRouter:
                 logger.info(f"Attempting provider: {provider_name}")
                 provider = create_provider(provider_name)
 
+                # Track timing for latency
+                start_time = time.time()
+
                 response = self._call_provider(
                     provider,
                     prompt,
@@ -186,11 +197,27 @@ class ProviderRouter:
                     **kwargs
                 )
 
+                latency_ms = int((time.time() - start_time) * 1000)
+
                 if response.success:
                     self._mark_provider_success(provider_name)
+
+                    # Log cost for successful request
+                    usage = response.usage or {}
+                    log_llm_cost(
+                        feature=feature,
+                        provider=provider_name,
+                        model=response.model or provider.model,
+                        input_tokens=usage.get("input_tokens", 0),
+                        output_tokens=usage.get("output_tokens", 0),
+                        latency_ms=latency_ms,
+                        success=True,
+                        case_id=case_id,
+                    )
+
                     logger.info(
                         f"Provider {provider_name} succeeded "
-                        f"({response.usage.get('total_tokens', 0) if response.usage else 0} tokens)"
+                        f"({usage.get('total_tokens', 0)} tokens, {latency_ms}ms)"
                     )
                     return response
 
@@ -199,10 +226,36 @@ class ProviderRouter:
                 errors.append(f"{provider_name}: {response.error}")
                 self._mark_provider_failure(provider_name)
 
+                # Log failed request (no tokens but track failure)
+                log_llm_cost(
+                    feature=feature,
+                    provider=provider_name,
+                    model=provider.model,
+                    latency_ms=latency_ms,
+                    success=False,
+                    error_message=response.error,
+                    case_id=case_id,
+                )
+
             except Exception as e:
                 logger.error(f"{provider_name} failed: {e}")
                 errors.append(f"{provider_name}: {str(e)}")
                 self._mark_provider_failure(provider_name)
+
+                # Log exception (create provider if possible to get model)
+                try:
+                    model_name = create_provider(provider_name).model
+                except Exception:
+                    model_name = "unknown"
+
+                log_llm_cost(
+                    feature=feature,
+                    provider=provider_name,
+                    model=model_name,
+                    success=False,
+                    error_message=str(e),
+                    case_id=case_id,
+                )
 
         # All providers failed
         error_summary = "; ".join(errors)

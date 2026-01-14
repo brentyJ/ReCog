@@ -15,6 +15,9 @@ Usage:
     python recog_cli.py preflight create <folder>  - Create preflight session
     python recog_cli.py preflight scan <id>        - Scan preflight session
     python recog_cli.py preflight status <id>      - Get preflight status
+    python recog_cli.py cost-report                - View LLM cost summary (last 7 days)
+    python recog_cli.py cost-report --last-30-days - View costs for last 30 days
+    python recog_cli.py cost-report --daily        - Show day-by-day breakdown
 """
 
 import sys
@@ -45,6 +48,7 @@ from recog_engine import (
 )
 
 from db import init_database, check_database, get_schema_path
+from recog_engine.cost_tracker import CostTracker
 
 
 # =============================================================================
@@ -465,6 +469,97 @@ def cmd_preflight(args: list):
 
 
 # =============================================================================
+# COST TRACKING COMMANDS
+# =============================================================================
+
+def cmd_cost_report(args: list):
+    """Show LLM cost report."""
+    # Parse arguments
+    days = 7  # Default
+    show_daily = "--daily" in args
+    show_recent = "--recent" in args
+
+    for arg in args:
+        if arg.startswith("--last-"):
+            # Parse --last-N-days format
+            try:
+                days = int(arg.replace("--last-", "").replace("-days", ""))
+            except ValueError:
+                print(f"Invalid format: {arg}")
+                print("Use --last-N-days (e.g., --last-30-days)")
+                return
+
+    # Get database path
+    db_path = Path.cwd() / "_data" / "recog.db"
+    if not db_path.exists():
+        print(f"Database not found: {db_path}")
+        print("Run: recog_cli.py db init")
+        return
+
+    tracker = CostTracker(db_path)
+
+    # Header
+    print(f"\n{'='*60}")
+    print(f" LLM Cost Report - Last {days} Days")
+    print(f"{'='*60}")
+
+    # Get summary
+    summary = tracker.get_summary(days=days)
+
+    if summary.total_requests == 0:
+        print("\nNo LLM requests recorded in this period.")
+        print("Costs are tracked automatically when using the router.")
+        return
+
+    # Overview
+    print(f"\n--- Overview {'-'*37}")
+    print(f"  Total requests:     {summary.total_requests:,}")
+    print(f"  Successful:         {summary.successful_requests:,}")
+    print(f"  Failed:             {summary.failed_requests:,}")
+    print(f"  Total tokens:       {summary.total_tokens:,}")
+    print(f"    Input tokens:     {summary.total_input_tokens:,}")
+    print(f"    Output tokens:    {summary.total_output_tokens:,}")
+    print(f"  Total cost:         ${summary.total_cost:.4f}")
+
+    # By provider
+    if summary.by_provider:
+        print(f"\n--- By Provider {'-'*34}")
+        for provider, data in sorted(summary.by_provider.items(), key=lambda x: x[1]['cost'], reverse=True):
+            print(f"  {provider:15} {data['requests']:5} reqs | {data['tokens']:10,} tokens | ${data['cost']:.4f}")
+
+    # By feature
+    if summary.by_feature:
+        print(f"\n--- By Feature {'-'*35}")
+        for feature, data in sorted(summary.by_feature.items(), key=lambda x: x[1]['cost'], reverse=True):
+            print(f"  {feature:15} {data['requests']:5} reqs | {data['tokens']:10,} tokens | ${data['cost']:.4f}")
+
+    # Daily breakdown
+    if show_daily:
+        print(f"\n--- Daily Breakdown {'-'*30}")
+        daily = tracker.get_daily_breakdown(days=days)
+        if daily:
+            print(f"  {'Date':<12} {'Requests':>10} {'Tokens':>12} {'Cost':>10} {'Failed':>8}")
+            print(f"  {'-'*12} {'-'*10} {'-'*12} {'-'*10} {'-'*8}")
+            for row in daily:
+                print(f"  {row['day']:<12} {row['requests']:>10,} {row['tokens']:>12,} ${row['cost']:>9.4f} {row['failed']:>8}")
+        else:
+            print("  No daily data available")
+
+    # Recent requests
+    if show_recent:
+        print(f"\n--- Recent Requests {'-'*30}")
+        recent = tracker.get_recent_requests(limit=10)
+        for entry in recent:
+            status = "OK" if entry.success else "FAIL"
+            print(f"  {entry.created_at.strftime('%Y-%m-%d %H:%M')} | {entry.feature:12} | {entry.provider:10} | {entry.total_tokens:6} tok | ${entry.total_cost:.4f} | {status}")
+
+    # Footer
+    print(f"\n{'='*60}")
+    print(f"Period: {summary.period_start.strftime('%Y-%m-%d')} to {summary.period_end.strftime('%Y-%m-%d')}")
+    print()
+
+
+# =============================================================================
 # MAIN
 # =============================================================================
 
@@ -527,7 +622,11 @@ def main():
     # preflight
     elif cmd == "preflight":
         cmd_preflight(sys.argv[2:])
-    
+
+    # cost-report
+    elif cmd == "cost-report":
+        cmd_cost_report(sys.argv[2:])
+
     else:
         print(__doc__)
         sys.exit(1)

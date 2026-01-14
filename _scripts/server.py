@@ -1969,6 +1969,8 @@ def extract_insights():
             system_prompt="You are an insight extraction system. Return valid JSON only.",
             temperature=0.3,
             max_tokens=2000,
+            feature="extraction",
+            case_id=case_id,
         )
 
         if not response.success:

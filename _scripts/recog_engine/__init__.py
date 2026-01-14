@@ -247,6 +247,20 @@ from .critique import (
 
 
 # =============================================================================
+# COST TRACKING
+# =============================================================================
+
+from .cost_tracker import (
+    CostTracker,
+    CostEntry,
+    CostSummary,
+    PRICING,
+    get_cost_tracker,
+    log_llm_cost,
+)
+
+
+# =============================================================================
 # LOGGING UTILITIES
 # =============================================================================
 
@@ -393,7 +407,15 @@ __all__ = [
     'CritiqueEngine',
     'init_critique_engine',
     'get_critique_engine',
-    
+
+    # === Cost Tracking ===
+    'CostTracker',
+    'CostEntry',
+    'CostSummary',
+    'PRICING',
+    'get_cost_tracker',
+    'log_llm_cost',
+
     # === Logging ===
     'setup_logging',
     'get_logger',
