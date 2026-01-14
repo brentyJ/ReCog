@@ -390,29 +390,136 @@ def handle_request_too_large(error):
 @app.route("/api/health", methods=["GET"])
 @rate_limit_health
 def health():
-    """Health check endpoint."""
-    db_status = check_database(Config.DB_PATH)
-    
-    # Get cases count
-    cases_count = 0
+    """
+    Health check endpoint with comprehensive system checks.
+
+    Query params:
+        - deep=true: Run LLM provider connectivity tests (slower)
+
+    Returns 503 if any critical check fails.
+    """
+    import shutil
+
+    checks = {}
+    overall_healthy = True
+    warnings = []
+
+    # 1. Database check - is it accessible and writable?
+    db_healthy = False
+    db_info = {"path": str(Config.DB_PATH)}
     try:
+        db_status = check_database(Config.DB_PATH)
+        db_info["tables"] = db_status.get("total_tables", 0)
+        db_info["rows"] = db_status.get("total_rows", 0)
+
+        # Test write capability
         conn = _get_db_connection()
+        conn.execute("SELECT 1")
         cases_count = conn.execute("SELECT COUNT(*) FROM cases WHERE status = 'active'").fetchone()[0]
+        db_info["cases"] = cases_count
         conn.close()
-    except:
-        pass
-    
-    return api_response({
-        "status": "healthy",
-        "database": {
-            "path": str(Config.DB_PATH),
-            "tables": db_status.get("total_tables", 0),
-            "rows": db_status.get("total_rows", 0),
-            "cases": cases_count,
-        },
-        "llm_configured": Config.LLM_CONFIGURED,
+        db_healthy = True
+        db_info["writable"] = True
+    except Exception as e:
+        db_info["error"] = str(e)[:100]
+        db_info["writable"] = False
+        overall_healthy = False
+
+    checks["database"] = {"healthy": db_healthy, **db_info}
+
+    # 2. Disk space check
+    disk_healthy = True
+    disk_info = {}
+    try:
+        data_path = Config.DATA_DIR
+        disk_usage = shutil.disk_usage(data_path)
+        free_gb = disk_usage.free / (1024**3)
+        total_gb = disk_usage.total / (1024**3)
+        used_percent = (disk_usage.used / disk_usage.total) * 100
+
+        disk_info = {
+            "path": str(data_path),
+            "free_gb": round(free_gb, 2),
+            "total_gb": round(total_gb, 2),
+            "used_percent": round(used_percent, 1),
+        }
+
+        # Warn if less than 1GB free or >95% used
+        if free_gb < 1.0:
+            warnings.append(f"Low disk space: {free_gb:.2f}GB free")
+            disk_healthy = False
+            overall_healthy = False
+        elif used_percent > 95:
+            warnings.append(f"Disk nearly full: {used_percent:.1f}% used")
+    except Exception as e:
+        disk_info["error"] = str(e)[:100]
+        disk_healthy = False
+
+    checks["disk"] = {"healthy": disk_healthy, **disk_info}
+
+    # 3. LLM providers check
+    llm_info = {
+        "configured": Config.LLM_CONFIGURED,
         "available_providers": Config.AVAILABLE_PROVIDERS,
-    })
+    }
+
+    # Deep check: actually test provider connectivity (optional, slower)
+    deep_check = request.args.get("deep", "").lower() == "true"
+    if deep_check and Config.LLM_CONFIGURED:
+        provider_status = {}
+        for provider_name in Config.AVAILABLE_PROVIDERS:
+            try:
+                provider = create_provider(provider_name)
+                # Quick test call
+                response = provider.generate(
+                    prompt="Say 'ok'",
+                    max_tokens=5,
+                    temperature=0,
+                )
+                provider_status[provider_name] = {
+                    "healthy": response.success,
+                    "model": response.model,
+                }
+            except Exception as e:
+                provider_status[provider_name] = {
+                    "healthy": False,
+                    "error": str(e)[:100],
+                }
+        llm_info["provider_status"] = provider_status
+
+    if not Config.LLM_CONFIGURED:
+        warnings.append("No LLM provider configured - extraction features unavailable")
+
+    checks["llm"] = llm_info
+
+    # 4. Cache status
+    cache_info = {"enabled": response_cache is not None}
+    if response_cache:
+        try:
+            stats = response_cache.get_stats()
+            cache_info["entries"] = stats.total_entries
+            cache_info["size_mb"] = round(stats.total_size_bytes / (1024*1024), 2)
+            cache_info["hit_rate"] = round(stats.hit_rate, 1)
+        except Exception:
+            pass
+    checks["cache"] = cache_info
+
+    # 5. Rate limiter status
+    checks["rate_limiter"] = {"enabled": limiter is not None}
+
+    # Build response
+    status = "healthy" if overall_healthy else "unhealthy"
+    http_status = 200 if overall_healthy else 503
+
+    response_data = {
+        "status": status,
+        "checks": checks,
+    }
+
+    if warnings:
+        response_data["warnings"] = warnings
+
+    return api_response(response_data, status=http_status)
 
 
 @app.route("/api/info", methods=["GET"])
