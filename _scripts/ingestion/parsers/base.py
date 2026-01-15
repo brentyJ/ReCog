@@ -53,14 +53,19 @@ def get_parser(path: Path) -> Optional[BaseParser]:
     from .excel import ExcelParser
     from .csv_parser import CSVParser
     from .mbox import MboxParser
+    from .docx import DocxParser
+    from .email import EmlParser, MsgParser
 
     parsers = [
         PDFParser(),
+        DocxParser(),        # Check DOCX before plaintext
         MarkdownParser(),
         CSVParser(),         # Check CSV before plaintext
         ExcelParser(),       # Check Excel before plaintext
         JSONExportParser(),  # Check JSON before plaintext
         MboxParser(),        # Check MBOX before plaintext
+        EmlParser(),         # Check EML before plaintext
+        MsgParser(),         # Check MSG before plaintext
         MessagesParser(),    # Check before plaintext (txt files might be messages)
         PlaintextParser(),
     ]
@@ -82,14 +87,19 @@ def get_all_parsers() -> List[BaseParser]:
     from .excel import ExcelParser
     from .csv_parser import CSVParser
     from .mbox import MboxParser
+    from .docx import DocxParser
+    from .email import EmlParser, MsgParser
 
     return [
         PDFParser(),
+        DocxParser(),
         MarkdownParser(),
         CSVParser(),
         ExcelParser(),
         JSONExportParser(),
         MboxParser(),
+        EmlParser(),
+        MsgParser(),
         MessagesParser(),
         PlaintextParser(),
     ]

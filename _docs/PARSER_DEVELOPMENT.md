@@ -551,13 +551,16 @@ Before submitting a new parser:
 | Parser | Extensions | Dependencies | Notes |
 |--------|------------|--------------|-------|
 | `PDFParser` | `.pdf` | `pypdf` | Extracts text and metadata |
+| `DocxParser` | `.docx` | `python-docx` | Word docs with tables, headers, comments |
 | `ExcelParser` | `.xlsx`, `.xls`, `.xlsm` | `openpyxl` | All sheets as text |
 | `CSVParser` | `.csv` | (builtin) | Handles various delimiters |
 | `MarkdownParser` | `.md`, `.markdown` | (builtin) | Preserves structure |
 | `PlaintextParser` | `.txt`, `.text`, others | (builtin) | Fallback parser |
 | `MessagesParser` | `.txt`, `.xml` | (builtin) | WhatsApp, SMS exports |
 | `JSONExportParser` | `.json` | (builtin) | ChatGPT exports |
-| `MboxParser` | `.mbox` | (builtin) | Email archives |
+| `MboxParser` | `.mbox` | (builtin) | Email archives (multi-email) |
+| `EmlParser` | `.eml` | (builtin) | Standard email files |
+| `MsgParser` | `.msg` | `extract-msg` | Outlook email files |
 
 ---
 

@@ -14,6 +14,8 @@ from .json_export import JSONExportParser
 from .excel import ExcelParser
 from .csv_parser import CSVParser
 from .mbox import MboxParser
+from .docx import DocxParser
+from .email import EmlParser, MsgParser
 
 __all__ = [
     "BaseParser",
@@ -21,6 +23,7 @@ __all__ = [
     "get_all_parsers",
     "get_supported_extensions",
     "PDFParser",
+    "DocxParser",
     "MarkdownParser",
     "PlaintextParser",
     "MessagesParser",
@@ -28,4 +31,6 @@ __all__ = [
     "ExcelParser",
     "CSVParser",
     "MboxParser",
+    "EmlParser",
+    "MsgParser",
 ]

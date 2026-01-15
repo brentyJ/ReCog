@@ -469,7 +469,20 @@ Files in ingestion/parsers/
 - [x] `messages.py` - WhatsApp, SMS XML, generic chat (unified)
 - [x] `json_export.py` - ChatGPT conversations.json export
 - [x] `excel.py` - Excel spreadsheets (.xlsx, .xls, .xlsm via openpyxl)
-- [x] `mbox.py` - MBOX email archives
+- [x] `mbox.py` - MBOX email archives (builtin mailbox module)
+- [x] `docx.py` - Microsoft Word documents (python-docx)
+- [x] `email.py` - EML (builtin) and MSG (extract-msg) email files
+
+### 9.1.1 Directory Analysis ✅
+```
+New endpoint: POST /api/cases/analyze-directory
+```
+
+- [x] Scan directory for supported files (recursive optional)
+- [x] Create case automatically from directory name
+- [x] Queue all files for processing via preflight system
+- [x] Skip hidden directories (.git, __pycache__, etc.)
+- [x] Support file extension filtering
 
 ### 9.2 Entity Context Injection ✅
 ```

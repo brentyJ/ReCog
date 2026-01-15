@@ -4558,6 +4558,232 @@ def start_case_processing(case_id: str):
     return api_response(error="Failed to start processing", status=500)
 
 
+@app.route("/api/cases/analyze-directory", methods=["POST"])
+@require_json
+def analyze_directory():
+    """
+    Scan a directory for supported files and create a case.
+    ---
+    tags:
+      - Cases
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - directory_path
+            properties:
+              directory_path:
+                type: string
+                description: Path to directory to analyze
+                example: /Users/brent/Documents/Project
+              case_title:
+                type: string
+                description: Case title (defaults to directory name)
+              recursive:
+                type: boolean
+                default: true
+                description: Scan subdirectories recursively
+              file_extensions:
+                type: array
+                items:
+                  type: string
+                description: Filter by extensions (e.g., ["pdf", "docx"])
+              create_case:
+                type: boolean
+                default: true
+                description: Create a new case for the files
+    responses:
+      200:
+        description: Directory scanned and case created
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    case_id:
+                      type: string
+                    preflight_session_id:
+                      type: integer
+                    files_found:
+                      type: integer
+                    files_queued:
+                      type: integer
+                    file_list:
+                      type: array
+                      items:
+                        type: object
+      400:
+        description: Invalid directory path
+      404:
+        description: Directory not found
+    """
+    data = request.get_json()
+
+    directory_path = data.get("directory_path")
+    if not directory_path:
+        return api_response(error="directory_path required", status=400)
+
+    dir_path = Path(directory_path)
+    if not dir_path.exists():
+        return api_response(error=f"Directory not found: {directory_path}", status=404)
+    if not dir_path.is_dir():
+        return api_response(error=f"Path is not a directory: {directory_path}", status=400)
+
+    recursive = data.get("recursive", True)
+    file_extensions = data.get("file_extensions")  # Optional filter
+    create_case = data.get("create_case", True)
+    case_title = data.get("case_title") or dir_path.name
+
+    # Directories to skip
+    SKIP_DIRS = {'.git', '__pycache__', 'node_modules', '.venv', 'venv', '.env',
+                 '.idea', '.vscode', 'dist', 'build', '.cache'}
+
+    # Get supported extensions
+    from ingestion import get_supported_extensions
+    supported_exts = set(get_supported_extensions())
+
+    # Apply extension filter if provided
+    if file_extensions:
+        filter_exts = {f".{ext.lower().lstrip('.')}" for ext in file_extensions}
+        supported_exts = supported_exts & filter_exts
+
+    # Scan directory for files
+    def scan_files(path: Path, recursive: bool):
+        """Scan directory for supported files."""
+        files = []
+        try:
+            for item in path.iterdir():
+                # Skip hidden and special directories
+                if item.name.startswith('.') or item.name in SKIP_DIRS:
+                    continue
+
+                if item.is_file():
+                    if item.suffix.lower() in supported_exts:
+                        try:
+                            files.append({
+                                "path": str(item),
+                                "name": item.name,
+                                "extension": item.suffix.lower(),
+                                "size": item.stat().st_size,
+                            })
+                        except Exception:
+                            pass  # Skip files we can't stat
+                elif item.is_dir() and recursive:
+                    files.extend(scan_files(item, recursive))
+        except PermissionError:
+            pass  # Skip directories we can't access
+        return files
+
+    found_files = scan_files(dir_path, recursive)
+
+    if not found_files:
+        return api_response({
+            "files_found": 0,
+            "files_queued": 0,
+            "message": "No supported files found in directory",
+            "supported_extensions": sorted(supported_exts),
+        })
+
+    # Limit to prevent overwhelming the system
+    MAX_FILES = 500
+    if len(found_files) > MAX_FILES:
+        found_files = found_files[:MAX_FILES]
+        truncated = True
+    else:
+        truncated = False
+
+    # Create case if requested
+    case_id = None
+    if create_case:
+        case = case_store.create_case(
+            title=case_title,
+            context=f"Analysis of directory: {directory_path}",
+            focus_areas=[],
+        )
+        case_id = case.id
+
+    # Create preflight session
+    session_id = preflight_manager.create_session(
+        session_type="directory_scan",
+        source_files=[f["path"] for f in found_files],
+        case_id=case_id,
+    )
+
+    # Process each file
+    processed_count = 0
+    errors = []
+
+    for file_info in found_files:
+        file_path = Path(file_info["path"])
+        try:
+            # Use ingestion to parse the file
+            documents = ingest_file(file_path)
+
+            for doc in documents:
+                preflight_manager.add_item(
+                    session_id=session_id,
+                    source_type=file_info["extension"].lstrip('.'),
+                    content=doc.content,
+                    source_id=str(file_path),
+                    title=doc.metadata.get("title") or file_path.stem,
+                )
+                processed_count += 1
+
+        except Exception as e:
+            errors.append({
+                "file": file_info["name"],
+                "error": str(e),
+            })
+
+    # Run Tier 0 scan on all items
+    scan_result = preflight_manager.scan_session(session_id)
+
+    # Update case state if applicable
+    if case_id:
+        state_machine.transition_to(case_id, "scanning")
+
+        if scan_result["unknown_entities"] > 0:
+            state_machine.advance_case(case_id, {
+                "tier0_complete": True,
+                "unknown_entities": True
+            })
+        else:
+            state_machine.advance_case(case_id, {
+                "tier0_complete": True,
+                "unknown_entities": False
+            })
+
+    return api_response({
+        "case_id": case_id,
+        "preflight_session_id": session_id,
+        "files_found": len(found_files),
+        "files_queued": processed_count,
+        "truncated": truncated,
+        "file_list": [
+            {
+                "path": f["path"],
+                "name": f["name"],
+                "type": f["extension"].lstrip('.'),
+                "size": f["size"],
+            }
+            for f in found_files[:50]  # Limit response size
+        ],
+        "total_words": scan_result["total_words"],
+        "total_entities": scan_result["total_entities"],
+        "unknown_entities": scan_result["unknown_entities"],
+        "estimated_cost_cents": scan_result["estimated_cost_cents"],
+        "errors": errors[:10] if errors else [],
+    })
+
+
 # =============================================================================
 # CYPHER - Conversational Analysis Interface
 # =============================================================================

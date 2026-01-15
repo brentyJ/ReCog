@@ -27,6 +27,7 @@ from recog_engine.core.types import Document
 SUPPORTED_FORMATS = {
     # Documents
     ".pdf": ("PDF Document", "pdf"),
+    ".docx": ("Microsoft Word", "docx"),
     ".md": ("Markdown", "markdown"),
     ".markdown": ("Markdown", "markdown"),
     ".txt": ("Plain Text", "text"),
@@ -36,9 +37,13 @@ SUPPORTED_FORMATS = {
     ".json": ("JSON (may contain chat exports)", "json"),
     ".csv": ("CSV Data", "csv"),
 
+    # Email
+    ".eml": ("Email Message", "eml"),
+    ".msg": ("Outlook Email", "msg"),
+    ".mbox": ("Email Archive", "mbox"),
+
     # Messages
     ".xml": ("XML Messages", "messages"),
-    ".mbox": ("Email Archive", "messages"),
 }
 
 CONTAINER_FORMATS = {
@@ -50,14 +55,6 @@ CONTAINER_FORMATS = {
 }
 
 UNSUPPORTED_WITH_SUGGESTIONS = {
-    ".docx": {
-        "name": "Microsoft Word",
-        "suggestions": [
-            "Export as PDF from Word (File → Save As → PDF)",
-            "Copy/paste the text content into a .txt file",
-            "Use online converter to convert to PDF or plain text"
-        ]
-    },
     ".doc": {
         "name": "Microsoft Word (Legacy)",
         "suggestions": [
