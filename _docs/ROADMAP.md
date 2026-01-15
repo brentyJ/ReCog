@@ -1034,6 +1034,56 @@ Completed:
 
 ---
 
+## 🔒 Security Considerations (Deferred)
+
+**Purpose**: Track security features evaluated but deferred as lower priority for local-first tool. Reassess when deployment model changes.
+
+**Research Source**: `C:\Users\brent\Documents\EhkoForge Docs\Security Research\securityresearch_recog.md`
+
+### Implemented (v0.10 - Jan 2026) ✅
+- [x] **PII Redaction** - regex backend (SSN, credit cards, emails, phones, IPs)
+- [x] **Prompt Injection Detection** - pattern-based detection with warn/block modes
+- [x] **Log Sanitization** - automatic redaction of API keys and secrets
+- [x] **Token Budget Tracking** - daily limits with optional enforcement
+
+### Deferred - Reassess If Deploying as Service
+
+| Feature | Why Deferred | Reassess When |
+|---------|--------------|---------------|
+| **ClamAV Malware Scanning** | Requires daemon process, complex Windows setup | Multi-user deployment, accepting untrusted uploads |
+| **Docker Sandbox for Parsers** | Overkill for local tool, existing parser security sufficient | Processing files from untrusted sources at scale |
+| **SQLCipher DB Encryption** | Adds friction for single-user local app, OS encryption simpler | Multi-tenant deployment, compliance requirements (HIPAA, SOC2) |
+| **Flask-Security-Too / OAuth** | Only needed for multi-user SaaS | User authentication required |
+| **Rate Limiting per IP** | No value for localhost-only deployment | Public API exposure |
+| **Presidio ML Backend** | 500MB spaCy model overhead, regex catches 80%+ | Need to detect names/locations as PII (currently entities extracted, not redacted) |
+
+### How to Enable Deferred Features
+
+**Presidio (advanced PII):**
+```bash
+# Uncomment in requirements.txt, then:
+pip install presidio-analyzer presidio-anonymizer
+python -m spacy download en_core_web_sm
+# Set RECOG_PII_BACKEND=presidio in .env
+```
+
+**ClamAV:**
+- Install ClamAV daemon (platform-specific)
+- Add pyclamd to requirements
+- Integrate into file upload validation in server.py
+
+**SQLCipher:**
+- Replace sqlite3 with sqlcipher3-binary
+- Add key management (env var or keyring)
+- Migration script for existing unencrypted DBs
+
+**Full Auth:**
+- Add Flask-Security-Too with user model
+- Configure OAuth providers (Google, GitHub)
+- Add session management and RBAC
+
+---
+
 ## 🔮 Blue Sky Ideas & Future Experiments
 
 **Purpose**: Track exciting ideas that aren't immediate priorities but worth remembering
