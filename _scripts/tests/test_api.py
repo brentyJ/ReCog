@@ -52,11 +52,13 @@ def sample_text():
 def test_health_endpoint(client):
     """Health endpoint should return success."""
     response = client.get('/api/health')
-    
+
     assert response.status_code == 200
     data = json.loads(response.data)
     assert data['success'] is True
-    assert 'database' in data['data']
+    assert 'status' in data['data']
+    assert 'checks' in data['data']
+    assert 'database' in data['data']['checks']
 
 
 def test_info_endpoint(client):
