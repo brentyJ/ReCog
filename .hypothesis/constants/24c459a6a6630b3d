@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\core\types.py
+# hypothesis_version: 6.150.2
+
+[0.05, 0.5, 1.0, 'Corpus', 'Document', 'Insight', 'Pattern', 'PatternType', 'ProcessingState', 'ProcessingStatus', 'Synthesis', 'SynthesisType', 'belief', 'cancelled', 'cluster', 'complete', 'completed_at', 'confidence', 'content', 'contradiction', 'corpus_id', 'created_at', 'current_tier', 'documents_processed', 'documents_total', 'error', 'evolution', 'excerpts', 'failed', 'id', 'insight_ids', 'insights_extracted', 'metadata', 'pass_count', 'passes_completed', 'pattern_ids', 'pattern_type', 'patterns_found', 'pending', 'processing', 'recurring', 'signals', 'significance', 'source_ids', 'source_ref', 'source_type', 'started_at', 'status', 'strength', 'summary', 'synthesis_type', 'tendency', 'theme', 'themes', 'trait', 'updated_at']

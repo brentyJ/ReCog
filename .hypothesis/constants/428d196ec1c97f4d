@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\adapters\sqlite.py
+# hypothesis_version: 6.150.2
+
+[' AND confidence >= ?', ' AND source_type = ?', ' LIMIT ?', 'SQLiteAdapter', 'completed_at', 'confidence', 'content', 'corpus_id', 'created_at', 'current_tier', 'documents', 'documents_processed', 'documents_total', 'error', 'excerpts', 'id', 'insight_ids', 'insights', 'insights_extracted', 'limit', 'metadata', 'min_confidence', 'min_significance', 'pass_count', 'passes_completed', 'pattern_ids', 'pattern_type', 'patterns', 'patterns_found', 'signals', 'significance', 'source_ids', 'source_ref', 'source_type', 'started_at', 'status', 'strength', 'summary', 'syntheses', 'synthesis_type', 'themes', 'unprocessed', 'updated_at']

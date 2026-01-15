@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\cost_tracker.py
+# hypothesis_version: 6.150.2
+
+[0.15, 0.25, 0.6, 1.0, 1.25, 2.5, 3.0, 5.0, 10.0, 15.0, 1000000, ' AND ', 'AND user_id = ?', 'CostEntry', 'CostSummary', 'CostTracker', 'PRICING', '_data', '_default', 'anthropic', 'case_id', 'cost', 'created_at', 'created_at >= ?', 'day', 'default', 'error_message', 'failed', 'failed_requests', 'feature', 'feature = ?', 'get_cost_tracker', 'gpt-4o', 'gpt-4o-2024-08-06', 'gpt-4o-mini', 'id', 'input', 'input_cost', 'input_tokens', 'latency_ms', 'log_llm_cost', 'model', 'openai', 'output', 'output_cost', 'output_tokens', 'provider', 'recog.db', 'requests', 'success', 'successful_requests', 'tokens', 'total_cost', 'total_input_tokens', 'total_output_tokens', 'total_requests', 'total_tokens', 'user_id', 'user_id = ?']

@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\chunker.py
+# hypothesis_version: 6.150.2
+
+[200, 500, 2000, '[.!?]\\s+', '\\n', '\\n\\n', '\\s+']

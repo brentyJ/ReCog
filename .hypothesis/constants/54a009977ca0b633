@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\core\routing.py
+# hypothesis_version: 6.150.2
+
+[0.0, 0.015, 0.06, 0.1, 0.25, 0.3, 0.5, 0.7, 0.8, 1.0, 1.3, 1.5, 100.0, 100, 400, 500, 1000, 'COST_PER_1K', 'ProviderRouter', 'RoutingConfig', 'anthropic', 'anthropic_calls', 'anthropic_cost_cents', 'document_count', 'estimate_batch_cost', 'estimated_cost_cents', 'flags', 'gpt-4o', 'gpt-4o-mini', 'high_emotion', 'high_emotion flag', 'input', 'journal', 'openai', 'openai_cost_cents', 'openai_extractions', 'output', 'personal', 'source_type', 'therapy', 'tier0', 'total_calls', 'word_count']

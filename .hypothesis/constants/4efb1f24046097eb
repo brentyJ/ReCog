@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\parsers\contacts.py
+# hypothesis_version: 6.150.2
+
+[200, 500, '+', ', ', '...', '.vcf', '@', 'AU', 'BEGIN:VCARD', 'VCARD', 'VCFParser', 'address', 'addresses', 'adr', 'adr_list', 'anniversary', 'bday', 'birthday', 'categories', 'contact_count', 'contacts', 'contacts_with_notes', 'contacts_with_photo', 'cypher_context', 'description', 'details', 'email', 'email_list', 'emails', 'error', 'extensions', 'extractable', 'file_type', 'fn', 'format', 'has_photo', 'iso-8859-1', 'n', 'name', 'note', 'number', 'org', 'organization', 'parse_failed', 'parser', 'phones', 'photo', 'privacy_warning', 'raw', 'replace', 'requires_user_input', 'suggestions', 'tel', 'tel_list', 'title', 'top_domains', 'top_organizations', 'type', 'type_param', 'unique_categories', 'unique_organizations', 'url', 'url_list', 'urls', 'utf-16', 'utf-8', 'vCard (VCF)', 'vcf', 'windows-1252']

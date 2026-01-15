@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\logging_utils.py
+# hypothesis_version: 6.150.2
+
+[100, 200, 400, 500, 1000, 1024, 'INFO', 'LogRotationConfig', 'StructuredFormatter', 'Timer', 'User-Agent', 'X-Request-ID', 'Z', 'case_id', 'completion_tokens', 'cost_cents', 'documents_processed', 'duration_ms', 'endpoint', 'entities_found', 'entity_id', 'error_context', 'error_type', 'exception', 'get_case_id', 'get_logger', 'get_request_id', 'get_session_id', 'httpx', 'insight_id', 'insights_found', 'level', 'llm_duration_ms', 'log_api_call', 'log_llm_call', 'log_request', 'logger', 'message', 'method', 'midnight', 'model', 'path', 'prompt_tokens', 'provider', 'request_id', 'session_id', 'set_case_id', 'set_request_id', 'set_session_id', 'setup_logging', 'stage', 'status_code', 'timed', 'timestamp', 'tokens_used', 'urllib3', 'user_agent', 'werkzeug']

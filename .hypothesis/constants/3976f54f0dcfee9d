@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\parsers\plaintext.py
+# hypothesis_version: 6.150.2
+
+[100, '!', '(\\d{4}-\\d{2}-\\d{2})', ',', '.', '.text', '.txt', '?', 'latin-1', 'replace', 'source_file', 'text', 'utf-8']

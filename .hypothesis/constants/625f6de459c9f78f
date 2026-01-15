@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\core\providers\openai_provider.py
+# hypothesis_version: 6.150.2
+
+[0.3, 2000, 'OpenAIProvider', 'api_key', 'base_url', 'completion_tokens', 'content', 'gpt-4o-mini', 'json_object', 'openai', 'prompt_tokens', 'role', 'system', 'total_tokens', 'type', 'user']

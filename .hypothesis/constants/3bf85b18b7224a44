@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\parsers\messages.py
+# hypothesis_version: 6.150.2
+
+[500, 1000, 2000, 5000, '%d/%m/%Y, %H:%M', '%d/%m/%Y, %I:%M %p', '%d/%m/%y, %H:%M', '%m/%d/%Y, %H:%M', '%m/%d/%Y, %I:%M %p', '%m/%d/%y, %H:%M', '&#10;', '(Unknown)', './/sms', '.csv', '.json', '.txt', '.xml', '1', '2', '<attached:', '<smses', 'Me', 'Media omitted', 'SMS Backup & Restore', 'Unknown', '[', 'author', 'body', 'contact', 'contact_name', 'content', 'data', 'date', 'direction', 'first_message', 'format', 'from', 'generic', 'json', 'last_message', 'message', 'message_count', 'messages', 'null', 'participants', 'raw_timestamp', 'readable_date', 'received', 'replace', 'sender', 'sent', 'sms_xml', 'text', 'time', 'timestamp', 'type', 'unknown_messages', 'utf-8', 'whatsapp', '{']

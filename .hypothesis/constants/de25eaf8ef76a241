@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\core\providers\anthropic_provider.py
+# hypothesis_version: 6.150.2
+
+[0.0, 0.3, 1.0, 2000, 'AnthropicProvider', 'anthropic', 'api_key', 'base_url', 'completion_tokens', 'content', 'max_tokens', 'messages', 'model', 'prompt_tokens', 'role', 'system', 'temperature', 'text', 'total_tokens', 'user']

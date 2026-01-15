@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\db.py
+# hypothesis_version: 6.150.2
+
+['--', '--force', 'Commands:', 'Database not found', 'Options:', '__main__', '_data', 'check', 'error', 'init', 'migrate', 'migration_v*.sql', 'migrations', 'recog.db', 'schema', 'schema_v0_1.sql', 'sqlite_', 'tables', 'total_rows', 'total_tables', 'utf-8']

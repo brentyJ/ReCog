@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\state_machine.py
+# hypothesis_version: 6.150.2
+
+[0.0, 1.0, 200, '+00:00', 'CaseState', 'CaseStateMachine', 'StateTransition', 'Z', 'clarifying', 'complete', 'completed_items', 'completed_items = ?', 'count', 'created_at', 'current_item', 'current_item = ?', 'entities_clarified', 'error_message', 'error_message = ?', 'failed', 'files_uploaded', 'id', 'idle', 'pending', 'pre_annotation_json', 'processing', 'progress', 'progress = ?', 'recent_insight', 'recent_insight = ?', 'scanning', 'stage', 'state', 'status', 'status = ?', 'synthesis_complete', 'tier0_complete', 'total_items', 'unknown_entities', 'updated_at', 'updated_at = ?', 'uploading', 'watching', 'word_count']

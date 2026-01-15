@@ -40,14 +40,17 @@ class ParserRegistry:
     """
 
     def __init__(self):
-        # MIME type -> parser class mapping
-        self._mime_parsers: Dict[str, Type[BaseParser]] = {}
+        # MIME type -> parser class or instance mapping
+        self._mime_parsers: Dict[str, any] = {}
 
-        # Platform name -> parser class mapping
-        self._platform_parsers: Dict[str, Type[BaseParser]] = {}
+        # Platform name -> parser class or instance mapping
+        self._platform_parsers: Dict[str, any] = {}
 
-        # Extension -> parser class mapping (fallback)
-        self._extension_parsers: Dict[str, Type[BaseParser]] = {}
+        # Extension -> parser class or instance mapping (fallback)
+        self._extension_parsers: Dict[str, any] = {}
+
+        # Track which entries are instances (legacy wrappers) vs classes
+        self._is_instance: Dict[str, bool] = {}
 
         # Format detector
         self.detector = FormatDetector()
@@ -101,11 +104,13 @@ class ParserRegistry:
         parser_name = parser_instance.__class__.__name__
 
         for mime_type in mime_types:
-            self._mime_parsers[mime_type] = type(wrapper)
+            self._mime_parsers[mime_type] = wrapper  # Store instance, not class
+            self._is_instance[mime_type] = True
             logger.info(f"Registered legacy parser: {parser_name} for {mime_type}")
 
         for ext in extensions:
-            self._extension_parsers[ext.lower()] = type(wrapper)
+            self._extension_parsers[ext.lower()] = wrapper  # Store instance, not class
+            self._is_instance[ext.lower()] = True
 
     def get_parser(self, file_path: Path) -> Optional[BaseParser]:
         """
@@ -129,29 +134,33 @@ class ParserRegistry:
             f"for {file_path.name}"
         )
 
+        # Helper to get parser instance from class or instance
+        def get_instance(key: str, parser_or_class) -> Optional[BaseParser]:
+            if self._is_instance.get(key, False):
+                return parser_or_class  # Already an instance
+            else:
+                return parser_or_class()  # Instantiate class
+
         # 1. Try platform-specific parser first
         if platform_type and platform_type in self._platform_parsers:
-            parser_class = self._platform_parsers[platform_type]
-            parser = parser_class()
+            parser = get_instance(platform_type, self._platform_parsers[platform_type])
             if parser.can_parse(file_path, mime_type):
-                logger.info(f"Using platform parser: {parser_class.__name__}")
+                logger.info(f"Using platform parser: {parser.__class__.__name__}")
                 return parser
 
         # 2. Try MIME type parser
         if mime_type in self._mime_parsers:
-            parser_class = self._mime_parsers[mime_type]
-            parser = parser_class()
+            parser = get_instance(mime_type, self._mime_parsers[mime_type])
             if parser.can_parse(file_path, mime_type):
-                logger.info(f"Using MIME parser: {parser_class.__name__}")
+                logger.info(f"Using MIME parser: {parser.__class__.__name__}")
                 return parser
 
         # 3. Fallback to extension parser
         ext = file_path.suffix.lower()
         if ext in self._extension_parsers:
-            parser_class = self._extension_parsers[ext]
-            parser = parser_class()
+            parser = get_instance(ext, self._extension_parsers[ext])
             if parser.can_parse(file_path, mime_type):
-                logger.info(f"Using extension parser: {parser_class.__name__}")
+                logger.info(f"Using extension parser: {parser.__class__.__name__}")
                 return parser
 
         logger.warning(f"No parser found for {mime_type} ({file_path.name})")

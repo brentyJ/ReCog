@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\parsers\excel.py
+# hypothesis_version: 6.150.2
+
+[100, '.xls', '.xlsm', '.xlsx', '=', 'ExcelParser', 'data', 'error', 'excel', 'format', 'name', 'rows', 'sheet_count', 'sheet_names', 'sheets', 'total_cells', 'total_rows']

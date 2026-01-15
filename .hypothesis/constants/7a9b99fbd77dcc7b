@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\core\extractor.py
+# hypothesis_version: 6.150.2
+
+[0.4, 0.5, 0.6, ', ', 'EXTRACTION_PROMPT', 'Extractor', '```', 'confidence', 'documents_processed', 'documents_skipped', 'errors', 'excerpt', 'extract_from_text', 'extraction_model', 'inline', 'insights', 'insights_extracted', 'insights_merged', 'significance', 'source_ref', 'source_type', 'summary', 'text', 'themes', 'word_count']

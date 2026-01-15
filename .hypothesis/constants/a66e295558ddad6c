@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\adapters\memory.py
+# hypothesis_version: 6.150.2
+
+['MemoryAdapter', 'documents', 'insight_id', 'insights', 'min_significance', 'min_strength', 'pattern_type', 'patterns', 'since', 'source_id', 'source_type', 'syntheses', 'synthesis_type', 'themes', 'until']

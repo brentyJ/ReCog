@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\config_validator.py
+# hypothesis_version: 6.150.2
+
+['\nConfiguration: OK', '\nERRORS:', '\nWARNINGS:', ' [REQUIRED]', '*', './_data', '.config_test', '10', '24', '5100', '=', 'Anthropic API Key', 'CONFIG_SCHEMA', 'Cache Enabled', 'Cache TTL Hours', 'ConfigCheck', 'Data Directory', 'INFO', 'KEY', 'Log Level', 'Max File Size (MB)', 'OpenAI API Key', 'RECOG_CACHE_ENABLED', 'RECOG_DATA_DIR', 'RECOG_LOG_LEVEL', 'RECOG_OPENAI_API_KEY', 'RECOG_PORT', 'Rate Limit Enabled', 'Server Port', '^(true|false)$', '^\\d+$', '^\\d+(\\.\\d+)?$', '^\\d{1,5}$', 'get_config_summary', 'print_config_help', 'test', 'true', 'validate_config', 'validate_on_startup']

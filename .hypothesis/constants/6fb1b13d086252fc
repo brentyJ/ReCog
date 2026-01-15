@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\parsers\pdf.py
+# hypothesis_version: 6.150.2
+
+['-\\n(\\w)', '.pdf', '/Author', '/CreationDate', '/Creator', '/Producer', '/Subject', '/Title', 'D:', '[ \\t]+', '\\1', '\\n{3,}', 'author', 'creation_date', 'creator', 'pdf', 'producer', 'subject', 'title']

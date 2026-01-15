@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\insight_store.py
+# hypothesis_version: 6.150.2
+
+[0.7, 100, ' AND ', 'ASC', 'DESC', 'InsightStore', 'Z', '[]', 'action', 'averages', 'avg_confidence', 'avg_significance', 'avg_sources', 'by_status', 'by_type', 'case_id', 'confidence', 'count', 'created', 'created_at', 'deleted', 'emotional_tags', 'emotional_tags_json', 'excerpt', 'id', 'insight', 'insight_type', 'insight_type = ?', 'insights', 'limit', 'merged', 'merged_into', 'new_source_id', 'new_source_type', 'observation', 'offset', 'patterns', 'patterns_json', 'patterns_json = ?', 'raw', 'rejected', 'results', 'save_insight', 'significance', 'significance = ?', 'significance >= ?', 'similarity_score', 'source_added', 'source_count', 'source_id', 'source_type', 'sources', 'status', "status != 'merged'", 'status = ?', 'summary', 'themes', 'themes_json', 'themes_json = ?', 'total', 'trigger', 'unknown', 'updated', 'updated_at', 'updated_at = ?']

@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\file_validator.py
+# hypothesis_version: 6.150.2
+
+[b'\x00', b'\n[', b'\n{', b' [', b' {', b'%PDF', b'<!', b'<?xml', b'Date:', b'From:', b'MIME-Version:', b'PK\x03\x04', b'Received:', b'Return-Path:', b'[', b'{', 0.0, 0.3, 127, 1024, '.csv', '.docx', '.eml', '.json', '.mbox', '.md', '.msg', '.pdf', '.txt', '.xls', '.xlsx', '.xml', 'DEFAULT_MAX_SIZE_MB', 'Excel file', 'File does not exist', 'FileValidator', 'JSON file', 'PDF', 'PDF has no pages', 'SUPPORTED_MIME_TYPES', 'ValidationResult', 'application/json', 'application/mbox', 'application/pdf', 'get_validator', 'latin-1', 'message/rfc822', 'rb', 'spreadsheet', 'text file', 'text/csv', 'text/markdown', 'text/plain', 'text/xml', 'unknown', 'utf-16', 'utf-8', 'validate_file', 'validate_upload']

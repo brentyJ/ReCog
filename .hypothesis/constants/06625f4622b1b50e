@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\parsers\mbox.py
+# hypothesis_version: 6.150.2
+
+[b'From ', '"', '&', '&#39;', '&amp;', '&gt;', '&lt;', '&nbsp;', '&quot;', "'", '(No Subject)', '.mbox', '<', '<[^>]+>', '>', 'Cc', 'Content-Disposition', 'Date', 'From', 'MboxParser', 'Subject', 'To', '\\n\\s*\\n', '\\s+', 'attachment', 'attachment_count', 'date', 'date_range', 'details', 'email_count', 'error', 'format', 'from', 'mbox', 'open_failed', 'rb', 'recipients', 'replace', 'senders', 'text', 'text/html', 'text/plain', 'total_attachments', 'unique_recipients', 'unique_senders', 'utf-8']

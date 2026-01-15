@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\core\providers\__init__.py
+# hypothesis_version: 6.150.2
+
+['AnthropicProvider', 'OpenAIProvider', 'ProviderRouter', 'create_provider', 'create_router', 'load_env_file']

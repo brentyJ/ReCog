@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\errors.py
+# hypothesis_version: 6.150.2
+
+[400, 401, 402, 404, 413, 415, 429, 500, 503, 504, ', ', ', ...', '; ', 'BudgetExceededError', 'CorruptedFileError', 'EmptyFileError', 'File is empty', 'FileError', 'FileTooLargeError', 'LLMAuthError', 'LLMError', 'LLMProviderError', 'LLMQuotaError', 'LLMTimeoutError', 'MissingFieldError', 'Rate limit exceeded', 'RateLimitError', 'RecogError', 'ValidationError', 'file']

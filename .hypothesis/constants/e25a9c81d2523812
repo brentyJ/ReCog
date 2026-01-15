@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\core\providers\factory.py
+# hypothesis_version: 6.150.2
+
+['"', '#', "'", '.env', '=', 'ENV_ANTHROPIC_KEY', 'ENV_DEFAULT_PROVIDER', 'ENV_OPENAI_KEY', 'RECOG_LLM_API_KEY', 'RECOG_LLM_MODEL', 'RECOG_LLM_PROVIDER', 'RECOG_OPENAI_API_KEY', 'RECOG_OPENAI_MODEL', 'anthropic', 'claude', 'create_provider', 'create_router', 'gpt-4o', 'gpt-4o-mini', 'load_env_file', 'mock', 'openai', 'r']

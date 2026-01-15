@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\parsers\base.py
+# hypothesis_version: 6.150.2
+
+['BaseParser', 'get_all_parsers', 'get_parser']

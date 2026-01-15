@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\parsers\docx.py
+# hypothesis_version: 6.150.2
+
+[100, ' | ', '#', './/w:comment', './/w:t', '.docx', 'DocxParser', 'Headers and footers', 'Heading', 'Heading\\s*(\\d+)', 'Tables and lists', 'Unknown', 'author', 'category', 'created', 'cypher_context', 'description', 'details', 'docx', 'error', 'extensions', 'extractable', 'file_type', 'format', 'keywords', 'last_modified_by', 'modified', 'open_failed', 'paragraph_count', 'r', 'revision_count', 'subject', 'suggestions', 'table_count', 'title', 'w', 'word/comments.xml', 'word_count']

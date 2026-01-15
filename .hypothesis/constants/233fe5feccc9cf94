@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\parsers\csv_parser.py
+# hypothesis_version: 6.150.2
+
+[100, 4096, 10000, ' |', ' | ', '---', '.csv', 'CSVParser', 'column_count', 'columns', 'cp1252', 'csv', 'encoding error', 'error', 'format', 'latin-1', 'r', 'row_count', 'sample_data', 'utf-8', 'utf-8-sig', '|', '| ']

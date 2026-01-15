@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\parsers\markdown.py
+# hypothesis_version: 6.150.2
+
+['.markdown', '.md', '^#\\s+(.+)$', '^(.+)\\n[=]+\\s*$', '_raw', 'author', 'created', 'date', 'markdown', 'replace', 'subject', 'title', 'utf-8']

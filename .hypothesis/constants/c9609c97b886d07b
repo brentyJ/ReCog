@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\parsers\json_export.py
+# hypothesis_version: 6.150.2
+
+[2000, '"assistant"', '"author"', '"content"', '"conversations"', '"mapping"', '"messages"', '"role"', '"system"', '"user"', '%Y-%m-%d', '.json', '=', 'JSONExportParser', 'Parse complete', 'Untitled', '[File attachment]', '[Image uploaded]', '[Image]', 'asset_pointer', 'author', 'chatgpt_conversation', 'chatgpt_export', 'code', 'content', 'content_type', 'conversation_array', 'conversation_count', 'conversation_index', 'count', 'create_time', 'date', 'date_range', 'earliest', 'execution_output', 'format', 'image_asset_pointer', 'json_export', 'latest', 'mapping', 'message', 'message_array', 'message_count', 'messages', 'metadata', 'model', 'model_slug', 'models_used', 'multimodal_text', 'name', 'parts', 'r', 'role', 'source_file', 'system', 'text', 'title', 'tool', 'unknown', 'unknown_json', 'update_time', 'utf-8', 'word_count']

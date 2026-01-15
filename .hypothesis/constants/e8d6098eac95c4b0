@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\extraction.py
+# hypothesis_version: 6.150.2
+
+[0.0, 0.05, 0.1, 0.3, 0.4, 0.5, 0.6, 0.7, 1.0, 8000, ', ', 'ExtractedInsight', 'ExtractionResult', 'No context provided', 'None', 'Not specified', 'SIMILARITY_THRESHOLD', 'Untitled Case', 'Z', '```', 'calculate_similarity', 'confidence', 'content', 'content_quality', 'context', 'created_at', 'emotional_tags', 'error', 'excerpt', 'find_similar_insight', 'focus_areas', 'human', 'id', 'insight_type', 'insights', 'low', 'medium', 'merge_insights', 'meta', 'notes', 'observation', 'patterns', 'prepare_chat_content', 'role', 'should_surface', 'significance', 'source_id', 'source_type', 'success', 'suggested_reprocess', 'summary', 'themes', 'title', 'tokens_used', 'user']

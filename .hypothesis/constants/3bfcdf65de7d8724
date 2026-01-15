@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\findings_store.py
+# hypothesis_version: 6.150.2
+
+[0.5, 0.6, 0.7, 100, ' AND ', 'Finding', 'FindingsStore', 'Z', '[]', 'already_promoted', 'auto', 'auto-promoted', 'auto_verified', 'by_status', 'case_id', 'confidence', 'count', 'created_at', 'excerpt', 'f.case_id = ?', 'f.status = ?', 'f.tags_json LIKE ?', 'finding_added', 'finding_id', 'finding_rejected', 'finding_verified', 'findings', 'id', 'insight', 'insight_confidence', 'insight_excerpt', 'insight_id', 'insight_significance', 'insight_summary', 'insight_themes_json', 'limit', 'needs-review', 'needs_verification', 'not_found', 'offset', 'promoted', 'reason', 'rejected', 'significance', 'skip_details', 'skipped', 'status', 'summary', 'tags', 'tags_json', 'themes', 'total', 'updated_at', 'user', 'user_notes', 'verified', 'verified_at', 'verified_by', 'verified_rate']

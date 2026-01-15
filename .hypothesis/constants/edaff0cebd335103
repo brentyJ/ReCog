@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\rate_limiter.py
+# hypothesis_version: 6.150.2
+
+[429, ',', '10 per minute', '120 per minute', '20 per minute', '60', '60 per minute', 'DEFAULT_LIMIT', 'EXPENSIVE_LIMIT', 'RATE_LIMIT_ENABLED', 'RateLimitError', 'Retry-After', 'UPLOAD_LIMIT', 'X-Forwarded-For', 'X-Rate-Limit-Key', 'data', 'default', 'description', 'enabled', 'error', 'error_type', 'expensive', 'fixed-window', 'get_limiter', 'get_rate_limit_key', 'init_rate_limiter', 'key', 'limits', 'memory://', 'rate_limit_expensive', 'rate_limit_health', 'rate_limit_upload', 'retry after', 'retry after ', 'retry_after_seconds', 'storage', 'success', 'true', 'upload']

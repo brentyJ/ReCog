@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\response_cache.py
+# hypothesis_version: 6.150.2
+
+[100, 500, 1024, '*.cache', 'CacheEntry', 'CacheStats', 'DEFAULT_TTL_SECONDS', 'ResponseCache', '_data', 'cache', 'entity', 'extract', 'extraction', 'get_response_cache', 'init_response_cache', 'rb', 'tier0', 'unknown', 'utf-8', 'wb', '||']

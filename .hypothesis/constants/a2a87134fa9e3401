@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\core\llm.py
+# hypothesis_version: 6.150.2
+
+[0.3, 2000, 'LLMProvider', 'LLMResponse', 'MockLLMProvider', 'max_tokens', 'mock', 'mock-model', 'prompt', 'system_prompt', 'temperature']

@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\case_store.py
+# hypothesis_version: 6.150.2
+
+[100, ' AND ', ', ', '1=1', 'ASC', 'Case', 'CaseContext', 'CaseDocument', 'CaseStore', 'DESC', 'Z', '[]', 'active', 'added_at', 'archived', 'case_created', 'case_id', 'cases', 'context', 'context = ?', 'context_updated', 'count', 'created_at', 'doc_added', 'doc_removed', 'document_count', 'document_id', 'entities_count', 'findings_by_status', 'findings_count', 'focus_areas', 'focus_areas_json', 'focus_areas_json = ?', 'general analysis', 'id', 'impact_notes', 'insight_count', 'limit', 'offset', 'patterns_count', 'status', 'status = ?', 'status_changed', 'timeline_event_count', 'title', 'title = ?', 'total', 'updated_at', 'updated_at = ?']

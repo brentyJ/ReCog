@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\__init__.py
+# hypothesis_version: 6.150.2
+
+['BaseParser', 'Chunker', 'DocumentChunk', 'FileDetectionResult', 'IngestedDocument', 'ParsedContent', 'UniversalDetector', 'detect_file', 'get_all_parsers', 'get_format_info', 'get_parser', 'ingest_file']

@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\core\__init__.py
+# hypothesis_version: 6.150.2
+
+['AnthropicProvider', 'Corpus', 'Correlator', 'Document', 'Extractor', 'Insight', 'LLMProvider', 'LLMResponse', 'MockLLMProvider', 'OpenAIProvider', 'Pattern', 'PatternType', 'ProcessingState', 'ProcessingStatus', 'ProviderRouter', 'RecogConfig', 'RoutingConfig', 'SignalProcessor', 'Synthesis', 'SynthesisType', 'Synthesizer', 'create_provider', 'estimate_batch_cost', 'extract_from_text', 'find_patterns', 'process_document', 'process_text', 'synthesise_patterns']

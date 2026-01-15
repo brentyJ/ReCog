@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\ingestion\parsers\email.py
+# hypothesis_version: 6.150.2
+
+[b'\xd0\xcf\x11\xe0', 500, '"', '&', '&amp;', '&gt;', '&lt;', '&nbsp;', '&quot;', '(No Subject)', '.eml', '.msg', ';', '<', '<[^>]+>', '>', 'Attachment list', 'Bcc', 'Cc', 'Content-Disposition', 'Date', 'Date:', 'Email Message (EML)', 'EmlParser', 'From', 'From:', 'In-Reply-To', 'MIME-Version:', 'Message-ID', 'MsgParser', 'Outlook Email (MSG)', 'Received:', 'Subject', 'Subject and date', 'To', '\\s+', 'attachment', 'attachment_count', 'attachments', 'bcc', 'cc', 'cypher_context', 'description', 'details', 'eml', 'error', 'extensions', 'extractable', 'file_type', 'format', 'from', 'htmlBody', 'ignore', 'importance', 'in_reply_to', 'longFilename', 'messageId', 'message_id', 'msg', 'open_failed', 'rb', 'sensitivity', 'shortFilename', 'subject', 'suggestions', 'text/html', 'text/plain', 'to', 'unnamed_attachment', 'utf-8']

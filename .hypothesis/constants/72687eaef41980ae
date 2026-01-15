@@ -1,0 +1,4 @@
+# file: C:\EhkoVaults\ReCog\_scripts\recog_engine\timeline_store.py
+# hypothesis_version: 6.150.2
+
+[100, ' AND ', ',', '?', 'ASC', 'Case context updated', 'DESC', 'Document removed', 'TimelineEvent', 'TimelineStore', 'VALID_EVENT_TYPES', 'Z', 'annotated_events', 'by_type', 'case_created', 'case_id', 'case_id = ?', 'context_updated', 'count', 'date', 'description', 'doc_added', 'doc_removed', 'document_id', 'earliest', 'earliest_event', 'event_count', 'event_data', 'event_data_json', 'event_type', 'event_types', 'events', 'finding_added', 'finding_id', 'finding_rejected', 'finding_verified', 'findings_count', 'focus_areas', 'human_annotation', 'id', 'insights_extracted', 'latest', 'latest_event', 'limit', 'note_added', 'offset', 'pattern_found', 'pattern_id', 'pattern_name', 'status_changed', 'timestamp', 'timestamp <= ?', 'timestamp >= ?', 'title', 'total', 'total_events', '{}']
