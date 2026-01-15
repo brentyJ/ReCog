@@ -42,3 +42,9 @@ COMMERCIALIZATION.md
 # Claude Code temp files
 tmpclaude-*
 .python-version
+
+# Test artifacts
+.coverage
+.hypothesis/
+.pytest_cache/
+htmlcov/
