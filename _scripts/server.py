@@ -24,6 +24,7 @@ from functools import wraps
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+from flasgger import Swagger
 
 # ReCog imports
 from recog_engine import (
@@ -161,6 +162,102 @@ class Config:
 app = Flask(__name__)
 app.config.from_object(Config)
 CORS(app)
+
+# OpenAPI/Swagger configuration (v0.9)
+swagger_config = {
+    "headers": [],
+    "specs": [
+        {
+            "endpoint": "apispec",
+            "route": "/apispec.json",
+            "rule_filter": lambda rule: True,
+            "model_filter": lambda tag: True,
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/docs"
+}
+
+swagger_template = {
+    "openapi": "3.0.3",
+    "info": {
+        "title": "ReCog API",
+        "description": """
+## Document Intelligence & Insight Extraction API
+
+ReCog is a text analysis engine that extracts, correlates, and synthesises insights from unstructured text.
+
+### Processing Tiers
+
+| Tier | Cost | Purpose |
+|------|------|---------|
+| **0** | FREE | Signal extraction: emotions, entities, temporal refs, dates/times, currency |
+| **1** | LLM | Insight extraction from individual documents |
+| **2** | LLM | Pattern correlation across documents |
+| **3** | LLM | Synthesis: reports, recommendations |
+
+### Authentication
+
+No authentication required for local use. LLM features require API keys set via environment variables:
+- `RECOG_OPENAI_API_KEY` - OpenAI API key
+- `RECOG_ANTHROPIC_API_KEY` - Anthropic API key
+
+### Rate Limits
+
+| Endpoint Type | Limit |
+|--------------|-------|
+| General | 60/minute |
+| LLM Operations | 10/minute |
+| File Upload | 20/minute |
+| Health Check | 120/minute |
+
+### Response Format
+
+All responses follow this structure:
+```json
+{
+  "success": true|false,
+  "data": { ... },
+  "error": "Error message (only if success=false)",
+  "timestamp": "2025-01-15T10:30:00.000000Z"
+}
+```
+        """,
+        "version": "0.9.0",
+        "contact": {
+            "name": "EhkoLabs",
+            "email": "brent@ehkolabs.io",
+            "url": "https://ehkolabs.io"
+        },
+        "license": {
+            "name": "AGPL-3.0",
+            "url": "https://www.gnu.org/licenses/agpl-3.0.html"
+        }
+    },
+    "servers": [
+        {
+            "url": "http://localhost:5100",
+            "description": "Local development server"
+        }
+    ],
+    "tags": [
+        {"name": "Health", "description": "Server health and status"},
+        {"name": "Upload", "description": "File upload and preflight"},
+        {"name": "Tier 0", "description": "Free signal extraction (no LLM)"},
+        {"name": "Extraction", "description": "LLM-powered insight extraction"},
+        {"name": "Entities", "description": "Entity registry management"},
+        {"name": "Insights", "description": "Insight browsing and management"},
+        {"name": "Synthesis", "description": "Pattern synthesis across insights"},
+        {"name": "Critique", "description": "Insight validation and refinement"},
+        {"name": "Cases", "description": "Case-centric document management"},
+        {"name": "Findings", "description": "Promoted insights and annotations"},
+        {"name": "Cache", "description": "Response cache management"},
+        {"name": "Providers", "description": "LLM provider configuration"},
+    ]
+}
+
+swagger = Swagger(app, config=swagger_config, template=swagger_template)
 
 # Set up structured logging with file rotation
 Config.LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -392,11 +489,44 @@ def handle_request_too_large(error):
 def health():
     """
     Health check endpoint with comprehensive system checks.
-
-    Query params:
-        - deep=true: Run LLM provider connectivity tests (slower)
-
-    Returns 503 if any critical check fails.
+    ---
+    tags:
+      - Health
+    parameters:
+      - name: deep
+        in: query
+        type: boolean
+        required: false
+        description: Run LLM provider connectivity tests (slower)
+    responses:
+      200:
+        description: Server is healthy
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    status:
+                      type: string
+                      example: healthy
+                    database:
+                      type: object
+                    disk:
+                      type: object
+                    providers:
+                      type: object
+                    cache:
+                      type: object
+                    rate_limiter:
+                      type: object
+      503:
+        description: Server is unhealthy
     """
     import shutil
 
@@ -1127,15 +1257,61 @@ def rate_limit_status():
 def upload_file():
     """
     Upload file and create preflight session with auto-progression.
-
-    Accepts multipart form data:
-        - file: The file to upload
-        - case_id: Optional case UUID to link for context injection
-        - auto_process: Optional bool to enable auto-progression (default: true)
-
-    Returns preflight session ID and case state for workflow.
-
-    v0.8: Auto-creates case if none provided, transitions to scanning state.
+    ---
+    tags:
+      - Upload
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required:
+              - file
+            properties:
+              file:
+                type: string
+                format: binary
+                description: File to upload (.txt, .md, .pdf, .json, .csv, .xlsx, .docx, .eml)
+              case_id:
+                type: string
+                format: uuid
+                description: Optional case UUID to link for context injection
+              auto_process:
+                type: boolean
+                default: true
+                description: Enable auto-progression through workflow states
+    responses:
+      200:
+        description: File uploaded successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    preflight_id:
+                      type: string
+                      description: Session ID for preflight review
+                    case_id:
+                      type: string
+                      description: Associated case UUID
+                    filename:
+                      type: string
+                    size_bytes:
+                      type: integer
+                    mime_type:
+                      type: string
+      400:
+        description: No file provided or invalid file
+      413:
+        description: File too large (default max 10MB)
+      415:
+        description: Unsupported file type
     """
     if "file" not in request.files:
         return api_response(error="No file provided", status=400)
@@ -1482,9 +1658,48 @@ def upload_batch():
 @require_json
 def run_tier0():
     """
-    Run Tier 0 signal extraction on provided text.
-    
-    Body: {"text": "..."}
+    Run Tier 0 signal extraction on provided text (FREE - no LLM required).
+    ---
+    tags:
+      - Tier 0
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - text
+            properties:
+              text:
+                type: string
+                description: Text to analyze
+                example: "I am really frustrated with the delays. John promised delivery by Friday."
+              include_low_confidence:
+                type: boolean
+                default: true
+                description: Include low confidence entity detections
+    responses:
+      200:
+        description: Signal extraction results
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    tier0:
+                      type: object
+                      description: Full extraction results (emotions, entities, temporal, etc.)
+                    summary:
+                      type: string
+                      description: Human-readable summary for LLM prompts
+      400:
+        description: Missing text parameter
     """
     data = request.get_json()
     text = data.get("text", "")
@@ -1630,7 +1845,47 @@ def confirm_preflight(session_id: int):
 
 @app.route("/api/entities", methods=["GET"])
 def list_entities():
-    """List all entities."""
+    """
+    List all entities in the registry.
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: type
+        in: query
+        type: string
+        enum: [person, organization, location]
+        description: Filter by entity type
+      - name: confirmed
+        in: query
+        type: string
+        enum: ["true", "false"]
+        description: Filter by confirmation status
+      - name: limit
+        in: query
+        type: integer
+        default: 100
+        description: Maximum results to return
+    responses:
+      200:
+        description: List of entities
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    entities:
+                      type: array
+                      items:
+                        type: object
+                    count:
+                      type: integer
+    """
     entity_type = request.args.get("type")
     confirmed = request.args.get("confirmed")
     limit = int(request.args.get("limit", 100))
@@ -2295,29 +2550,82 @@ def list_relationship_types():
 @require_json
 def extract_insights():
     """
-    Extract insights from text using LLM.
-    
-    Body: {
-        "text": "...",
-        "source_type": "document",
-        "source_id": "optional-id",
-        "is_chat": false,
-        "case_id": "optional-case-uuid" (for case context injection),
-        "provider": "openai|anthropic" (optional),
-        "save": true (default, save insights to DB),
-        "check_similarity": true (default, merge similar insights)
-    }
-    
-    Response includes:
-        - insights: Extracted insight objects
-        - tier0: Flags and emotion signals from signal extraction
-        - entity_resolution: Results of matching entities against registry
-            - resolved: Entities matched to known people (context injected to LLM)
-            - unknown: Entities not yet identified (for user review)
-            - context_injected: Whether entity context was added to the prompt
-        - case_context_injected: Whether case context was added to the prompt
-    
-    Requires LLM API key(s) configured via environment variables.
+    Extract insights from text using LLM (Tier 1).
+    ---
+    tags:
+      - Extraction
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - text
+            properties:
+              text:
+                type: string
+                description: Text to analyze
+              source_type:
+                type: string
+                enum: [document, chat, email]
+                default: document
+                description: Type of source material
+              source_id:
+                type: string
+                description: Optional source identifier
+              is_chat:
+                type: boolean
+                default: false
+                description: Whether text is chat/conversation format
+              case_id:
+                type: string
+                format: uuid
+                description: Link to case for context injection
+              provider:
+                type: string
+                enum: [openai, anthropic]
+                description: LLM provider to use (defaults to first available)
+              save:
+                type: boolean
+                default: true
+                description: Save extracted insights to database
+              check_similarity:
+                type: boolean
+                default: true
+                description: Merge similar insights to avoid duplicates
+    responses:
+      200:
+        description: Insights extracted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    insights:
+                      type: array
+                      items:
+                        type: object
+                      description: Extracted insight objects
+                    tier0:
+                      type: object
+                      description: Signal extraction results
+                    entity_resolution:
+                      type: object
+                      description: Entity matching results
+                    tokens_used:
+                      type: integer
+                    cached:
+                      type: boolean
+      400:
+        description: Missing text parameter
+      503:
+        description: LLM not configured
     """
     if not Config.LLM_CONFIGURED:
         return api_response(
@@ -3419,12 +3727,53 @@ def set_critique_strictness():
 def create_case():
     """
     Create a new case.
-    
-    Body: {
-        "title": "Q3 Sales Investigation",
-        "context": "Revenue dropped 15%, need root cause",
-        "focus_areas": ["pricing", "competition", "market"]
-    }
+    ---
+    tags:
+      - Cases
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - title
+            properties:
+              title:
+                type: string
+                description: Case title
+                example: Q3 Sales Investigation
+              context:
+                type: string
+                description: Background context for LLM prompt injection
+                example: Revenue dropped 15%, need root cause analysis
+              focus_areas:
+                type: array
+                items:
+                  type: string
+                description: Key areas to focus on during analysis
+                example: ["pricing", "competition", "market"]
+    responses:
+      201:
+        description: Case created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    title:
+                      type: string
+                    status:
+                      type: string
+      400:
+        description: Missing required title
     """
     data = request.get_json()
     
@@ -3445,13 +3794,56 @@ def create_case():
 def list_cases():
     """
     List all cases.
-    
-    Query params:
-        - status: active, archived
-        - limit: max results (default 100)
-        - offset: pagination offset
-        - order_by: created_at, updated_at, title, document_count
-        - order_dir: ASC or DESC
+    ---
+    tags:
+      - Cases
+    parameters:
+      - name: status
+        in: query
+        type: string
+        enum: [active, archived]
+        description: Filter by case status
+      - name: limit
+        in: query
+        type: integer
+        default: 100
+        description: Maximum results to return
+      - name: offset
+        in: query
+        type: integer
+        default: 0
+        description: Pagination offset
+      - name: order_by
+        in: query
+        type: string
+        enum: [created_at, updated_at, title, document_count]
+        default: updated_at
+        description: Sort field
+      - name: order_dir
+        in: query
+        type: string
+        enum: [ASC, DESC]
+        default: DESC
+        description: Sort direction
+    responses:
+      200:
+        description: List of cases
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    cases:
+                      type: array
+                      items:
+                        type: object
+                    total:
+                      type: integer
     """
     status = request.args.get("status")
     limit = int(request.args.get("limit", 100))

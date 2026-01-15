@@ -4,6 +4,10 @@ REST API for document intelligence and insight extraction.
 
 **Base URL:** `http://localhost:5100`
 
+**Interactive Docs:** [http://localhost:5100/docs](http://localhost:5100/docs) (Swagger UI)
+
+**OpenAPI Spec:** [http://localhost:5100/apispec.json](http://localhost:5100/apispec.json)
+
 ## Quick Start
 
 ```bash

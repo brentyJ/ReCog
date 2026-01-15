@@ -21,6 +21,7 @@ openpyxl>=3.1.0   # Excel file support
 # Production
 gunicorn>=21.0.0  # WSGI server
 flask-limiter>=3.5.0  # Rate limiting
+flasgger>=0.9.7  # OpenAPI/Swagger documentation
 
 # Development
 python-dotenv     # Environment variables

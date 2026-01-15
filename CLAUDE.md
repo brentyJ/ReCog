@@ -157,6 +157,12 @@ Files → Ingestion (parse) → Tier 0 (signals) → Tier 1 (insights) → Tier 
                           Entity Registry ←→ Critique Layer (validation)
 ```
 
+## API Documentation
+
+Interactive API docs available at **http://localhost:5100/docs** (Swagger UI).
+
+OpenAPI spec: `http://localhost:5100/apispec.json`
+
 ## Key API Endpoints
 
 - `POST /api/upload` - Upload file, create preflight session

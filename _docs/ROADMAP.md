@@ -523,7 +523,7 @@ Directory: tests/
 Update: README.md, new files in _docs/
 ```
 
-- [ ] API documentation (OpenAPI/Swagger?)
+- [x] API documentation (OpenAPI/Swagger) - v0.9 via Flasgger, UI at /docs
 - [ ] Self-hosting guide
 - [ ] Parser development guide
 - [ ] Configuration reference
