@@ -525,8 +525,8 @@ Update: README.md, new files in _docs/
 
 - [x] API documentation (OpenAPI/Swagger) - v0.9 via Flasgger, UI at /docs
 - [x] Self-hosting guide - v0.9 (`_docs/SELF_HOSTING.md`)
+- [x] Configuration reference - v0.9 (`_docs/CONFIGURATION.md`)
 - [ ] Parser development guide
-- [ ] Configuration reference
 
 ### 9.7 Deployment Prep ✅
 ```
@@ -1129,4 +1129,4 @@ Total: ~14-22 sessions to full-featured platform
 
 ---
 
-*Last updated: Phase 9.6 Self-hosting guide complete - 15 Jan 2026*
+*Last updated: Phase 9.6 Configuration reference complete - 15 Jan 2026*
