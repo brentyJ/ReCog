@@ -71,10 +71,10 @@ class WorkerState:
         self.running = True
         self.cycles = 0
         self.advances = 0
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now(timezone.utc)
 
     def stats(self):
-        runtime = (datetime.utcnow() - self.started_at).total_seconds()
+        runtime = (datetime.now(timezone.utc) - self.started_at).total_seconds()
         return {
             "cycles": self.cycles,
             "advances": self.advances,

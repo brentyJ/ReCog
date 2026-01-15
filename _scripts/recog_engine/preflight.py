@@ -15,7 +15,7 @@ Orchestrates the preflight context system for large imports:
 
 import sqlite3
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
@@ -83,7 +83,7 @@ class PreflightManager:
         Returns:
             session_id
         """
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -150,7 +150,7 @@ class PreflightManager:
     
     def update_session(self, session_id: int, **kwargs) -> bool:
         """Update preflight session fields."""
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         
         # Map complex types to JSON
         json_fields = ['filters', 'entity_questions', 'entity_answers', 'source_files']
@@ -208,7 +208,7 @@ class PreflightManager:
         Returns:
             item_id
         """
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         
         # Run Tier 0 scan
         pre_annotation = {}
@@ -564,7 +564,7 @@ class PreflightManager:
         if not items:
             return {'success': False, 'error': 'No items to process'}
         
-        now = datetime.utcnow().isoformat() + 'Z'
+        now = datetime.now(timezone.utc).isoformat() + 'Z'
         
         # Update session status
         self.update_session(
@@ -584,7 +584,7 @@ class PreflightManager:
     
     def complete_session(self, session_id: int, operations_created: int = 0) -> bool:
         """Mark a session as complete after processing."""
-        now = datetime.utcnow().isoformat() + 'Z'
+        now = datetime.now(timezone.utc).isoformat() + 'Z'
         return self.update_session(
             session_id,
             status='complete',

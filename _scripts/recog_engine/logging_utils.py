@@ -20,7 +20,7 @@ import logging.handlers
 import sys
 import time
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from typing import Optional, Any, Dict, Callable
 from uuid import uuid4
@@ -74,7 +74,7 @@ class StructuredFormatter(logging.Formatter):
         session_id = session_id_var.get()
 
         log_data = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

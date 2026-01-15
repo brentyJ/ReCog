@@ -12,7 +12,7 @@ Handles CRUD operations, similarity checking, and history tracking.
 import json
 import sqlite3
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from uuid import uuid4
@@ -324,7 +324,7 @@ class InsightStore:
                 return False
             
             updates.append("updated_at = ?")
-            params.append(datetime.utcnow().isoformat() + "Z")
+            params.append(datetime.now(timezone.utc).isoformat() + "Z")
             params.append(insight_id)
             
             query = f"UPDATE insights SET {', '.join(updates)} WHERE id = ?"
@@ -359,7 +359,7 @@ class InsightStore:
             if soft:
                 cursor = conn.execute(
                     "UPDATE insights SET status = 'rejected', updated_at = ? WHERE id = ?",
-                    (datetime.utcnow().isoformat() + "Z", insight_id)
+                    (datetime.now(timezone.utc).isoformat() + "Z", insight_id)
                 )
             else:
                 cursor = conn.execute("DELETE FROM insights WHERE id = ?", (insight_id,))
@@ -496,7 +496,7 @@ class InsightStore:
         case_id: Optional[str] = None,
     ) -> None:
         """Insert a new insight."""
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         
         conn.execute("""
             INSERT INTO insights (
@@ -523,7 +523,7 @@ class InsightStore:
     
     def _update_insight(self, conn: sqlite3.Connection, insight: ExtractedInsight) -> None:
         """Update an existing insight."""
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         
         # Get current source count
         source_count = conn.execute(
@@ -576,7 +576,7 @@ class InsightStore:
                 source_type,
                 source_id,
                 excerpt,
-                datetime.utcnow().isoformat() + "Z",
+                datetime.now(timezone.utc).isoformat() + "Z",
             ))
     
     def _log_history(
@@ -593,7 +593,7 @@ class InsightStore:
         """, (
             insight_id,
             event_type,
-            datetime.utcnow().isoformat() + "Z",
+            datetime.now(timezone.utc).isoformat() + "Z",
             json.dumps(data),
             data.get("trigger", event_type),
         ))

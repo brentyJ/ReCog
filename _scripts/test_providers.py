@@ -10,7 +10,7 @@ Usage: python test_providers.py [--samples N]
 
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any
 
@@ -209,7 +209,7 @@ def run_comparative_test(samples: List[Dict] = None) -> Dict[str, Any]:
         return {"error": "No providers configured"}
     
     results = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "providers": available,
         "samples_tested": len(samples),
         "results_by_sample": {},

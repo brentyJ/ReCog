@@ -5,7 +5,7 @@ Routes classified intents to backend operations
 
 import sqlite3
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger(__name__)
@@ -399,7 +399,7 @@ class CypherActionRouter:
         """Add to entity blacklist in database and runtime"""
         conn = self.get_connection()
         try:
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
 
             # Try to insert, or update if already exists
             cursor = conn.cursor()

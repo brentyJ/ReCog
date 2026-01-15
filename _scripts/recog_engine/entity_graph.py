@@ -17,7 +17,7 @@ This enables relational pattern detection in the Synth Engine.
 import sqlite3
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Tuple, Set
 from dataclasses import dataclass, field, asdict
@@ -180,7 +180,7 @@ class EntityGraph(EntityRegistry):
         Returns:
             Tuple of (relationship_id, is_new)
         """
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -368,7 +368,7 @@ class EntityGraph(EntityRegistry):
         Returns:
             Sentiment record ID
         """
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         
         # Determine label
         if sentiment_score < -0.3:
@@ -502,7 +502,7 @@ class EntityGraph(EntityRegistry):
         if len(entity_ids) < 2:
             return 0
         
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         recorded = 0
         
         conn = self.get_connection()

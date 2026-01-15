@@ -20,7 +20,7 @@ import time
 import signal
 import sqlite3
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -93,7 +93,7 @@ class WorkerState:
         self.processed_count = 0
         self.failed_count = 0
         self.total_cost_cents = 0.0
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now(timezone.utc)
     
     def add_cost(self, cents: float):
         self.total_cost_cents += cents
@@ -102,7 +102,7 @@ class WorkerState:
         return self.total_cost_cents >= WorkerConfig.COST_LIMIT_CENTS
     
     def stats(self) -> Dict[str, Any]:
-        runtime = (datetime.utcnow() - self.started_at).total_seconds()
+        runtime = (datetime.now(timezone.utc) - self.started_at).total_seconds()
         return {
             "processed": self.processed_count,
             "failed": self.failed_count,
@@ -159,7 +159,7 @@ def update_job_status(
     increment_pass: bool = False,
 ):
     """Update job status."""
-    now = datetime.utcnow().isoformat() + "Z"
+    now = datetime.now(timezone.utc).isoformat() + "Z"
     
     if increment_pass:
         conn.execute("""
@@ -468,7 +468,7 @@ def process_job(
 
 def _update_case_progress(conn: sqlite3.Connection, case_id: str, stage: str, current_item: str):
     """Update case progress when starting a job."""
-    now = datetime.utcnow().isoformat() + "Z"
+    now = datetime.now(timezone.utc).isoformat() + "Z"
 
     # Get or create progress record
     progress = conn.execute("""
@@ -511,7 +511,7 @@ def _update_case_progress(conn: sqlite3.Connection, case_id: str, stage: str, cu
 
 def _update_case_progress_complete(conn: sqlite3.Connection, case_id: str, stage: str, recent_insight: str = None):
     """Update case progress when completing a job."""
-    now = datetime.utcnow().isoformat() + "Z"
+    now = datetime.now(timezone.utc).isoformat() + "Z"
 
     progress = conn.execute("""
         SELECT id, completed_items, total_items FROM case_progress

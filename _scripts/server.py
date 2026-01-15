@@ -2030,7 +2030,7 @@ def unconfirm_entity(entity_id: int):
         if not row:
             return api_response(error="Entity not found", status=404)
         
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         
         # Reset to unconfirmed state
         conn.execute("""
@@ -2130,7 +2130,7 @@ def reject_entity(entity_id: int):
     if not entity:
         return api_response(error="Entity not found", status=404)
     
-    now = datetime.utcnow().isoformat() + "Z"
+    now = datetime.now(timezone.utc).isoformat() + "Z"
     
     conn = _get_db_connection()
     try:
@@ -3147,7 +3147,7 @@ def retry_queue_item(job_id: int):
             )
         
         # Reset to pending
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         conn.execute(
             "UPDATE processing_queue SET status = 'pending', notes = 'Manual retry', last_processed_at = ? WHERE id = ?",
             (now, job_id)
@@ -3379,7 +3379,7 @@ def update_pattern(pattern_id: str):
     
     conn = _get_db_connection()
     try:
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         cursor = conn.execute(
             "UPDATE patterns SET status = ?, updated_at = ? WHERE id = ?",
             (new_status, now, pattern_id)

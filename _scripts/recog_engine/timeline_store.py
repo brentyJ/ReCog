@@ -12,7 +12,7 @@ Auto-generated chronicle of case evolution with human annotation support.
 import json
 import sqlite3
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from uuid import uuid4
@@ -125,7 +125,7 @@ class TimelineStore:
     
     def _now(self) -> str:
         """Get current timestamp in ISO format."""
-        return datetime.utcnow().isoformat() + "Z"
+        return datetime.now(timezone.utc).isoformat() + "Z"
     
     # =========================================================================
     # EVENT LOGGING

@@ -18,7 +18,7 @@ observations into connected understanding.
 import json
 import sqlite3
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Tuple
 from uuid import uuid4
@@ -65,7 +65,7 @@ class InsightCluster:
     shared_entities: List[str] = field(default_factory=list)
     avg_significance: float = 0.5
     status: str = "pending"  # pending, synthesizing, complete, failed
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat() + "Z")
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -101,8 +101,8 @@ class SynthesizedPattern:
     source_cluster_id: Optional[str] = None
     analysis_model: Optional[str] = None
     
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
-    updated_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat() + "Z")
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat() + "Z")
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -777,7 +777,7 @@ class SynthEngine:
         """Save a synthesized pattern to the database."""
         conn = self._get_conn()
         try:
-            now = datetime.utcnow().isoformat() + "Z"
+            now = datetime.now(timezone.utc).isoformat() + "Z"
             
             conn.execute("""
                 INSERT OR REPLACE INTO patterns

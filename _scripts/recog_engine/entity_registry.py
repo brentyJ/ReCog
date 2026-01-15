@@ -17,7 +17,7 @@ import json
 import re
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 
@@ -351,7 +351,7 @@ class EntityRegistry:
         Returns:
             Tuple of (entity_id, is_new)
         """
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         
         # Normalise if not provided
         if normalised_value is None:
@@ -426,7 +426,7 @@ class EntityRegistry:
         Returns:
             True if entity was updated
         """
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         
         updates = []
         values = []
@@ -846,7 +846,7 @@ class EntityRegistry:
                 )
 
                 # Add to blacklist
-                now = datetime.utcnow().isoformat() + "Z"
+                now = datetime.now(timezone.utc).isoformat() + "Z"
                 conn.execute("""
                     INSERT INTO entity_blacklist (normalised_value, raw_value, entity_type, rejection_reason, rejected_by, created_at, updated_at, rejection_count)
                     VALUES (?, ?, ?, ?, 'user', ?, ?, 1)

@@ -36,7 +36,7 @@ def reject_entity(entity_id: int):
     if not entity:
         return api_response(error="Entity not found", status=404)
     
-    now = datetime.utcnow().isoformat() + "Z"
+    now = datetime.now(timezone.utc).isoformat() + "Z"
     
     conn = _get_db_connection()
     try:

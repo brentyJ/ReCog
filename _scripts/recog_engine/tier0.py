@@ -26,7 +26,7 @@ v0.3 Changes:
 
 import re
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional, Set
 
 
@@ -989,7 +989,7 @@ def preprocess_text(text: str, include_low_confidence: bool = True) -> Dict[str,
     
     result = {
         "version": "0.4",
-        "processed_at": datetime.utcnow().isoformat() + "Z",
+        "processed_at": datetime.now(timezone.utc).isoformat() + "Z",
         "word_count": 0,
         "char_count": len(text),
         "emotion_signals": {},
@@ -1023,7 +1023,7 @@ def _empty_result() -> Dict[str, Any]:
     """Return empty result structure for empty/null input."""
     return {
         "version": "0.4",
-        "processed_at": datetime.utcnow().isoformat() + "Z",
+        "processed_at": datetime.now(timezone.utc).isoformat() + "Z",
         "word_count": 0,
         "char_count": 0,
         "emotion_signals": {"keywords_found": [], "keyword_count": 0, "keyword_density": 0.0},

@@ -20,7 +20,7 @@ The reflexion loop allows failed items to be refined and re-evaluated.
 import json
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Tuple
 from dataclasses import dataclass, field, asdict
@@ -380,7 +380,7 @@ class CritiqueEngine:
         model_name: str = None,
     ) -> CritiqueReport:
         """Parse LLM critique response into CritiqueReport."""
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat() + "Z"
         
         try:
             # Clean up response
@@ -482,7 +482,7 @@ class CritiqueEngine:
                     reason=f"LLM critique failed: {response.error}",
                 )],
                 recommendation="Proceed with caution - critique unavailable",
-                created_at=datetime.utcnow().isoformat() + "Z",
+                created_at=datetime.now(timezone.utc).isoformat() + "Z",
             )
         
         return self.parse_critique_response(
@@ -533,7 +533,7 @@ class CritiqueEngine:
                     reason=f"LLM critique failed: {response.error}",
                 )],
                 recommendation="Proceed with caution - critique unavailable",
-                created_at=datetime.utcnow().isoformat() + "Z",
+                created_at=datetime.now(timezone.utc).isoformat() + "Z",
             )
         
         return self.parse_critique_response(

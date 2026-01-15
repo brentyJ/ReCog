@@ -10,7 +10,7 @@ with no external dependencies.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 from enum import Enum
 import json
@@ -76,7 +76,7 @@ class Document:
             source_type=source_type,
             source_ref=source_ref,
             metadata=metadata or {},
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
     
     def to_dict(self) -> Dict[str, Any]:
@@ -130,7 +130,7 @@ class Insight:
                confidence: float, source_ids: List[str], excerpts: List[str] = None,
                metadata: Dict[str, Any] = None) -> "Insight":
         """Factory method with auto-generated ID."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         return cls(
             id=str(uuid.uuid4()),
             summary=summary,
@@ -167,7 +167,7 @@ class Insight:
         self.pass_count += 1
         
         # Update timestamp
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
     
     def to_dict(self) -> Dict[str, Any]:
         """Serialise to dictionary."""
@@ -231,7 +231,7 @@ class Pattern:
             insight_ids=insight_ids,
             strength=strength,
             metadata=metadata or {},
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
     
     def to_dict(self) -> Dict[str, Any]:
@@ -290,7 +290,7 @@ class Synthesis:
             significance=significance,
             confidence=confidence,
             metadata=metadata or {},
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
     
     def to_dict(self) -> Dict[str, Any]:
@@ -361,18 +361,18 @@ class ProcessingState:
     def start(self) -> None:
         """Mark processing as started."""
         self.status = ProcessingStatus.PROCESSING
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now(timezone.utc)
     
     def complete(self) -> None:
         """Mark processing as complete."""
         self.status = ProcessingStatus.COMPLETE
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
     
     def fail(self, error: str) -> None:
         """Mark processing as failed."""
         self.status = ProcessingStatus.FAILED
         self.error = error
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
     
     def to_dict(self) -> Dict[str, Any]:
         """Serialise to dictionary."""
@@ -433,7 +433,7 @@ class Corpus:
     @classmethod
     def create(cls, name: str, config: Dict[str, Any] = None) -> "Corpus":
         """Factory method with auto-generated ID."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         return cls(
             id=str(uuid.uuid4()),
             name=name,
@@ -445,22 +445,22 @@ class Corpus:
     def add_document(self, doc: Document) -> None:
         """Add a document to the corpus."""
         self.documents.append(doc)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
     
     def add_insight(self, insight: Insight) -> None:
         """Add an insight to the corpus."""
         self.insights.append(insight)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
     
     def add_pattern(self, pattern: Pattern) -> None:
         """Add a pattern to the corpus."""
         self.patterns.append(pattern)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
     
     def add_synthesis(self, synthesis: Synthesis) -> None:
         """Add a synthesis to the corpus."""
         self.syntheses.append(synthesis)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
     
     def get_document(self, doc_id: str) -> Optional[Document]:
         """Get document by ID."""

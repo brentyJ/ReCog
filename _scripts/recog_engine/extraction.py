@@ -14,7 +14,7 @@ This is Tier 1 processing - requires LLM API calls.
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 from uuid import uuid4
 
@@ -133,7 +133,7 @@ class ExtractedInsight:
     insight_type: str = "observation"
     source_type: str = ""
     source_id: str = ""
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat() + "Z")
     
     def to_dict(self) -> Dict:
         return {
@@ -165,7 +165,7 @@ class ExtractedInsight:
             insight_type=data.get("insight_type", "observation"),
             source_type=data.get("source_type", ""),
             source_id=data.get("source_id", ""),
-            created_at=data.get("created_at", datetime.utcnow().isoformat() + "Z"),
+            created_at=data.get("created_at", datetime.now(timezone.utc).isoformat() + "Z"),
         )
 
 

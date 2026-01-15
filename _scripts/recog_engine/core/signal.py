@@ -12,7 +12,7 @@ This is a refactored version of tier0.py, using the new core types.
 """
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 
 from .types import Document
@@ -170,7 +170,7 @@ class SignalProcessor:
         
         result = {
             "version": self.VERSION,
-            "processed_at": datetime.utcnow().isoformat() + "Z",
+            "processed_at": datetime.now(timezone.utc).isoformat() + "Z",
             "word_count": 0,
             "char_count": len(text),
             "emotion_signals": {},
@@ -203,7 +203,7 @@ class SignalProcessor:
         """Return empty result structure."""
         return {
             "version": self.VERSION,
-            "processed_at": datetime.utcnow().isoformat() + "Z",
+            "processed_at": datetime.now(timezone.utc).isoformat() + "Z",
             "word_count": 0,
             "char_count": 0,
             "emotion_signals": {"keywords_found": [], "keyword_count": 0, "keyword_density": 0.0},
