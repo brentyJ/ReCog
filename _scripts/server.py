@@ -259,6 +259,21 @@ All responses follow this structure:
 
 swagger = Swagger(app, config=swagger_config, template=swagger_template)
 
+# Fix: Remove conflicting 'swagger' field from OpenAPI spec responses
+# Flasgger adds swagger:2.0 by default which conflicts with openapi:3.0.3
+@app.after_request
+def fix_openapi_spec(response):
+    """Remove swagger field from OpenAPI spec to fix Swagger UI rendering."""
+    if request.path == "/apispec.json" and response.content_type == "application/json":
+        try:
+            data = response.get_json()
+            if data and "swagger" in data and "openapi" in data:
+                data.pop("swagger")
+                response.set_data(json.dumps(data))
+        except Exception:
+            pass  # Don't break if JSON parsing fails
+    return response
+
 # Set up structured logging with file rotation
 Config.LOG_DIR.mkdir(parents=True, exist_ok=True)
 setup_logging(
