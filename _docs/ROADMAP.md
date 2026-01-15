@@ -524,7 +524,7 @@ Update: README.md, new files in _docs/
 ```
 
 - [x] API documentation (OpenAPI/Swagger) - v0.9 via Flasgger, UI at /docs
-- [ ] Self-hosting guide
+- [x] Self-hosting guide - v0.9 (`_docs/SELF_HOSTING.md`)
 - [ ] Parser development guide
 - [ ] Configuration reference
 
@@ -1129,4 +1129,4 @@ Total: ~14-22 sessions to full-featured platform
 
 ---
 
-*Last updated: Phase 9.3 Entity extraction v0.4 complete - 15 Jan 2026*
+*Last updated: Phase 9.6 Self-hosting guide complete - 15 Jan 2026*

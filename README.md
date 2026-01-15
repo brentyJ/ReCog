@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/brentyJ/ReCog/actions/workflows/test.yml/badge.svg)
 
-**v0.7.0** | Text analysis engine that extracts, correlates, and synthesises insights from unstructured text.
+**v0.9.0** | Text analysis engine that extracts, correlates, and synthesises insights from unstructured text.
 
 ReCog processes documents through tiered analysis—from free signal extraction to LLM-powered insight synthesis—while maintaining quality through a built-in critique layer. Features a conversational assistant (Cypher) for natural language interaction. Designed for enterprise document intelligence with applications in legal, research, operations, and compliance.
 
@@ -380,6 +380,13 @@ The Docker setup includes:
 - Gunicorn for production serving
 - Volume mounts for persistent data
 - Worker service for background processing
+
+**Full deployment guide:** See [`_docs/SELF_HOSTING.md`](_docs/SELF_HOSTING.md) for:
+- Production HTTPS/nginx configuration
+- Systemd service setup
+- Database backup strategies
+- Performance tuning
+- Troubleshooting guide
 
 ## Database Schema
 
