@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE HealthData [
+<!ATTLIST Record type CDATA #REQUIRED>
+]>
+<HealthData locale="en_US">
+ <ExportDate value="2024-01-15 10:00:00 +0000"/>
+ <Me HKCharacteristicTypeIdentifierDateOfBirth="1990-01-01"/>
+ <Record type="HKQuantityTypeIdentifierStepCount" sourceName="iPhone" unit="count" creationDate="2024-01-15 09:00:00 +0000" startDate="2024-01-15 08:00:00 +0000" endDate="2024-01-15 09:00:00 +0000" value="1500"/>
+ <Record type="HKQuantityTypeIdentifierStepCount" sourceName="iPhone" unit="count" creationDate="2024-01-15 10:00:00 +0000" startDate="2024-01-15 09:00:00 +0000" endDate="2024-01-15 10:00:00 +0000" value="2000"/>
+ <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Apple Watch" unit="count/min" creationDate="2024-01-15 09:30:00 +0000" startDate="2024-01-15 09:30:00 +0000" endDate="2024-01-15 09:30:00 +0000" value="72"/>
+ <Record type="HKQuantityTypeIdentifierActiveEnergyBurned" sourceName="Apple Watch" unit="kcal" creationDate="2024-01-15 10:00:00 +0000" startDate="2024-01-15 08:00:00 +0000" endDate="2024-01-15 10:00:00 +0000" value="150"/>
+</HealthData>

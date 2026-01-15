@@ -1,0 +1,9 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:John Doe
+N:Doe;John;;;
+TEL;TYPE=CELL:+1-555-123-4567
+EMAIL:john.doe@example.com
+ORG:Acme Corp
+TITLE:Software Engineer
+END:VCARD

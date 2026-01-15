@@ -72,7 +72,10 @@ class ArchiveParser(BaseParser):
     MAX_EXTRACTED_SIZE = 500 * 1024 * 1024  # 500MB
     MAX_COMPRESSION_RATIO = 100  # 100:1 ratio threshold for zip bombs
     MAX_FILE_COUNT = 10000  # Maximum files in archive
-    MAX_NESTING_DEPTH = 2  # Maximum nested archive depth
+    MAX_NESTING_DEPTH = 3  # Maximum nested archive depth
+
+    # Track current nesting depth during recursive parsing
+    _current_depth = 0
 
     def get_extensions(self) -> List[str]:
         return [".zip", ".tar", ".tar.gz", ".tgz"]
@@ -91,13 +94,29 @@ class ArchiveParser(BaseParser):
     def get_file_type(self) -> str:
         return "archive"
 
-    def parse(self, path: Path) -> ParsedContent:
+    def parse(self, path: Path, _depth: int = 0) -> ParsedContent:
         """
         Parse archive contents.
 
         Extracts to temporary directory, detects format,
         and processes contained files.
+
+        Args:
+            path: Path to archive
+            _depth: Internal depth counter for nested archives
         """
+        # Check nesting depth
+        if _depth > self.MAX_NESTING_DEPTH:
+            return ParsedContent(
+                text=f"[Nested archive depth limit exceeded: {_depth} > {self.MAX_NESTING_DEPTH}]",
+                title=path.stem,
+                metadata={
+                    "error": "max_depth_exceeded",
+                    "depth": _depth,
+                    "max_depth": self.MAX_NESTING_DEPTH,
+                }
+            )
+
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_path = Path(temp_dir)
@@ -120,10 +139,10 @@ class ArchiveParser(BaseParser):
                 export_format = self._detect_export_format(temp_path)
 
                 if export_format:
-                    return self._handle_platform_export(temp_path, export_format, path)
+                    return self._handle_platform_export(temp_path, export_format, path, _depth)
 
                 # Generic archive: process all supported files
-                return self._process_generic_archive(temp_path, path)
+                return self._process_generic_archive(temp_path, path, _depth)
 
         except ArchiveSecurityError as e:
             return ParsedContent(
@@ -321,9 +340,17 @@ class ArchiveParser(BaseParser):
 
         return None
 
-    def _handle_platform_export(self, directory: Path, export_format: str, original_path: Path) -> ParsedContent:
+    def _handle_platform_export(
+        self, directory: Path, export_format: str, original_path: Path, _depth: int = 0
+    ) -> ParsedContent:
         """
         Handle known platform export formats.
+
+        Args:
+            directory: Extracted archive directory
+            export_format: Detected platform format
+            original_path: Original archive path
+            _depth: Current nesting depth
         """
         handlers = {
             'facebook': self._parse_facebook_export,
@@ -333,10 +360,10 @@ class ArchiveParser(BaseParser):
             'linkedin': self._parse_linkedin_export,
         }
 
-        handler = handlers.get(export_format, self._process_generic_archive)
+        handler = handlers.get(export_format)
 
-        if handler == self._process_generic_archive:
-            return handler(directory, original_path)
+        if handler is None:
+            return self._process_generic_archive(directory, original_path, _depth)
 
         return handler(directory, original_path)
 
@@ -683,11 +710,16 @@ class ArchiveParser(BaseParser):
             }
         )
 
-    def _process_generic_archive(self, directory: Path, original_path: Path) -> ParsedContent:
+    def _process_generic_archive(self, directory: Path, original_path: Path, _depth: int = 0) -> ParsedContent:
         """
         Process a generic archive without known format.
 
         Scans for supported files and processes each one.
+
+        Args:
+            directory: Extracted archive directory
+            original_path: Original archive path
+            _depth: Current nesting depth for recursive archive handling
         """
         from .base import get_parser
 
@@ -711,7 +743,11 @@ class ArchiveParser(BaseParser):
                 continue
 
             try:
-                result = parser.parse(file_path)
+                # Pass depth for nested archives
+                if isinstance(parser, ArchiveParser):
+                    result = parser.parse(file_path, _depth=_depth + 1)
+                else:
+                    result = parser.parse(file_path)
 
                 # Get relative path for display
                 rel_path = file_path.relative_to(directory)

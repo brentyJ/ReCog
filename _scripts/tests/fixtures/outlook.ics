@@ -1,0 +1,12 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Microsoft Corporation//Outlook 16.0//EN
+X-WR-TIMEZONE:Eastern Standard Time
+BEGIN:VEVENT
+DTSTART;TZID=Eastern Standard Time:20240115T100000
+DTEND;TZID=Eastern Standard Time:20240115T110000
+SUMMARY:Outlook Meeting
+LOCATION:Virtual
+UID:outlook-test-001@outlook.com
+END:VEVENT
+END:VCALENDAR

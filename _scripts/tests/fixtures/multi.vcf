@@ -1,0 +1,24 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:John Doe
+N:Doe;John;;;
+TEL;TYPE=CELL:+1-555-123-4567
+EMAIL:john.doe@example.com
+ORG:Acme Corp
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Jane Smith
+N:Smith;Jane;;;
+TEL;TYPE=WORK:+1-555-987-6543
+EMAIL:jane.smith@example.com
+ORG:Tech Industries
+BDAY:1990-05-15
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Bob Wilson
+N:Wilson;Bob;;;
+EMAIL:bob@wilson.net
+NOTE:Met at conference 2024
+END:VCARD

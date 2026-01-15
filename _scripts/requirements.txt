@@ -28,6 +28,7 @@ phonenumbers>=8.13.0      # E.164 phone normalization (VCF)
 charset-normalizer>=3.3.0 # Encoding detection (CSV, faster than chardet)
 polars>=0.20.0            # Large CSV files (streaming, lazy evaluation)
 python-magic>=0.4.27      # Content-based format detection (libmagic wrapper)
+lxml>=5.0.0               # Streaming XML parsing (Apple Health, large files)
 
 # Production
 gunicorn>=21.0.0  # WSGI server
@@ -38,3 +39,4 @@ flasgger>=0.9.7  # OpenAPI/Swagger documentation
 python-dotenv     # Environment variables
 pytest>=8.0.0     # Testing
 pytest-cov>=4.0.0 # Coverage
+hypothesis>=6.0.0 # Property-based testing
