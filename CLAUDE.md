@@ -75,7 +75,7 @@ python recog_cli.py preflight scan <id>
 
 | Tier | Cost | Purpose |
 |------|------|---------|
-| 0 | FREE | Signal extraction: emotions (14 categories), entities, temporal refs |
+| 0 | FREE | Signal extraction: emotions (14 categories), entities (people, orgs, locations), temporal refs, dates/times, currency |
 | 1 | LLM | Insight extraction from individual documents |
 | 2 | LLM | Pattern correlation across documents |
 | 3 | LLM | Synthesis: reports, recommendations |
@@ -88,7 +88,7 @@ python recog_cli.py preflight scan <id>
 - `db.py` - SQLite database utilities
 
 **recog_engine/** - Core processing:
-- `tier0.py` - Free signal extraction (emotions, entities, temporal) with blacklist support
+- `tier0.py` - Free signal extraction (emotions, entities, temporal, dates/times, currency, orgs, locations) with blacklist support (v0.4)
 - `extraction.py` - LLM insight extraction with entity context
 - `synth.py` - Pattern synthesis and clustering
 - `critique.py` - Validation layer with reflexion loop

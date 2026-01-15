@@ -1,15 +1,22 @@
 """
-ReCog Engine - Tier 0 Pre-Annotation Processor v0.3
+ReCog Engine - Tier 0 Pre-Annotation Processor v0.4
 
 Copyright (c) 2025 Brent Lefebure / EhkoLabs
 Licensed under AGPLv3 - See LICENSE in repository root
 Commercial licenses available: brent@ehkolabs.io
 
 Zero-LLM-cost signal extraction from raw text.
-Runs on every document/chunk to flag emotion markers, intensity, 
+Runs on every document/chunk to flag emotion markers, intensity,
 entities, temporal references, and question patterns.
 
 This is the FREE processing tier - no API calls required.
+
+v0.4 Changes:
+- Full name extraction (multi-word names like "Dr. Sarah Smith")
+- Organisation detection (companies, institutions, foundations)
+- Location/address detection (street addresses, cities)
+- Date/time extraction (multiple formats, normalised)
+- Currency/amount detection (multiple currencies)
 
 v0.3 Changes:
 - Added confidence scoring for person entities (HIGH/MEDIUM/LOW)
@@ -448,6 +455,521 @@ def score_person_confidence(
 
 
 # =============================================================================
+# DATE/TIME EXTRACTION
+# =============================================================================
+
+# Common date formats
+DATE_PATTERNS = [
+    # ISO format: 2024-01-15, 2024/01/15
+    r'\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b',
+    # US format: 01/15/2024, 1/15/24
+    r'\b(\d{1,2}/\d{1,2}/\d{2,4})\b',
+    # UK/AU format: 15/01/2024
+    r'\b(\d{1,2}/\d{1,2}/\d{2,4})\b',
+    # Written: January 15, 2024 or 15 January 2024
+    r'\b(\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[,]?\s+\d{4})\b',
+    r'\b((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?[,]?\s+\d{4})\b',
+    # Month and year: January 2024, Jan 2024
+    r'\b((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b',
+    # Just month and day: January 15, Jan 15th
+    r'\b((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?)\b',
+]
+
+TIME_PATTERNS = [
+    # 24-hour: 14:30, 09:00
+    r'\b(\d{1,2}:\d{2}(?::\d{2})?)\b',
+    # 12-hour: 2:30pm, 9:00 AM
+    r'\b(\d{1,2}:\d{2}\s*(?:am|pm|AM|PM))\b',
+    # Written: 2pm, 9 am
+    r'\b(\d{1,2}\s*(?:am|pm|AM|PM))\b',
+]
+
+
+def extract_dates(text: str) -> List[Dict]:
+    """
+    Extract date references from text.
+    Returns list of {raw, type, context} dicts.
+    """
+    dates = []
+    seen = set()
+
+    for pattern in DATE_PATTERNS:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            raw = match.group(1) if match.groups() else match.group(0)
+            normalised = raw.strip()
+
+            if normalised.lower() in seen:
+                continue
+            seen.add(normalised.lower())
+
+            # Get context
+            start = max(0, match.start() - 30)
+            end = min(len(text), match.end() + 30)
+            context = text[start:end].strip()
+
+            dates.append({
+                'raw': raw,
+                'normalised': normalised,
+                'context': context,
+            })
+
+    return dates[:20]
+
+
+def extract_times(text: str) -> List[Dict]:
+    """
+    Extract time references from text.
+    Returns list of {raw, context} dicts.
+    """
+    times = []
+    seen = set()
+
+    for pattern in TIME_PATTERNS:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            raw = match.group(1) if match.groups() else match.group(0)
+            normalised = raw.strip().lower()
+
+            if normalised in seen:
+                continue
+            seen.add(normalised)
+
+            # Get context
+            start = max(0, match.start() - 30)
+            end = min(len(text), match.end() + 30)
+            context = text[start:end].strip()
+
+            times.append({
+                'raw': raw,
+                'normalised': normalised,
+                'context': context,
+            })
+
+    return times[:20]
+
+
+# =============================================================================
+# CURRENCY/AMOUNT EXTRACTION
+# =============================================================================
+
+CURRENCY_PATTERNS = [
+    # Dollar amounts: $100, $1,234.56, $1.5M
+    r'(\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?(?:\s*[KkMmBb](?:illion)?)?)',
+    # Euro amounts: €100, EUR 100
+    r'(€\d{1,3}(?:,\d{3})*(?:\.\d{2})?(?:\s*[KkMmBb](?:illion)?)?)',
+    r'(EUR\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
+    # Pound amounts: £100, GBP 100
+    r'(£\d{1,3}(?:,\d{3})*(?:\.\d{2})?(?:\s*[KkMmBb](?:illion)?)?)',
+    r'(GBP\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
+    # AUD amounts: AUD 100, A$100
+    r'(A\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
+    r'(AUD\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
+    # Written amounts: 100 dollars, 50 euros
+    r'(\d{1,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:dollars?|USD|euros?|pounds?|yen))',
+]
+
+
+def extract_currency(text: str) -> List[Dict]:
+    """
+    Extract currency/monetary amounts from text.
+    Returns list of {raw, normalised, context} dicts.
+    """
+    amounts = []
+    seen = set()
+
+    for pattern in CURRENCY_PATTERNS:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            raw = match.group(1) if match.groups() else match.group(0)
+            normalised = raw.strip()
+
+            if normalised.lower() in seen:
+                continue
+            seen.add(normalised.lower())
+
+            # Get context
+            start = max(0, match.start() - 30)
+            end = min(len(text), match.end() + 30)
+            context = text[start:end].strip()
+
+            amounts.append({
+                'raw': raw,
+                'normalised': normalised,
+                'context': context,
+            })
+
+    return amounts[:20]
+
+
+# =============================================================================
+# ORGANISATION DETECTION
+# =============================================================================
+
+# Common organisation suffixes
+ORG_SUFFIXES = [
+    'Inc', 'Inc.', 'LLC', 'Ltd', 'Ltd.', 'Corp', 'Corp.', 'Corporation',
+    'Co', 'Co.', 'Company', 'Companies',
+    'Group', 'Holdings', 'Partners', 'Associates',
+    'Foundation', 'Institute', 'University', 'College', 'School',
+    'Hospital', 'Clinic', 'Medical', 'Health',
+    'Bank', 'Financial', 'Insurance', 'Capital',
+    'Technologies', 'Tech', 'Software', 'Systems', 'Solutions',
+    'Services', 'Consulting', 'Advisory',
+    'Media', 'Entertainment', 'Studios', 'Productions',
+    'Industries', 'Manufacturing', 'Enterprises',
+    'Association', 'Society', 'Organization', 'Organisation',
+    'Agency', 'Bureau', 'Department', 'Ministry',
+    'Council', 'Committee', 'Board', 'Commission',
+    'Network', 'Alliance', 'Coalition', 'Federation',
+    'Trust', 'Fund', 'Charity',
+    'Pty', 'Pty.', 'PLC', 'GmbH', 'AG', 'SA', 'NV', 'BV',
+]
+
+# Known organisation patterns (regex)
+ORG_PATTERNS = [
+    # "The X Foundation/Institute/etc"
+    r'(?:The\s+)?([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\s+(?:Foundation|Institute|University|College|Hospital|Association|Society|Agency|Bureau|Council|Committee|Board|Trust|Fund))',
+    # "X Inc/Ltd/Corp/etc"
+    r'([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\s+(?:Inc\.?|LLC|Ltd\.?|Corp\.?|Corporation|Company|Co\.?|Group|Holdings|Partners|Pty\.?\s*Ltd\.?))',
+    # "X Bank/Financial/Insurance"
+    r'([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\s+(?:Bank|Financial|Insurance|Capital))',
+    # "X Technologies/Tech/Software/Systems"
+    r'([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\s+(?:Technologies|Tech|Software|Systems|Solutions|Services))',
+]
+
+
+def extract_organisations(text: str) -> List[Dict]:
+    """
+    Extract organisation names from text.
+    Returns list of {raw, normalised, confidence, context} dicts.
+    """
+    orgs = []
+    seen = set()
+
+    # Pattern-based extraction
+    for pattern in ORG_PATTERNS:
+        for match in re.finditer(pattern, text):
+            raw = match.group(1) if match.groups() else match.group(0)
+            normalised = raw.strip()
+
+            if normalised.lower() in seen:
+                continue
+            seen.add(normalised.lower())
+
+            # Get context
+            start = max(0, match.start() - 30)
+            end = min(len(text), match.end() + 30)
+            context = text[start:end].strip()
+
+            orgs.append({
+                'raw': raw,
+                'normalised': normalised,
+                'confidence': 'high',
+                'context': context,
+            })
+
+    # Also scan for "at/for/with [Org]" patterns
+    work_patterns = [
+        r'(?:work(?:s|ed|ing)?\s+(?:at|for)|join(?:s|ed|ing)?\s+|left\s+|from\s+)([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,3})',
+    ]
+
+    for pattern in work_patterns:
+        for match in re.finditer(pattern, text):
+            raw = match.group(1)
+            normalised = raw.strip()
+
+            # Skip if it's a known non-org word
+            if normalised.lower() in NON_NAME_CAPITALS_LOWER:
+                continue
+            if normalised.lower() in seen:
+                continue
+
+            # Check if it ends with org suffix
+            words = normalised.split()
+            if words and words[-1] in ORG_SUFFIXES:
+                seen.add(normalised.lower())
+
+                start = max(0, match.start() - 30)
+                end = min(len(text), match.end() + 30)
+                context = text[start:end].strip()
+
+                orgs.append({
+                    'raw': raw,
+                    'normalised': normalised,
+                    'confidence': 'medium',
+                    'context': context,
+                })
+
+    return orgs[:15]
+
+
+# =============================================================================
+# LOCATION/ADDRESS DETECTION
+# =============================================================================
+
+# Street type indicators
+STREET_TYPES = [
+    'Street', 'St', 'St.', 'Avenue', 'Ave', 'Ave.', 'Road', 'Rd', 'Rd.',
+    'Drive', 'Dr', 'Dr.', 'Lane', 'Ln', 'Ln.', 'Boulevard', 'Blvd', 'Blvd.',
+    'Way', 'Place', 'Pl', 'Pl.', 'Court', 'Ct', 'Ct.', 'Circle', 'Cir',
+    'Terrace', 'Tce', 'Highway', 'Hwy', 'Parkway', 'Pkwy',
+    'Crescent', 'Cres', 'Close', 'Grove', 'Gardens',
+]
+
+ADDRESS_PATTERNS = [
+    # Street address: 123 Main Street, 456 Oak Ave
+    r'(\d{1,5}\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?\s+(?:' + '|'.join(STREET_TYPES) + r'))',
+    # PO Box
+    r'(P\.?O\.?\s*Box\s+\d+)',
+    # Suite/Unit/Apt
+    r'((?:Suite|Unit|Apt\.?|Apartment)\s+\d+[A-Za-z]?)',
+]
+
+# Postcode patterns by country
+POSTCODE_PATTERNS = [
+    # Australian: 3000, 2000
+    r'\b(\d{4})\b(?=\s*(?:Australia|AU|VIC|NSW|QLD|SA|WA|TAS|NT|ACT)?)',
+    # US ZIP: 12345, 12345-6789
+    r'\b(\d{5}(?:-\d{4})?)\b',
+    # UK: SW1A 1AA
+    r'\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b',
+]
+
+
+def extract_locations(text: str) -> List[Dict]:
+    """
+    Extract location references (addresses, places) from text.
+    Returns list of {raw, type, confidence, context} dicts.
+    """
+    locations = []
+    seen = set()
+
+    # Extract street addresses
+    for pattern in ADDRESS_PATTERNS:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            raw = match.group(1) if match.groups() else match.group(0)
+            normalised = raw.strip()
+
+            if normalised.lower() in seen:
+                continue
+            seen.add(normalised.lower())
+
+            start = max(0, match.start() - 30)
+            end = min(len(text), match.end() + 30)
+            context = text[start:end].strip()
+
+            locations.append({
+                'raw': raw,
+                'normalised': normalised,
+                'type': 'address',
+                'confidence': 'high',
+                'context': context,
+            })
+
+    # Extract "in/at/from [City]" patterns
+    location_indicators = [
+        r'(?:in|at|from|to|near|around|visited?|moved?\s+to|live[sd]?\s+in)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)',
+    ]
+
+    # Known cities for validation
+    known_cities = {
+        'melbourne', 'sydney', 'brisbane', 'perth', 'adelaide', 'hobart', 'darwin', 'canberra',
+        'london', 'paris', 'tokyo', 'berlin', 'rome', 'madrid', 'amsterdam', 'vienna',
+        'new york', 'los angeles', 'chicago', 'houston', 'phoenix', 'philadelphia',
+        'san antonio', 'san diego', 'dallas', 'san francisco', 'seattle', 'boston',
+        'toronto', 'vancouver', 'montreal', 'dublin', 'edinburgh', 'manchester',
+        'singapore', 'hong kong', 'bangkok', 'seoul', 'mumbai', 'delhi', 'beijing', 'shanghai',
+    }
+
+    for pattern in location_indicators:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            raw = match.group(1)
+            normalised = raw.strip()
+
+            # Check if it's a known city
+            if normalised.lower() in known_cities:
+                if normalised.lower() in seen:
+                    continue
+                seen.add(normalised.lower())
+
+                start = max(0, match.start() - 30)
+                end = min(len(text), match.end() + 30)
+                context = text[start:end].strip()
+
+                locations.append({
+                    'raw': raw,
+                    'normalised': normalised,
+                    'type': 'city',
+                    'confidence': 'high',
+                    'context': context,
+                })
+
+    return locations[:15]
+
+
+# =============================================================================
+# FULL NAME EXTRACTION
+# =============================================================================
+
+def extract_full_names(text: str, include_low_confidence: bool = True) -> List[Dict]:
+    """
+    Extract full names (multi-word) from text with confidence scoring.
+    Handles patterns like "Dr. Sarah Smith", "John Smith", "Mary Jane Watson".
+
+    Returns list of {name, confidence, components} dicts.
+    """
+    # Protect abbreviations from sentence splitting
+    abbrev_pattern = r'\b(Dr|Mr|Mrs|Ms|Prof|Rev|Sr|Jr|St|Lt|Sgt|Capt|Gen|Col|Maj|Mt|Ave|Blvd|Apt|Dept|Inc|Corp|Ltd|vs|etc|e\.g|i\.e)\.'
+    protected_text = re.sub(abbrev_pattern, r'\1<DOT>', text, flags=re.IGNORECASE)  # Use marker
+
+    # Split into sentences
+    sentences = re.split(r'[.!?]|(?<=["\'])\s+(?=[A-Z])|:\s+', protected_text)
+
+    names = []
+    seen_names = set()
+
+    for sentence in sentences:
+        # Restore periods after titles for processing
+        sentence = sentence.replace('<DOT>', '.')
+        words = sentence.split()
+
+        i = 0
+        while i < len(words):
+            word = words[i]
+            clean = re.sub(r"[^a-zA-Z'.]", "", word)
+
+            if not clean or len(clean) < 2:
+                i += 1
+                continue
+
+            # Check if this starts a potential name sequence
+            # (title or capitalized word)
+            is_title = clean.rstrip('.') in PEOPLE_TITLES
+            is_capitalized = clean[0].isupper() and not clean.isupper()
+
+            if not (is_title or is_capitalized):
+                i += 1
+                continue
+
+            # Skip if in NON_NAME_CAPITALS
+            if clean.lower().rstrip('.') in NON_NAME_CAPITALS_LOWER:
+                if not is_title:  # Titles are ok
+                    i += 1
+                    continue
+
+            # Collect consecutive capitalized words
+            name_parts = []
+            title_part = None
+            j = i
+
+            # If starts with title, record it
+            if is_title:
+                title_part = clean.rstrip('.')
+                j += 1
+
+            # Collect capitalized name words
+            while j < len(words):
+                next_word = words[j]
+                next_clean = re.sub(r"[^a-zA-Z']", "", next_word)
+
+                if not next_clean or len(next_clean) < 2:
+                    break
+
+                # Must be capitalized (not all caps)
+                if not (next_clean[0].isupper() and not next_clean.isupper()):
+                    break
+
+                # Skip if non-name word
+                if next_clean.lower() in NON_NAME_CAPITALS_LOWER:
+                    break
+
+                # Skip if organisation suffix (likely end of org name, not person)
+                if next_clean in ORG_SUFFIXES:
+                    break
+
+                # Skip if common English word
+                if next_clean.lower() in COMMON_ENGLISH_WORDS_LOWER:
+                    break
+
+                # Skip words ending with common non-name suffixes
+                non_name_suffixes = ('ing', 'tion', 'ment', 'ness', 'able', 'ible', 'ful', 'less', 'ous', 'ive', 'ity', 'ism')
+                if next_clean.lower().endswith(non_name_suffixes):
+                    break
+
+                name_parts.append(next_clean)
+                j += 1
+
+                # Limit to reasonable name length (4 parts max)
+                if len(name_parts) >= 4:
+                    break
+
+            # Build the full name
+            if name_parts:
+                full_name = ' '.join(name_parts)
+                full_name_with_title = f"{title_part} {full_name}" if title_part else full_name
+
+                # Skip if already seen
+                if full_name.lower() in seen_names:
+                    i = j
+                    continue
+
+                # Skip if blacklisted
+                if is_blacklisted(full_name):
+                    i = j
+                    continue
+
+                # Score confidence
+                at_sentence_start = (i == 0)
+                confidence = Confidence.HIGH if title_part else Confidence.MEDIUM
+
+                # Boost confidence for multi-part names
+                if len(name_parts) >= 2 and not title_part:
+                    confidence = Confidence.HIGH
+
+                # Downgrade sentence-start single names
+                if at_sentence_start and len(name_parts) == 1 and not title_part:
+                    confidence = Confidence.LOW
+
+                # Skip low confidence if requested
+                if not include_low_confidence and confidence == Confidence.LOW:
+                    i = j
+                    continue
+
+                seen_names.add(full_name.lower())
+                names.append({
+                    'name': full_name_with_title,
+                    'confidence': confidence,
+                    'components': {
+                        'title': title_part,
+                        'name_parts': name_parts,
+                    }
+                })
+            elif title_part and not name_parts:
+                # Just a title (Mum, Dad, etc.) - these are valid
+                if title_part.lower() not in seen_names:
+                    # Skip honorifics alone (Mr, Dr, etc without following name)
+                    honorifics = {"Mr", "Mrs", "Ms", "Dr", "Prof", "Rev", "Sir", "Dame",
+                                  "Lord", "Lady", "Officer", "Detective", "Sergeant",
+                                  "Captain", "Pastor", "Reverend", "Professor"}
+                    if title_part not in honorifics:
+                        seen_names.add(title_part.lower())
+                        names.append({
+                            'name': title_part,
+                            'confidence': Confidence.HIGH,
+                            'components': {
+                                'title': title_part,
+                                'name_parts': [],
+                            }
+                        })
+
+            i = j if j > i else i + 1
+
+    # Sort by confidence (high first)
+    confidence_order = {Confidence.HIGH: 0, Confidence.MEDIUM: 1, Confidence.LOW: 2}
+    names.sort(key=lambda n: confidence_order.get(n['confidence'], 2))
+
+    return names[:15]
+
+
+# =============================================================================
 # PROCESSING FUNCTIONS
 # =============================================================================
 
@@ -466,7 +988,7 @@ def preprocess_text(text: str, include_low_confidence: bool = True) -> Dict[str,
         return _empty_result()
     
     result = {
-        "version": "0.3",
+        "version": "0.4",
         "processed_at": datetime.utcnow().isoformat() + "Z",
         "word_count": 0,
         "char_count": len(text),
@@ -500,15 +1022,15 @@ def preprocess_text(text: str, include_low_confidence: bool = True) -> Dict[str,
 def _empty_result() -> Dict[str, Any]:
     """Return empty result structure for empty/null input."""
     return {
-        "version": "0.3",
+        "version": "0.4",
         "processed_at": datetime.utcnow().isoformat() + "Z",
         "word_count": 0,
         "char_count": 0,
         "emotion_signals": {"keywords_found": [], "keyword_count": 0, "keyword_density": 0.0},
         "intensity_markers": {"exclamations": 0, "all_caps_words": 0, "repeated_punctuation": 0, "intensifiers": [], "hedges": []},
         "question_analysis": {"question_count": 0, "question_density": 0.0, "self_inquiry": 0, "rhetorical_likely": 0},
-        "temporal_references": {"past": [], "present": [], "future": [], "habitual": []},
-        "entities": {"people": [], "phone_numbers": [], "email_addresses": [], "places": [], "organisations": []},
+        "temporal_references": {"past": [], "present": [], "future": [], "habitual": [], "dates": [], "times": []},
+        "entities": {"people": [], "phone_numbers": [], "email_addresses": [], "locations": [], "organisations": [], "currency": []},
         "structural": {"paragraph_count": 0, "sentence_count": 0, "avg_sentence_length": 0, "longest_sentence": 0, "speaker_changes": 0},
         "flags": {"high_emotion": False, "self_reflective": False, "narrative": False, "analytical": False},
     }
@@ -601,9 +1123,9 @@ def analyse_questions(text: str, word_count: int) -> Dict:
 
 
 def extract_temporal_refs(text: str) -> Dict:
-    """Extract temporal reference patterns."""
-    result = {"past": [], "present": [], "future": [], "habitual": []}
-    
+    """Extract temporal reference patterns including specific dates and times."""
+    result = {"past": [], "present": [], "future": [], "habitual": [], "dates": [], "times": []}
+
     for category, patterns in TEMPORAL_PATTERNS.items():
         for pattern in patterns:
             matches = re.findall(pattern, text, re.IGNORECASE)
@@ -615,7 +1137,11 @@ def extract_temporal_refs(text: str) -> Dict:
                     result[category].append(match)
         # Dedupe and cap
         result[category] = list(set(result[category]))[:5]
-    
+
+    # Extract specific dates and times
+    result["dates"] = extract_dates(text)
+    result["times"] = extract_times(text)
+
     return result
 
 
@@ -707,119 +1233,35 @@ def extract_email_addresses(text: str) -> List[Dict]:
 
 def extract_basic_entities(text: str, include_low_confidence: bool = True) -> Dict:
     """
-    Entity extraction: people, phone numbers, emails.
-    Now with confidence scoring for people.
-    
+    Entity extraction: people (full names), organisations, locations, phone numbers, emails, currency.
+    Uses confidence scoring for people and organisations.
+
     Args:
         text: Text to extract from
-        include_low_confidence: If False, exclude LOW confidence people
-    
+        include_low_confidence: If False, exclude LOW confidence entities
+
     Returns:
-        Dict with people (now includes confidence), phone_numbers, email_addresses
+        Dict with people, organisations, locations, phone_numbers, email_addresses, currency
     """
-    # Extract phones and emails
+    # Extract phones, emails, and currency
     phones = extract_phone_numbers(text)
     emails = extract_email_addresses(text)
-    
-    # Extract people (capitalised words, titles) with confidence
-    # Pre-process to protect abbreviations from sentence splitting
-    # Common titles/abbreviations that should not be treated as sentence endings
-    abbrev_pattern = r'\b(Dr|Mr|Mrs|Ms|Prof|Rev|Sr|Jr|St|Lt|Sgt|Capt|Gen|Col|Maj|Mt|Ave|Blvd|Apt|Dept|Inc|Corp|Ltd|vs|etc|e\.g|i\.e)\.'
-    protected_text = re.sub(abbrev_pattern, r'\1', text, flags=re.IGNORECASE)
-    sentences = re.split(r'[.!?]|(?<=["\'])\s+(?=[A-Z])|:\s+', protected_text)
-    people = []  # Now list of dicts with 'name' and 'confidence'
-    seen_names = set()
-    
-    for sentence in sentences:
-        words = sentence.split()
-        for i, word in enumerate(words):
-            at_sentence_start = (i == 0)
-            
-            clean = re.sub(r"[^a-zA-Z']", "", word)
-            if not clean:
-                continue
-            
-            # Skip if too short (likely abbreviation or noise)
-            if len(clean) < 3:
-                continue
-            
-            # Skip if already seen
-            if clean.lower() in seen_names:
-                continue
-                
-            # Check if capitalised
-            if clean[0].isupper():
-                # Case-insensitive check against non-name words
-                if clean.lower() in NON_NAME_CAPITALS_LOWER:
-                    continue
-                
-                # Skip if ALL CAPS (likely emphasis, not names)
-                if clean.isupper():
-                    continue
-                
-                # Skip if it looks like a contraction fragment
-                if "'" in clean and not clean.endswith("'s"):
-                    continue
-                
-                # Determine confidence boosters
-                preceded_by_title = False
-                is_title = False
-                context_words = words[i+1:i+4] if i+1 < len(words) else []
-                
-                # Check if preceded by title
-                if i > 0:
-                    prev = re.sub(r"[^a-zA-Z]", "", words[i-1])
-                    if prev in PEOPLE_TITLES:
-                        preceded_by_title = True
-                
-                # Check if it IS a title (Mum, Dad, etc.)
-                if clean in PEOPLE_TITLES:
-                    is_title = True
-                    # Honorific titles (Mr, Mrs, Dr, etc.) should not be detected as names
-                    # when followed by a capitalized word - they just boost the next word
-                    honorifics = {"Mr", "Mrs", "Ms", "Dr", "Prof", "Rev", "Sir", "Dame",
-                                  "Lord", "Lady", "Officer", "Detective", "Sergeant",
-                                  "Captain", "Pastor", "Reverend", "Professor"}
-                    if clean in honorifics and i+1 < len(words):
-                        next_word = re.sub(r"[^a-zA-Z']", "", words[i+1])
-                        if next_word and next_word[0].isupper():
-                            # Skip this honorific - we'll detect the following name
-                            continue
+    currency = extract_currency(text)
 
-                # Score confidence
-                confidence = score_person_confidence(
-                    clean,
-                    preceded_by_title=preceded_by_title,
-                    is_title=is_title,
-                    context_words=context_words
-                )
-                
-                # Sentence-start names get downgraded (could just be capitalised word)
-                if at_sentence_start and confidence == Confidence.MEDIUM:
-                    confidence = Confidence.LOW
-                
-                # Skip low confidence if requested
-                if not include_low_confidence and confidence == Confidence.LOW:
-                    continue
-                
-                # Add to results
-                seen_names.add(clean.lower())
-                people.append({
-                    'name': clean,
-                    'confidence': confidence,
-                })
-    
-    # Sort by confidence (high first) and limit
-    confidence_order = {Confidence.HIGH: 0, Confidence.MEDIUM: 1, Confidence.LOW: 2}
-    people.sort(key=lambda p: confidence_order.get(p['confidence'], 2))
-    people = people[:15]  # Increased limit since we have confidence now
-    
+    # Extract organisations and locations
+    organisations = extract_organisations(text)
+    locations = extract_locations(text)
+
+    # Extract full names (multi-word) with confidence scoring
+    people = extract_full_names(text, include_low_confidence=include_low_confidence)
+
     return {
         "people": people,
         "phone_numbers": phones[:20],
         "email_addresses": emails[:20],
-        "places": [],  # Would need NER for reliable place detection
-        "organisations": [],
+        "locations": locations,
+        "organisations": organisations,
+        "currency": currency,
     }
 
 
@@ -887,71 +1329,95 @@ def compute_flags(result: Dict) -> Dict:
 def summarise_for_prompt(pre_annotation: Dict) -> str:
     """
     Generate a human-readable summary of pre-annotation for LLM prompts.
-    
+
     Args:
         pre_annotation: Output from preprocess_text()
-        
+
     Returns:
         Formatted string for inclusion in extraction prompts
     """
     parts = []
-    
+
     # Emotion signals
     if pre_annotation.get("emotion_signals", {}).get("keywords_found"):
         keywords = pre_annotation["emotion_signals"]["keywords_found"][:5]
         parts.append(f"Emotion keywords: {', '.join(keywords)}")
-    
+
     if pre_annotation.get("emotion_signals", {}).get("categories"):
         cats = pre_annotation["emotion_signals"]["categories"][:3]
         parts.append(f"Emotion categories: {', '.join(cats)}")
-    
+
     # Flags
     flags = pre_annotation.get("flags", {})
     active_flags = [k.replace("_", " ") for k, v in flags.items() if v]
     if active_flags:
         parts.append(f"Flags: {', '.join(active_flags)}")
-    
+
     # Temporal
     if pre_annotation.get("temporal_references", {}).get("past"):
         past_refs = pre_annotation["temporal_references"]["past"][:3]
         parts.append(f"Past references: {', '.join(past_refs)}")
-    
-    # People - now with confidence
+
+    # Dates
+    dates = pre_annotation.get("temporal_references", {}).get("dates", [])
+    if dates:
+        date_strs = [d.get('normalised', d.get('raw', '?')) for d in dates[:5]]
+        parts.append(f"Dates mentioned: {', '.join(date_strs)}")
+
+    # People - now with full names and confidence
     people = pre_annotation.get("entities", {}).get("people", [])
     if people:
         # Filter to HIGH/MEDIUM for prompt summary
-        good_people = [p['name'] if isinstance(p, dict) else p for p in people 
+        good_people = [p['name'] if isinstance(p, dict) else p for p in people
                        if not isinstance(p, dict) or p.get('confidence') != 'low'][:5]
         if good_people:
             parts.append(f"People mentioned: {', '.join(good_people)}")
-    
+
+    # Organisations
+    orgs = pre_annotation.get("entities", {}).get("organisations", [])
+    if orgs:
+        org_names = [o.get('normalised', o.get('raw', '?')) for o in orgs[:5]]
+        parts.append(f"Organisations: {', '.join(org_names)}")
+
+    # Locations
+    locations = pre_annotation.get("entities", {}).get("locations", [])
+    if locations:
+        loc_names = [loc.get('normalised', loc.get('raw', '?')) for loc in locations[:5]]
+        parts.append(f"Locations: {', '.join(loc_names)}")
+
     # Phone numbers
     phones = pre_annotation.get("entities", {}).get("phone_numbers", [])
     if phones:
         phone_strs = [p.get('normalised', p.get('raw', '?')) for p in phones[:5]]
         parts.append(f"Phone numbers: {', '.join(phone_strs)}")
-    
+
     # Email addresses
     emails = pre_annotation.get("entities", {}).get("email_addresses", [])
     if emails:
         email_strs = [e.get('normalised', e.get('raw', '?')) for e in emails[:5]]
         parts.append(f"Email addresses: {', '.join(email_strs)}")
-    
+
+    # Currency amounts
+    currency = pre_annotation.get("entities", {}).get("currency", [])
+    if currency:
+        currency_strs = [c.get('normalised', c.get('raw', '?')) for c in currency[:5]]
+        parts.append(f"Currency amounts: {', '.join(currency_strs)}")
+
     # Intensity
     intensity = pre_annotation.get("intensity_markers", {})
     if intensity.get("exclamations", 0) >= 2:
         parts.append(f"High exclamation count: {intensity['exclamations']}")
     if intensity.get("absolutes"):
         parts.append(f"Absolute statements: {', '.join(intensity['absolutes'][:3])}")
-    
+
     # Questions
     questions = pre_annotation.get("question_analysis", {})
     if questions.get("self_inquiry", 0) >= 1:
         parts.append(f"Self-inquiry questions: {questions['self_inquiry']}")
-    
+
     if not parts:
         return "No significant signals detected."
-    
+
     return "\n".join(f"- {p}" for p in parts)
 
 
@@ -1028,6 +1494,13 @@ __all__ = [
     "analyse_structure",
     "compute_flags",
     "score_person_confidence",
+    # New v0.4 extraction functions
+    "extract_full_names",
+    "extract_organisations",
+    "extract_locations",
+    "extract_dates",
+    "extract_times",
+    "extract_currency",
     # Blacklist functions
     "load_blacklist_from_db",
     "add_to_blacklist",
@@ -1045,4 +1518,9 @@ __all__ = [
     "COMMON_ENGLISH_WORDS",
     "COMMON_ENGLISH_WORDS_LOWER",
     "PEOPLE_TITLES",
+    "ORG_SUFFIXES",
+    "STREET_TYPES",
+    "DATE_PATTERNS",
+    "TIME_PATTERNS",
+    "CURRENCY_PATTERNS",
 ]

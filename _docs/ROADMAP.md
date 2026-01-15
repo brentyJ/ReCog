@@ -483,17 +483,17 @@ Completed:
 - [x] Support anonymization (use placeholder_name if anonymise_in_prompts=True)
 - [x] Updated endpoint docstring documenting entity_resolution field
 
-### 9.3 Entity Extraction Improvements
+### 9.3 Entity Extraction Improvements ✅
 ```
-Modify: recog_engine/tier0.py
+Modify: recog_engine/tier0.py (v0.4)
 ```
 
 - [x] Fix false positives ("The", "This", common verbs) - v0.2
-- [ ] Full name extraction ("Dr. Smith" not just "Dr")
-- [ ] Organisation detection
-- [ ] Location/address detection
-- [ ] Date/time normalisation
-- [ ] Currency/amount detection
+- [x] Full name extraction ("Dr. Sarah Smith" - multi-word names with titles) - v0.4
+- [x] Organisation detection (companies, foundations, institutions) - v0.4
+- [x] Location/address detection (street addresses, known cities) - v0.4
+- [x] Date/time normalisation (ISO, written formats, times) - v0.4
+- [x] Currency/amount detection (USD, EUR, GBP, AUD) - v0.4
 
 ### 9.4 Error Handling & Logging ✅
 ```
@@ -1129,4 +1129,4 @@ Total: ~14-22 sessions to full-featured platform
 
 ---
 
-*Last updated: Phase 11 Cypher interface complete - 07 Jan 2026*
+*Last updated: Phase 9.3 Entity extraction v0.4 complete - 15 Jan 2026*
