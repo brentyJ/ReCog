@@ -19,6 +19,9 @@ python-dateutil   # Date parsing
 openpyxl>=3.1.0   # Excel file support
 python-docx>=1.1.0  # Word document support
 extract-msg>=0.48.0 # Outlook MSG file support
+icalendar>=5.0.0  # ICS calendar file support
+vobject>=0.9.6    # VCF contact file support
+markdown>=3.5.0   # Markdown processing
 
 # Production
 gunicorn>=21.0.0  # WSGI server

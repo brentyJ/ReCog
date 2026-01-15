@@ -13,9 +13,14 @@ from .messages import MessagesParser
 from .json_export import JSONExportParser
 from .excel import ExcelParser
 from .csv_parser import CSVParser
+from .csv_enhanced import EnhancedCSVParser
 from .mbox import MboxParser
 from .docx import DocxParser
 from .email import EmlParser, MsgParser
+from .archive import ArchiveParser
+from .calendar import ICSParser
+from .contacts import VCFParser
+from .notion import NotionParser
 
 __all__ = [
     "BaseParser",
@@ -30,7 +35,12 @@ __all__ = [
     "JSONExportParser",
     "ExcelParser",
     "CSVParser",
+    "EnhancedCSVParser",
     "MboxParser",
     "EmlParser",
     "MsgParser",
+    "ArchiveParser",
+    "ICSParser",
+    "VCFParser",
+    "NotionParser",
 ]

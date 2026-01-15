@@ -52,15 +52,24 @@ def get_parser(path: Path) -> Optional[BaseParser]:
     from .json_export import JSONExportParser
     from .excel import ExcelParser
     from .csv_parser import CSVParser
+    from .csv_enhanced import EnhancedCSVParser
     from .mbox import MboxParser
     from .docx import DocxParser
     from .email import EmlParser, MsgParser
+    from .archive import ArchiveParser
+    from .calendar import ICSParser
+    from .contacts import VCFParser
+    from .notion import NotionParser
 
     parsers = [
+        ArchiveParser(),     # Check archives first (ZIP, TAR)
         PDFParser(),
         DocxParser(),        # Check DOCX before plaintext
+        ICSParser(),         # Check ICS calendar files
+        VCFParser(),         # Check VCF contact files
+        NotionParser(),      # Check Notion exports (before markdown)
         MarkdownParser(),
-        CSVParser(),         # Check CSV before plaintext
+        EnhancedCSVParser(), # Enhanced CSV with format detection
         ExcelParser(),       # Check Excel before plaintext
         JSONExportParser(),  # Check JSON before plaintext
         MboxParser(),        # Check MBOX before plaintext
@@ -86,15 +95,24 @@ def get_all_parsers() -> List[BaseParser]:
     from .json_export import JSONExportParser
     from .excel import ExcelParser
     from .csv_parser import CSVParser
+    from .csv_enhanced import EnhancedCSVParser
     from .mbox import MboxParser
     from .docx import DocxParser
     from .email import EmlParser, MsgParser
+    from .archive import ArchiveParser
+    from .calendar import ICSParser
+    from .contacts import VCFParser
+    from .notion import NotionParser
 
     return [
+        ArchiveParser(),
         PDFParser(),
         DocxParser(),
+        ICSParser(),
+        VCFParser(),
+        NotionParser(),
         MarkdownParser(),
-        CSVParser(),
+        EnhancedCSVParser(),
         ExcelParser(),
         JSONExportParser(),
         MboxParser(),

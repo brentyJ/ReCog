@@ -35,7 +35,21 @@ SUPPORTED_FORMATS = {
 
     # Data exports
     ".json": ("JSON (may contain chat exports)", "json"),
-    ".csv": ("CSV Data", "csv"),
+    ".csv": ("CSV Data", "csv_enhanced"),
+    ".xlsx": ("Microsoft Excel", "excel"),
+    ".xls": ("Microsoft Excel (Legacy)", "excel"),
+    ".xlsm": ("Microsoft Excel (Macro)", "excel"),
+
+    # Archives
+    ".zip": ("ZIP Archive", "archive"),
+    ".tar": ("TAR Archive", "archive"),
+    ".tar.gz": ("Compressed TAR Archive", "archive"),
+    ".tgz": ("Compressed TAR Archive", "archive"),
+
+    # Calendar & Contacts
+    ".ics": ("iCalendar", "calendar"),
+    ".ical": ("iCalendar", "calendar"),
+    ".vcf": ("vCard Contacts", "contacts"),
 
     # Email
     ".eml": ("Email Message", "eml"),
@@ -47,9 +61,7 @@ SUPPORTED_FORMATS = {
 }
 
 CONTAINER_FORMATS = {
-    ".zip": "ZIP Archive",
-    ".tar": "TAR Archive",
-    ".gz": "GZip Archive",
+    # ZIP and TAR now handled by ArchiveParser
     ".7z": "7-Zip Archive",
     ".rar": "RAR Archive",
 }
@@ -60,20 +72,6 @@ UNSUPPORTED_WITH_SUGGESTIONS = {
         "suggestions": [
             "Open in Word and save as PDF or .docx first",
             "Copy/paste the text content into a .txt file"
-        ]
-    },
-    ".xlsx": {
-        "name": "Microsoft Excel",
-        "suggestions": [
-            "Export as CSV (File → Save As → CSV)",
-            "Copy/paste relevant data into a text file"
-        ]
-    },
-    ".xls": {
-        "name": "Microsoft Excel (Legacy)", 
-        "suggestions": [
-            "Open in Excel and save as CSV",
-            "Copy/paste relevant data into a text file"
         ]
     },
     ".pptx": {
