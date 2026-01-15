@@ -495,7 +495,8 @@ def health():
     parameters:
       - name: deep
         in: query
-        type: boolean
+        schema:
+          type: boolean
         required: false
         description: Run LLM provider connectivity tests (slower)
     responses:
@@ -1853,18 +1854,21 @@ def list_entities():
     parameters:
       - name: type
         in: query
-        type: string
-        enum: [person, organization, location]
+        schema:
+          type: string
+          enum: [person, organization, location]
         description: Filter by entity type
       - name: confirmed
         in: query
-        type: string
-        enum: ["true", "false"]
+        schema:
+          type: string
+          enum: ["true", "false"]
         description: Filter by confirmation status
       - name: limit
         in: query
-        type: integer
-        default: 100
+        schema:
+          type: integer
+          default: 100
         description: Maximum results to return
     responses:
       200:
@@ -3800,30 +3804,35 @@ def list_cases():
     parameters:
       - name: status
         in: query
-        type: string
-        enum: [active, archived]
+        schema:
+          type: string
+          enum: [active, archived]
         description: Filter by case status
       - name: limit
         in: query
-        type: integer
-        default: 100
+        schema:
+          type: integer
+          default: 100
         description: Maximum results to return
       - name: offset
         in: query
-        type: integer
-        default: 0
+        schema:
+          type: integer
+          default: 0
         description: Pagination offset
       - name: order_by
         in: query
-        type: string
-        enum: [created_at, updated_at, title, document_count]
-        default: updated_at
+        schema:
+          type: string
+          enum: [created_at, updated_at, title, document_count]
+          default: updated_at
         description: Sort field
       - name: order_dir
         in: query
-        type: string
-        enum: [ASC, DESC]
-        default: DESC
+        schema:
+          type: string
+          enum: [ASC, DESC]
+          default: DESC
         description: Sort direction
     responses:
       200:
