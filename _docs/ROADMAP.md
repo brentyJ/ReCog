@@ -457,7 +457,7 @@ Exports added:
 
 ---
 
-## Phase 9: Parser Improvements & Production Polish (In Progress)
+## Phase 9: Parser Improvements & Production Polish ✅
 
 **Goal**: Handle real-world data formats, harden for production
 
@@ -536,8 +536,9 @@ New files in project root
 - [x] `Dockerfile` - multi-stage build, gunicorn
 - [x] `docker-compose.yml` - with volume mounts, worker service
 - [x] `requirements.txt` - updated with gunicorn, pytest, openpyxl
-- [ ] `fly.toml` or `railway.json` - cloud deploy config
-- [ ] HTTPS/SSL configuration notes
+- [x] `fly.toml` - Fly.io deploy config with persistent volume
+- [x] `railway.json` - Railway deploy config
+- [x] HTTPS/SSL configuration notes - included in SELF_HOSTING.md
 
 **Deliverable**: Production-ready ReCog for ehkoforge.ai launch
 
@@ -1072,7 +1073,7 @@ Completed:
 | 6 ✅ | Synth Engine | Patterns from insight clusters |
 | 7 ✅ | Entity Graph | Relationship-aware analysis |
 | 8 ✅ | Critique Layer | Self-correcting quality assurance |
-| 9 ⏳ | Polish | Production-ready with real parsers |
+| 9 ✅ | Polish | Production-ready with real parsers |
 | 10 ✅ | React UI | Modern interface with shadcn/ui |
 | 10.5 ✅ | Case Architecture | Case-centric document intelligence |
 | 10.6 ✅ | Code Quality | Tests, indexes, shared components |
@@ -1129,4 +1130,4 @@ Total: ~14-22 sessions to full-featured platform
 
 ---
 
-*Last updated: Phase 9.6 Documentation complete - 15 Jan 2026*
+*Last updated: Phase 9 complete (v0.9 production ready) - 15 Jan 2026*

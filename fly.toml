@@ -1,0 +1,152 @@
+# ReCog Fly.io Configuration
+# Deploy: fly launch --copy-config --no-deploy
+#         fly secrets set RECOG_OPENAI_API_KEY=sk-...
+#         fly deploy
+
+app = "recog"
+primary_region = "syd"  # Sydney - change to nearest region
+
+# Use existing Dockerfile
+[build]
+
+# Environment variables (non-sensitive)
+[env]
+  RECOG_PORT = "5100"
+  RECOG_DATA_DIR = "/data"
+  RECOG_LOG_LEVEL = "INFO"
+  RECOG_LOG_JSON = "true"
+  RECOG_CACHE_ENABLED = "true"
+  RECOG_CACHE_TTL_HOURS = "48"
+  RECOG_RATE_LIMIT_ENABLED = "true"
+  RECOG_MAX_FILE_SIZE_MB = "25"
+
+# HTTP service configuration
+[http_service]
+  internal_port = 5100
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  # Health check
+  [http_service.http_options]
+    h2_backend = false
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+# Health checks
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  timeout = "5s"
+  path = "/api/health"
+
+# Persistent volume for SQLite database
+[[mounts]]
+  source = "recog_data"
+  destination = "/data"
+  initial_size = "1gb"
+
+# VM configuration
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpus = 1
+
+# =============================================================================
+# DEPLOYMENT INSTRUCTIONS
+# =============================================================================
+#
+# 1. Install Fly CLI:
+#    curl -L https://fly.io/install.sh | sh
+#
+# 2. Login to Fly:
+#    fly auth login
+#
+# 3. Create app (first time only):
+#    fly launch --copy-config --no-deploy
+#    - Choose your app name
+#    - Select region closest to you
+#    - Skip database setup (we use SQLite)
+#
+# 4. Create persistent volume:
+#    fly volumes create recog_data --region syd --size 1
+#
+# 5. Set secrets (API keys):
+#    fly secrets set RECOG_OPENAI_API_KEY=sk-your-key
+#    fly secrets set RECOG_ANTHROPIC_API_KEY=sk-ant-your-key  # optional
+#
+# 6. Deploy:
+#    fly deploy
+#
+# 7. Open app:
+#    fly open
+#
+# =============================================================================
+# SECRETS REFERENCE
+# =============================================================================
+#
+# Required for LLM features (set at least one):
+#   RECOG_OPENAI_API_KEY      OpenAI API key
+#   RECOG_ANTHROPIC_API_KEY   Anthropic API key
+#
+# Optional:
+#   RECOG_LLM_PROVIDER        Default provider: "openai" or "anthropic"
+#
+# Set secrets with:
+#   fly secrets set KEY=value
+#
+# List secrets:
+#   fly secrets list
+#
+# =============================================================================
+# SCALING
+# =============================================================================
+#
+# Scale up VM:
+#   fly scale vm shared-cpu-2x --memory 1024
+#
+# Scale to multiple instances (requires external DB):
+#   fly scale count 2
+#   Note: SQLite doesn't support multiple writers!
+#         For multi-instance, migrate to PostgreSQL.
+#
+# =============================================================================
+# MONITORING
+# =============================================================================
+#
+# View logs:
+#   fly logs
+#
+# SSH into container:
+#   fly ssh console
+#
+# Check status:
+#   fly status
+#
+# Dashboard:
+#   fly dashboard
+#
+# =============================================================================
+# BACKUP
+# =============================================================================
+#
+# Download database backup:
+#   fly ssh console -C "sqlite3 /data/recog.db '.backup /tmp/backup.db'"
+#   fly sftp get /tmp/backup.db ./recog-backup.db
+#
+# =============================================================================
+# COSTS (as of 2025)
+# =============================================================================
+#
+# shared-cpu-1x + 512MB: ~$5/month (with auto-stop)
+# shared-cpu-2x + 1GB:   ~$10/month
+# 1GB volume:            ~$0.15/month
+#
+# Free tier includes 3 shared VMs and 3GB volumes.
+#
