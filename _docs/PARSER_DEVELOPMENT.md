@@ -557,6 +557,7 @@ Before submitting a new parser:
 | `PlaintextParser` | `.txt`, `.text`, others | (builtin) | Fallback parser |
 | `MessagesParser` | `.txt`, `.xml` | (builtin) | WhatsApp, SMS exports |
 | `JSONExportParser` | `.json` | (builtin) | ChatGPT exports |
+| `MboxParser` | `.mbox` | (builtin) | Email archives |
 
 ---
 

@@ -52,6 +52,7 @@ def get_parser(path: Path) -> Optional[BaseParser]:
     from .json_export import JSONExportParser
     from .excel import ExcelParser
     from .csv_parser import CSVParser
+    from .mbox import MboxParser
 
     parsers = [
         PDFParser(),
@@ -59,6 +60,7 @@ def get_parser(path: Path) -> Optional[BaseParser]:
         CSVParser(),         # Check CSV before plaintext
         ExcelParser(),       # Check Excel before plaintext
         JSONExportParser(),  # Check JSON before plaintext
+        MboxParser(),        # Check MBOX before plaintext
         MessagesParser(),    # Check before plaintext (txt files might be messages)
         PlaintextParser(),
     ]
@@ -79,6 +81,7 @@ def get_all_parsers() -> List[BaseParser]:
     from .json_export import JSONExportParser
     from .excel import ExcelParser
     from .csv_parser import CSVParser
+    from .mbox import MboxParser
 
     return [
         PDFParser(),
@@ -86,6 +89,7 @@ def get_all_parsers() -> List[BaseParser]:
         CSVParser(),
         ExcelParser(),
         JSONExportParser(),
+        MboxParser(),
         MessagesParser(),
         PlaintextParser(),
     ]

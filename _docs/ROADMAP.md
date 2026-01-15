@@ -469,7 +469,7 @@ Files in ingestion/parsers/
 - [x] `messages.py` - WhatsApp, SMS XML, generic chat (unified)
 - [x] `json_export.py` - ChatGPT conversations.json export
 - [x] `excel.py` - Excel spreadsheets (.xlsx, .xls, .xlsm via openpyxl)
-- [ ] `email_mbox.py` - MBOX email archives (future)
+- [x] `mbox.py` - MBOX email archives
 
 ### 9.2 Entity Context Injection ✅
 ```

@@ -13,6 +13,7 @@ from .messages import MessagesParser
 from .json_export import JSONExportParser
 from .excel import ExcelParser
 from .csv_parser import CSVParser
+from .mbox import MboxParser
 
 __all__ = [
     "BaseParser",
@@ -26,4 +27,5 @@ __all__ = [
     "JSONExportParser",
     "ExcelParser",
     "CSVParser",
+    "MboxParser",
 ]
