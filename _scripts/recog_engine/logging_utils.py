@@ -20,9 +20,10 @@ import logging.handlers
 import sys
 import time
 import json
+import re
 from datetime import datetime, timezone
 from functools import wraps
-from typing import Optional, Any, Dict, Callable
+from typing import Optional, Any, Dict, Callable, List, Tuple
 from uuid import uuid4
 from contextvars import ContextVar
 from pathlib import Path
@@ -31,6 +32,77 @@ from pathlib import Path
 request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 case_id_var: ContextVar[str] = ContextVar("case_id", default="")
 session_id_var: ContextVar[str] = ContextVar("session_id", default="")
+
+
+# =============================================================================
+# SECRETS SANITIZATION
+# =============================================================================
+
+class SecretsSanitizer(logging.Filter):
+    """
+    Log filter that redacts sensitive information from log messages.
+
+    Catches API keys, passwords, tokens, and other secrets that may
+    accidentally appear in log output (e.g., in error messages).
+    """
+
+    # Patterns to detect and redact (pattern, replacement)
+    PATTERNS: List[Tuple[re.Pattern, str]] = [
+        # OpenAI API keys
+        (re.compile(r'sk-[a-zA-Z0-9]{20,}'), '[OPENAI_KEY]'),
+        # Anthropic API keys
+        (re.compile(r'sk-ant-[a-zA-Z0-9\-]{20,}'), '[ANTHROPIC_KEY]'),
+        # Generic API keys (various formats)
+        (re.compile(r'api[_-]?key\s*[:=]\s*["\']?([a-zA-Z0-9\-_]{20,})["\']?', re.IGNORECASE),
+         r'api_key=[REDACTED]'),
+        # Bearer tokens
+        (re.compile(r'Bearer\s+[a-zA-Z0-9\-_\.]{20,}', re.IGNORECASE), 'Bearer [REDACTED]'),
+        # Password fields
+        (re.compile(r'(password|passwd|pwd)\s*[:=]\s*["\']?[^\s"\']+["\']?', re.IGNORECASE),
+         r'\1=[REDACTED]'),
+        # Secret fields
+        (re.compile(r'(secret|token|credential)\s*[:=]\s*["\']?[^\s"\']+["\']?', re.IGNORECASE),
+         r'\1=[REDACTED]'),
+        # Connection strings with passwords
+        (re.compile(r'(://[^:]+:)[^@]+(@)', re.IGNORECASE), r'\1[REDACTED]\2'),
+    ]
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """
+        Filter and sanitize log record messages.
+
+        Returns True to allow the record through (after sanitization).
+        """
+        # Sanitize the message
+        if isinstance(record.msg, str):
+            record.msg = self._sanitize(record.msg)
+
+        # Also sanitize args if present (for % formatting)
+        if record.args:
+            if isinstance(record.args, dict):
+                record.args = {k: self._sanitize(v) if isinstance(v, str) else v
+                              for k, v in record.args.items()}
+            elif isinstance(record.args, tuple):
+                record.args = tuple(self._sanitize(a) if isinstance(a, str) else a
+                                   for a in record.args)
+
+        # Sanitize extra fields that might contain secrets
+        if hasattr(record, 'error_context') and record.error_context:
+            record.error_context = self._sanitize(str(record.error_context))
+
+        return True  # Always allow record through after sanitization
+
+    def _sanitize(self, text: str) -> str:
+        """Apply all sanitization patterns to text."""
+        if not text:
+            return text
+        for pattern, replacement in self.PATTERNS:
+            text = pattern.sub(replacement, text)
+        return text
+
+
+# Global sanitizer instance
+_secrets_sanitizer = SecretsSanitizer()
 
 
 # =============================================================================
@@ -175,6 +247,9 @@ def setup_logging(
 
     # Remove existing handlers
     root_logger.handlers = []
+
+    # Attach secrets sanitizer to filter sensitive data from all logs
+    root_logger.addFilter(_secrets_sanitizer)
 
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
@@ -586,6 +661,7 @@ __all__ = [
     # Classes
     "Timer",
     "StructuredFormatter",
+    "SecretsSanitizer",
     # Production logging functions
     "log_api_call",
     "log_llm_call",

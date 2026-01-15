@@ -25,6 +25,8 @@ from uuid import uuid4
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 
+from .pii_redactor import redact_for_llm, is_pii_redaction_enabled
+
 logger = logging.getLogger(__name__)
 
 
@@ -618,6 +620,9 @@ class SynthEngine:
     
     def build_synth_prompt(self, cluster: InsightCluster) -> str:
         """Build the synthesis prompt for a cluster."""
+        # Check if PII redaction is enabled
+        redact_pii = is_pii_redaction_enabled()
+
         # Fetch full insight data
         conn = self._get_conn()
         try:
@@ -628,19 +633,26 @@ class SynthEngine:
                 FROM insights
                 WHERE id IN ({placeholders})
             """, cluster.insight_ids)
-            
+
             insights_text = []
             for i, row in enumerate(cursor.fetchall()):
                 themes = json.loads(row["themes_json"]) if row["themes_json"] else []
                 emotions = json.loads(row["emotional_tags_json"]) if row["emotional_tags_json"] else []
-                
+
+                # Security: Redact PII from summary and excerpt before LLM
+                summary = row['summary'] or ''
+                excerpt = row['excerpt'] or 'N/A'
+                if redact_pii:
+                    summary = redact_for_llm(summary)
+                    excerpt = redact_for_llm(excerpt) if excerpt != 'N/A' else excerpt
+
                 insight_block = f"""
 ### Insight {i} (significance: {row['significance']:.2f})
-**Summary:** {row['summary']}
+**Summary:** {summary}
 **Themes:** {', '.join(themes) if themes else 'none'}
 **Emotions:** {', '.join(emotions) if emotions else 'none'}
 **Date:** {row['earliest_source_date'] or 'unknown'}
-**Excerpt:** {row['excerpt'] or 'N/A'}
+**Excerpt:** {excerpt}
 """
                 insights_text.append(insight_block)
         finally:

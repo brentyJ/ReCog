@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 from ..llm import LLMProvider, LLMResponse
 from .factory import create_provider, get_available_providers
-from ...cost_tracker import log_llm_cost
+from ...cost_tracker import log_llm_cost, check_token_budget, is_budget_enforcement_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +172,25 @@ class ProviderRouter:
         Raises:
             RuntimeError: All providers failed
         """
+        # Security: Check token budget before making LLM call
+        has_budget, used_tokens, remaining_tokens = check_token_budget()
+        if not has_budget:
+            if is_budget_enforcement_enabled():
+                logger.warning(
+                    f"Daily token budget exceeded: {used_tokens} tokens used, "
+                    f"0 remaining. Request blocked."
+                )
+                return LLMResponse(
+                    success=False,
+                    error=f"Daily token budget exceeded ({used_tokens} tokens used). "
+                          "Try again tomorrow or increase RECOG_DAILY_TOKEN_LIMIT.",
+                )
+            else:
+                logger.warning(
+                    f"Daily token budget exceeded: {used_tokens} tokens used. "
+                    f"Continuing anyway (enforcement disabled)."
+                )
+
         errors = []
 
         for provider_name in self.provider_chain:

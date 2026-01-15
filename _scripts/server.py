@@ -107,6 +107,17 @@ from recog_engine.core.providers import (
     get_available_providers,
     load_env_file,
 )
+from recog_engine.pii_redactor import (
+    redact_for_llm,
+    redact_pii,
+    is_pii_redaction_enabled,
+)
+from recog_engine.injection_detector import (
+    detect_injection,
+    is_injection_detection_enabled,
+    get_injection_mode,
+    InjectionRisk,
+)
 from ingestion import detect_file, ingest_file
 from db import init_database, check_database
 
@@ -2662,7 +2673,29 @@ def extract_insights():
     
     if not text:
         return api_response(error="No text provided", status=400)
-    
+
+    # Security: Check for prompt injection attempts
+    injection_warning = None
+    if is_injection_detection_enabled():
+        injection_result = detect_injection(text)
+        if injection_result.is_suspicious:
+            injection_mode = get_injection_mode()
+            logger.warning(
+                f"Prompt injection detected: {injection_result.reason} "
+                f"(risk={injection_result.risk_level.value}, mode={injection_mode})"
+            )
+            if injection_mode == "block" and injection_result.should_block:
+                return api_response(
+                    error=f"Content blocked: potential prompt injection detected ({injection_result.reason})",
+                    status=400
+                )
+            # In warn mode, continue but include warning in response
+            injection_warning = {
+                "detected": True,
+                "risk_level": injection_result.risk_level.value,
+                "reason": injection_result.reason,
+            }
+
     # Run Tier 0
     pre_annotation = preprocess_text(text)
     
@@ -2693,9 +2726,26 @@ def extract_insights():
         else:
             logger.warning(f"Case {case_id} not found, proceeding without case context")
     
+    # Security: Redact PII before sending to LLM
+    pii_redaction_info = None
+    text_for_llm = text
+    if is_pii_redaction_enabled():
+        pii_result = redact_pii(text)
+        if pii_result.pii_found:
+            text_for_llm = pii_result.redacted_text
+            pii_redaction_info = {
+                "pii_found": True,
+                "pii_count": pii_result.pii_count,
+                "pii_types": [t.value for t in pii_result.pii_types_found],
+            }
+            logger.info(
+                f"Redacted {pii_result.pii_count} PII instances "
+                f"({', '.join(t.value for t in pii_result.pii_types_found)})"
+            )
+
     # Build prompt with entity and case context
     prompt = build_extraction_prompt(
-        content=text,
+        content=text_for_llm,  # Use redacted text for LLM
         source_type=source_type,
         source_description=source_id,
         pre_annotation=pre_annotation,
@@ -2823,6 +2873,13 @@ def extract_insights():
                 if results
             }
 
+        # Build security info for response
+        security_info = {}
+        if injection_warning:
+            security_info["injection_warning"] = injection_warning
+        if pii_redaction_info:
+            security_info["pii_redaction"] = pii_redaction_info
+
         return api_response({
             "success": result.success,
             "insights": [i.to_dict() for i in result.insights],
@@ -2841,6 +2898,7 @@ def extract_insights():
             "entities_registered": entities_registered,
             "case_id": case_id,
             "case_context_injected": case_context_injected,
+            "security": security_info if security_info else None,
         })
     
     except ValueError as e:

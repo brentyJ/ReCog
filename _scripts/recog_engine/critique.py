@@ -27,6 +27,8 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 from uuid import uuid4
 
+from .pii_redactor import redact_for_llm, is_pii_redaction_enabled
+
 logger = logging.getLogger(__name__)
 
 
@@ -322,42 +324,63 @@ class CritiqueEngine:
     
     def build_insight_critique_prompt(self, insight: Dict) -> str:
         """Build critique prompt for an insight."""
+        # Security: Redact PII from summary and excerpt before LLM
+        summary = insight.get('summary', '')
+        excerpt = insight.get('supporting_excerpt', '')
+        if is_pii_redaction_enabled():
+            summary = redact_for_llm(summary)
+            excerpt = redact_for_llm(excerpt)
+
         return INSIGHT_CRITIQUE_PROMPT.format(
-            summary=insight.get('summary', ''),
+            summary=summary,
             insight_type=insight.get('insight_type', 'observation'),
             significance=insight.get('significance', 0.5),
             confidence=insight.get('confidence', 0.5),
             themes=', '.join(insight.get('themes', [])),
             emotional_tags=', '.join(insight.get('emotional_tags', [])),
-            excerpt=insight.get('supporting_excerpt', ''),
+            excerpt=excerpt,
             source_type=insight.get('source_type', 'unknown'),
             source_id=insight.get('source_id', 'unknown'),
         )
     
     def build_pattern_critique_prompt(self, pattern: Dict, insights: List[Dict]) -> str:
         """Build critique prompt for a pattern."""
-        # Format insight summaries
-        insight_summaries = "\n".join([
-            f"- [{i+1}] {ins.get('summary', '')}"
-            for i, ins in enumerate(insights[:10])  # Cap at 10
-        ])
-        
-        # Format excerpts
-        excerpts = "\n".join([
-            f"[{i+1}] \"{exc}\""
-            for i, exc in enumerate(pattern.get('supporting_excerpts', [])[:5])
-        ])
-        
-        # Format contradictions
+        redact_pii = is_pii_redaction_enabled()
+
+        # Format insight summaries (with PII redaction if enabled)
+        insight_summaries_list = []
+        for i, ins in enumerate(insights[:10]):  # Cap at 10
+            summary = ins.get('summary', '')
+            if redact_pii:
+                summary = redact_for_llm(summary)
+            insight_summaries_list.append(f"- [{i+1}] {summary}")
+        insight_summaries = "\n".join(insight_summaries_list)
+
+        # Format excerpts (with PII redaction if enabled)
+        excerpts_list = []
+        for i, exc in enumerate(pattern.get('supporting_excerpts', [])[:5]):
+            if redact_pii:
+                exc = redact_for_llm(exc)
+            excerpts_list.append(f"[{i+1}] \"{exc}\"")
+        excerpts = "\n".join(excerpts_list)
+
+        # Format contradictions (with PII redaction if enabled)
         contradictions = pattern.get('contradictions', [])
         if contradictions:
+            if redact_pii:
+                contradictions = [redact_for_llm(c) for c in contradictions]
             contradictions_str = "\n".join(f"- {c}" for c in contradictions)
         else:
             contradictions_str = "None noted"
-        
+
+        # Redact pattern description if needed
+        description = pattern.get('description', '')
+        if redact_pii:
+            description = redact_for_llm(description)
+
         return PATTERN_CRITIQUE_PROMPT.format(
             name=pattern.get('name', ''),
-            description=pattern.get('description', ''),
+            description=description,
             pattern_type=pattern.get('pattern_type', 'behavioral'),
             strength=pattern.get('strength', 0.5),
             confidence=pattern.get('confidence', 0.5),

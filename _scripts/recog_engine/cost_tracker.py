@@ -9,10 +9,11 @@ Provides visibility into spending before costs spiral.
 """
 
 import logging
+import os
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -473,6 +474,82 @@ class CostTracker:
         conn.close()
         return entries
 
+    # =========================================================================
+    # BUDGET MANAGEMENT
+    # =========================================================================
+
+    def check_budget(
+        self,
+        daily_limit: Optional[int] = None,
+        user_id: str = "default",
+    ) -> Tuple[bool, int, int]:
+        """
+        Check if token usage is within the daily budget.
+
+        Args:
+            daily_limit: Maximum tokens per day (default from env: RECOG_DAILY_TOKEN_LIMIT)
+            user_id: User ID to check (default: "default")
+
+        Returns:
+            Tuple of (has_budget, used_tokens, remaining_tokens)
+        """
+        if daily_limit is None:
+            daily_limit = int(os.environ.get("RECOG_DAILY_TOKEN_LIMIT", "100000"))
+
+        used = self.get_period_usage(period="day", user_id=user_id)
+        remaining = max(0, daily_limit - used)
+        has_budget = remaining > 0
+
+        return has_budget, used, remaining
+
+    def get_period_usage(
+        self,
+        period: str = "day",
+        user_id: Optional[str] = None,
+    ) -> int:
+        """
+        Get total tokens used in a time period.
+
+        Args:
+            period: "day", "week", or "month"
+            user_id: Filter by user (optional)
+
+        Returns:
+            Total tokens used in the period
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Determine time range
+        now = datetime.now()
+        if period == "day":
+            period_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == "week":
+            period_start = now - timedelta(days=7)
+        elif period == "month":
+            period_start = now - timedelta(days=30)
+        else:
+            period_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Build query
+        if user_id:
+            cursor.execute("""
+                SELECT COALESCE(SUM(total_tokens), 0) as total
+                FROM cost_logs
+                WHERE created_at >= ? AND user_id = ? AND success = 1
+            """, (period_start.isoformat(), user_id))
+        else:
+            cursor.execute("""
+                SELECT COALESCE(SUM(total_tokens), 0) as total
+                FROM cost_logs
+                WHERE created_at >= ? AND success = 1
+            """, (period_start.isoformat(),))
+
+        result = cursor.fetchone()
+        conn.close()
+
+        return result["total"] if result else 0
+
 
 # =============================================================================
 # SINGLETON INSTANCE
@@ -538,6 +615,41 @@ def log_llm_cost(
         logger.warning(f"Failed to log cost: {e}")
 
 
+def check_token_budget(
+    daily_limit: Optional[int] = None,
+    user_id: str = "default",
+) -> Tuple[bool, int, int]:
+    """
+    Check if token usage is within daily budget.
+
+    Uses the global tracker instance.
+
+    Args:
+        daily_limit: Maximum tokens per day (default from env: RECOG_DAILY_TOKEN_LIMIT)
+        user_id: User ID to check (default: "default")
+
+    Returns:
+        Tuple of (has_budget, used_tokens, remaining_tokens)
+    """
+    try:
+        tracker = get_cost_tracker()
+        return tracker.check_budget(daily_limit=daily_limit, user_id=user_id)
+    except Exception as e:
+        logger.warning(f"Failed to check budget: {e}")
+        # On error, assume budget is available to not block operations
+        return True, 0, daily_limit or 100000
+
+
+def is_budget_enforcement_enabled() -> bool:
+    """
+    Check if budget enforcement is enabled.
+
+    Controlled by RECOG_ENFORCE_BUDGET environment variable.
+    Default: False (warn only)
+    """
+    return os.environ.get("RECOG_ENFORCE_BUDGET", "false").lower() in ("true", "1", "yes")
+
+
 # =============================================================================
 # MODULE EXPORTS
 # =============================================================================
@@ -549,4 +661,6 @@ __all__ = [
     "PRICING",
     "get_cost_tracker",
     "log_llm_cost",
+    "check_token_budget",
+    "is_budget_enforcement_enabled",
 ]
