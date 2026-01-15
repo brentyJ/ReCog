@@ -4,13 +4,18 @@ ICS Calendar parser.
 Parses iCalendar (.ics) files from Google Calendar, Apple Calendar,
 Outlook, and other calendar apps.
 
+Features:
+- Timezone normalization (Windows TZID mapping, UTC conversion)
+- Recurring event detection with RRULE parsing
+- Multi-day and all-day event handling
+
 Copyright (c) 2025 Brent Lefebure / EhkoLabs
 Licensed under AGPLv3
 """
 
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from collections import defaultdict
 
 from .base import BaseParser
@@ -48,6 +53,24 @@ class ICSParser(BaseParser):
         }
     }
 
+    # Windows timezone ID to IANA mapping
+    # Outlook uses Windows timezone names instead of IANA
+    WINDOWS_TZ_MAP = {
+        "Pacific Standard Time": "America/Los_Angeles",
+        "Mountain Standard Time": "America/Denver",
+        "Central Standard Time": "America/Chicago",
+        "Eastern Standard Time": "America/New_York",
+        "GMT Standard Time": "Europe/London",
+        "W. Europe Standard Time": "Europe/Berlin",
+        "Central European Standard Time": "Europe/Warsaw",
+        "AUS Eastern Standard Time": "Australia/Sydney",
+        "E. Australia Standard Time": "Australia/Brisbane",
+        "Tokyo Standard Time": "Asia/Tokyo",
+        "China Standard Time": "Asia/Shanghai",
+        "India Standard Time": "Asia/Kolkata",
+        "UTC": "UTC",
+    }
+
     def get_extensions(self) -> List[str]:
         return [".ics", ".ical"]
 
@@ -67,6 +90,53 @@ class ICSParser(BaseParser):
     def get_file_type(self) -> str:
         return "calendar"
 
+    def _normalize_to_utc(self, dt_value) -> Optional[datetime]:
+        """
+        Normalize datetime to UTC.
+
+        Handles:
+        - Naive datetimes (assume UTC)
+        - Timezone-aware datetimes (convert to UTC)
+        - Date objects (convert to datetime at midnight UTC)
+        """
+        if dt_value is None:
+            return None
+
+        # Handle date objects (all-day events)
+        if isinstance(dt_value, date) and not isinstance(dt_value, datetime):
+            return datetime.combine(dt_value, datetime.min.time(), tzinfo=timezone.utc)
+
+        # Handle datetime objects
+        if isinstance(dt_value, datetime):
+            if dt_value.tzinfo is None:
+                # Naive datetime - assume UTC
+                return dt_value.replace(tzinfo=timezone.utc)
+            else:
+                # Convert to UTC
+                try:
+                    return dt_value.astimezone(timezone.utc)
+                except Exception:
+                    return dt_value.replace(tzinfo=timezone.utc)
+
+        return None
+
+    def _get_calendar_timezone(self, cal) -> Optional[str]:
+        """
+        Extract default timezone from calendar.
+
+        Google uses X-WR-TIMEZONE header.
+        """
+        # Check for X-WR-TIMEZONE (Google Calendar)
+        x_wr_tz = cal.get('X-WR-TIMEZONE')
+        if x_wr_tz:
+            tz_str = str(x_wr_tz)
+            # Check if it's a Windows timezone
+            if tz_str in self.WINDOWS_TZ_MAP:
+                return self.WINDOWS_TZ_MAP[tz_str]
+            return tz_str
+
+        return None
+
     def parse(self, path: Path) -> ParsedContent:
         """Parse ICS calendar file."""
         try:
@@ -82,21 +152,24 @@ class ICSParser(BaseParser):
             with open(path, 'rb') as f:
                 cal = Calendar.from_ical(f.read())
 
+            # Get default timezone
+            default_tz = self._get_calendar_timezone(cal)
+
             events = []
             for component in cal.walk():
                 if component.name == 'VEVENT':
-                    event = self._extract_event(component)
+                    event = self._extract_event(component, default_tz)
                     if event:
                         events.append(event)
 
-            # Sort chronologically
-            events.sort(key=lambda e: e.get('start') or datetime.min.replace(tzinfo=timezone.utc))
+            # Sort chronologically by UTC time
+            events.sort(key=lambda e: e.get('start_utc') or datetime.min.replace(tzinfo=timezone.utc))
 
             # Format as text
             text = self._format_events(events)
 
             # Build metadata
-            metadata = self._build_metadata(events, path)
+            metadata = self._build_metadata(events, path, default_tz)
 
             return ParsedContent(
                 text=text,
@@ -111,7 +184,7 @@ class ICSParser(BaseParser):
                 metadata={"error": "parse_failed", "details": str(e)}
             )
 
-    def _extract_event(self, component) -> Optional[Dict[str, Any]]:
+    def _extract_event(self, component, default_tz: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Extract event data from VEVENT component."""
         try:
             event = {}
@@ -124,24 +197,32 @@ class ICSParser(BaseParser):
             dtstart = component.get('DTSTART')
             if dtstart:
                 start = dtstart.dt
-                if hasattr(start, 'tzinfo') and start.tzinfo is None:
-                    start = start.replace(tzinfo=timezone.utc)
-                elif not hasattr(start, 'hour'):  # Date only, all-day event
+                # Check if all-day event (date without time)
+                if isinstance(start, date) and not isinstance(start, datetime):
                     event['all_day'] = True
-                event['start'] = start
+                    event['start'] = start
+                    event['start_utc'] = self._normalize_to_utc(start)
+                else:
+                    event['start'] = start
+                    event['start_utc'] = self._normalize_to_utc(start)
 
             # End time
             dtend = component.get('DTEND')
             if dtend:
                 end = dtend.dt
-                if hasattr(end, 'tzinfo') and end.tzinfo is None:
-                    end = end.replace(tzinfo=timezone.utc)
                 event['end'] = end
+                event['end_utc'] = self._normalize_to_utc(end)
 
             # Duration (fallback if no end time)
             duration = component.get('DURATION')
             if duration and 'end' not in event and 'start' in event:
-                event['end'] = event['start'] + duration.dt
+                try:
+                    if hasattr(duration, 'dt'):
+                        dur = duration.dt
+                        if event.get('start_utc'):
+                            event['end_utc'] = event['start_utc'] + dur
+                except Exception:
+                    pass
 
             # Location
             location = component.get('LOCATION')
@@ -179,7 +260,15 @@ class ICSParser(BaseParser):
             rrule = component.get('RRULE')
             if rrule:
                 event['recurring'] = True
-                event['rrule'] = str(rrule.to_ical().decode('utf-8'))
+                try:
+                    event['rrule'] = str(rrule.to_ical().decode('utf-8'))
+                    # Parse frequency for human-readable format
+                    rrule_dict = dict(rrule)
+                    freq = rrule_dict.get('FREQ', [None])[0]
+                    if freq:
+                        event['frequency'] = freq
+                except Exception:
+                    pass
 
             # Status
             status = component.get('STATUS')
@@ -193,6 +282,11 @@ class ICSParser(BaseParser):
                     event['categories'] = [str(c) for c in categories.cats]
                 else:
                     event['categories'] = [str(categories)]
+
+            # UID for deduplication
+            uid = component.get('UID')
+            if uid:
+                event['uid'] = str(uid)
 
             return event
 
@@ -212,9 +306,10 @@ class ICSParser(BaseParser):
         for event in events:
             lines.append(f"--- Event: {event.get('summary', 'Untitled')} ---")
 
-            # Date/time
-            start = event.get('start')
-            end = event.get('end')
+            # Date/time (use UTC normalized time)
+            start = event.get('start_utc') or event.get('start')
+            end = event.get('end_utc') or event.get('end')
+
             if start:
                 if event.get('all_day'):
                     if hasattr(start, 'strftime'):
@@ -223,9 +318,12 @@ class ICSParser(BaseParser):
                         lines.append(f"Date: {start} (All Day)")
                 else:
                     try:
-                        start_str = start.strftime('%Y-%m-%d %H:%M')
+                        start_str = start.strftime('%Y-%m-%d %H:%M UTC')
                         if end:
-                            end_str = end.strftime('%H:%M') if start.date() == end.date() else end.strftime('%Y-%m-%d %H:%M')
+                            if hasattr(start, 'date') and hasattr(end, 'date') and start.date() == end.date():
+                                end_str = end.strftime('%H:%M')
+                            else:
+                                end_str = end.strftime('%Y-%m-%d %H:%M')
                             lines.append(f"Date: {start_str} - {end_str}")
                         else:
                             lines.append(f"Date: {start_str}")
@@ -236,9 +334,10 @@ class ICSParser(BaseParser):
             if event.get('location'):
                 lines.append(f"Location: {event['location']}")
 
-            # Recurring
+            # Recurring with frequency
             if event.get('recurring'):
-                lines.append(f"Recurring: Yes")
+                freq = event.get('frequency', 'Yes')
+                lines.append(f"Recurring: {freq}")
 
             # Status
             if event.get('status') and event['status'] != 'CONFIRMED':
@@ -270,7 +369,7 @@ class ICSParser(BaseParser):
 
         return "\n".join(lines)
 
-    def _build_metadata(self, events: List[Dict], path: Path) -> Dict[str, Any]:
+    def _build_metadata(self, events: List[Dict], path: Path, default_tz: Optional[str]) -> Dict[str, Any]:
         """Build calendar metadata."""
         metadata = {
             "format": "ics",
@@ -278,27 +377,31 @@ class ICSParser(BaseParser):
             "event_count": len(events),
         }
 
+        if default_tz:
+            metadata['calendar_timezone'] = default_tz
+
         if not events:
             return metadata
 
-        # Date range
-        dates = [e['start'] for e in events if e.get('start')]
+        # Date range (using UTC normalized times)
+        dates = [e['start_utc'] for e in events if e.get('start_utc')]
         if dates:
             try:
-                date_objs = []
-                for d in dates:
-                    if hasattr(d, 'date'):
-                        date_objs.append(d)
-                    else:
-                        date_objs.append(datetime.combine(d, datetime.min.time(), tzinfo=timezone.utc))
-                metadata['earliest_event'] = min(date_objs).isoformat()
-                metadata['latest_event'] = max(date_objs).isoformat()
+                metadata['earliest_event'] = min(dates).isoformat()
+                metadata['latest_event'] = max(dates).isoformat()
             except Exception:
                 pass
 
-        # Recurring count
+        # Recurring count by frequency
         recurring = [e for e in events if e.get('recurring')]
         metadata['recurring_events'] = len(recurring)
+
+        freq_counts = defaultdict(int)
+        for e in recurring:
+            freq = e.get('frequency', 'UNKNOWN')
+            freq_counts[freq] += 1
+        if freq_counts:
+            metadata['recurring_by_frequency'] = dict(freq_counts)
 
         # Unique locations
         locations = set()
@@ -306,6 +409,7 @@ class ICSParser(BaseParser):
             if e.get('location'):
                 locations.add(e['location'])
         metadata['unique_locations'] = len(locations)
+        metadata['top_locations'] = sorted(locations)[:10]
 
         # Unique attendees
         attendees = set()
@@ -317,6 +421,17 @@ class ICSParser(BaseParser):
         # All-day events
         all_day = [e for e in events if e.get('all_day')]
         metadata['all_day_events'] = len(all_day)
+
+        # Cancelled events
+        cancelled = [e for e in events if e.get('status') == 'CANCELLED']
+        metadata['cancelled_events'] = len(cancelled)
+
+        # Events by status
+        status_counts = defaultdict(int)
+        for e in events:
+            status = e.get('status', 'CONFIRMED')
+            status_counts[status] += 1
+        metadata['events_by_status'] = dict(status_counts)
 
         return metadata
 

@@ -23,6 +23,12 @@ icalendar>=5.0.0  # ICS calendar file support
 vobject>=0.9.6    # VCF contact file support
 markdown>=3.5.0   # Markdown processing
 
+# Enhanced parsing (Phase 1)
+phonenumbers>=8.13.0      # E.164 phone normalization (VCF)
+charset-normalizer>=3.3.0 # Encoding detection (CSV, faster than chardet)
+polars>=0.20.0            # Large CSV files (streaming, lazy evaluation)
+python-magic>=0.4.27      # Content-based format detection (libmagic wrapper)
+
 # Production
 gunicorn>=21.0.0  # WSGI server
 flask-limiter>=3.5.0  # Rate limiting

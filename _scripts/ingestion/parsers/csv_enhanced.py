@@ -4,11 +4,18 @@ Enhanced CSV parser with format detection.
 Automatically detects and parses CSV exports from LinkedIn, Netflix,
 Spotify, Amazon, bank statements, and more.
 
+Features:
+- Automatic format detection for known platforms
+- Large file support via polars (streaming, lazy evaluation)
+- Encoding detection with charset-normalizer fallback
+- BOM (Byte Order Mark) handling
+
 Copyright (c) 2025 Brent Lefebure / EhkoLabs
 Licensed under AGPLv3
 """
 
 import csv
+import os
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 from collections import defaultdict
@@ -16,6 +23,10 @@ import re
 
 from .base import BaseParser
 from ..types import ParsedContent
+
+
+# Size threshold for switching to polars (100MB)
+LARGE_FILE_THRESHOLD = 100 * 1024 * 1024
 
 
 class EnhancedCSVParser(BaseParser):
@@ -135,37 +146,15 @@ class EnhancedCSVParser(BaseParser):
     def parse(self, path: Path) -> ParsedContent:
         """Parse CSV with automatic format detection."""
         try:
-            # Try to detect encoding
-            encoding = self._detect_encoding(path)
+            # Check file size for large file handling
+            file_size = os.path.getsize(path)
 
-            # Read and detect format
-            with open(path, 'r', encoding=encoding, errors='replace', newline='') as f:
-                # Detect delimiter
-                sample = f.read(8192)
-                f.seek(0)
-                dialect = csv.Sniffer().sniff(sample, delimiters=',;\t|')
+            # Use polars for large files (streaming, lazy evaluation)
+            if file_size > LARGE_FILE_THRESHOLD:
+                return self._parse_large_file(path, file_size)
 
-                reader = csv.DictReader(f, dialect=dialect)
-                columns = reader.fieldnames or []
-
-                # Read all rows
-                rows = list(reader)
-
-            if not rows:
-                return ParsedContent(
-                    text="[Empty CSV file]",
-                    title=path.stem,
-                    metadata={"error": "empty_file", "format": "csv"}
-                )
-
-            # Detect format
-            format_name, format_spec = self._detect_format(columns)
-
-            # Parse based on format
-            if format_name != 'generic':
-                return self._parse_known_format(format_name, format_spec, rows, columns, path)
-            else:
-                return self._parse_generic(rows, columns, path)
+            # Standard parsing for smaller files
+            return self._parse_standard(path)
 
         except Exception as e:
             return ParsedContent(
@@ -174,26 +163,250 @@ class EnhancedCSVParser(BaseParser):
                 metadata={"error": "parse_failed", "details": str(e)}
             )
 
+    def _parse_standard(self, path: Path) -> ParsedContent:
+        """Parse CSV using standard csv module."""
+        # Try to detect encoding
+        encoding = self._detect_encoding(path)
+
+        # Read and detect format
+        with open(path, 'r', encoding=encoding, errors='replace', newline='') as f:
+            # Detect delimiter
+            sample = f.read(8192)
+            sample = self._strip_bom(sample)
+            f.seek(0)
+
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=',;\t|')
+            except csv.Error:
+                # Fallback to comma delimiter
+                dialect = csv.excel
+
+            reader = csv.DictReader(f, dialect=dialect)
+            columns = reader.fieldnames or []
+
+            # Strip BOM from first column name if present
+            if columns and columns[0].startswith('\ufeff'):
+                columns[0] = columns[0][1:]
+
+            # Read all rows
+            rows = list(reader)
+
+        if not rows:
+            return ParsedContent(
+                text="[Empty CSV file]",
+                title=path.stem,
+                metadata={"error": "empty_file", "format": "csv"}
+            )
+
+        # Detect format
+        format_name, format_spec = self._detect_format(columns)
+
+        # Parse based on format
+        if format_name != 'generic':
+            return self._parse_known_format(format_name, format_spec, rows, columns, path)
+        else:
+            return self._parse_generic(rows, columns, path)
+
+    def _parse_large_file(self, path: Path, file_size: int) -> ParsedContent:
+        """
+        Parse large CSV files using polars with lazy evaluation.
+
+        Polars scan_csv() processes data without loading everything into memory,
+        making it suitable for multi-GB files.
+        """
+        try:
+            import polars as pl
+        except ImportError:
+            # Fall back to standard parsing with warning
+            result = self._parse_standard(path)
+            result.metadata['warning'] = (
+                f"Large file ({file_size / 1024 / 1024:.1f}MB) parsed without polars. "
+                "Install polars for better memory efficiency: pip install polars"
+            )
+            return result
+
+        try:
+            # Use lazy evaluation to scan without loading all data
+            lf = pl.scan_csv(path, infer_schema_length=1000)
+
+            # Get column names
+            columns = lf.collect_schema().names()
+
+            # Detect format from columns
+            format_name, format_spec = self._detect_format(columns)
+
+            # Collect summary statistics using lazy evaluation
+            row_count = lf.select(pl.len()).collect().item()
+
+            # Sample rows for display (only fetch what we need)
+            sample_df = lf.head(100).collect()
+            sample_rows = sample_df.to_dicts()
+
+            # Build metadata
+            metadata = {
+                "format": "csv",
+                "parser": "polars",
+                "detected_format": format_name,
+                "row_count": row_count,
+                "column_count": len(columns),
+                "columns": columns,
+                "file_size_mb": round(file_size / 1024 / 1024, 1),
+                "large_file": True,
+            }
+
+            # Add format-specific analysis if detected
+            if format_name != 'generic' and format_spec:
+                metadata['format_description'] = format_spec.get('description', '')
+
+                # For known formats, compute aggregations via polars
+                agg_stats = self._compute_polars_aggregations(lf, format_name, columns)
+                metadata.update(agg_stats)
+
+            # Format output
+            lines = [
+                f"=== Large CSV: {path.name} ({file_size / 1024 / 1024:.1f}MB) ===",
+                "",
+                f"Rows: {row_count:,}",
+                f"Columns: {len(columns)}",
+            ]
+
+            if format_name != 'generic':
+                lines.append(f"Detected Format: {format_spec.get('description', format_name)}")
+
+            lines.extend(["", "Columns:"])
+            for col in columns[:20]:
+                lines.append(f"  - {col}")
+            if len(columns) > 20:
+                lines.append(f"  ... and {len(columns) - 20} more")
+
+            # Add sample data
+            lines.extend(["", "Sample Data (first 5 rows):"])
+            for i, row in enumerate(sample_rows[:5]):
+                lines.append(f"  Row {i+1}:")
+                for col in columns[:6]:
+                    val = row.get(col, '')
+                    if val is not None and len(str(val)) > 50:
+                        val = str(val)[:50] + '...'
+                    lines.append(f"    {col}: {val}")
+
+            return ParsedContent(
+                text="\n".join(lines),
+                title=f"CSV (Large) - {path.stem}",
+                metadata=metadata
+            )
+
+        except Exception as e:
+            # Fall back to standard parsing on error
+            result = self._parse_standard(path)
+            result.metadata['polars_error'] = str(e)
+            return result
+
+    def _compute_polars_aggregations(self, lf, format_name: str, columns: List[str]) -> Dict[str, Any]:
+        """Compute format-specific aggregations using polars lazy evaluation."""
+        import polars as pl
+
+        stats = {}
+
+        try:
+            if format_name == 'spotify_streaming':
+                # Aggregate artist play counts
+                artist_col = 'master_metadata_album_artist_name'
+                if artist_col in columns:
+                    top_artists = (
+                        lf.group_by(artist_col)
+                        .agg(pl.len().alias('plays'))
+                        .sort('plays', descending=True)
+                        .head(10)
+                        .collect()
+                    )
+                    stats['top_artists'] = dict(zip(
+                        top_artists[artist_col].to_list(),
+                        top_artists['plays'].to_list()
+                    ))
+
+                # Total listening time
+                if 'ms_played' in columns:
+                    total_ms = lf.select(pl.col('ms_played').cast(pl.Int64).sum()).collect().item()
+                    if total_ms:
+                        stats['total_hours'] = round(total_ms / (1000 * 60 * 60), 1)
+
+            elif format_name == 'netflix_history':
+                # Count unique titles
+                if 'title' in columns:
+                    unique_count = lf.select(pl.col('title').n_unique()).collect().item()
+                    stats['unique_titles'] = unique_count
+
+            elif format_name in ('bank_statement', 'paypal_history'):
+                # Sum amounts
+                if 'amount' in columns:
+                    # Try to parse amounts
+                    try:
+                        totals = lf.select([
+                            pl.col('amount').cast(pl.Float64).filter(pl.col('amount') > 0).sum().alias('income'),
+                            pl.col('amount').cast(pl.Float64).filter(pl.col('amount') < 0).abs().sum().alias('expense'),
+                        ]).collect()
+                        stats['total_income'] = round(totals['income'].item() or 0, 2)
+                        stats['total_expense'] = round(totals['expense'].item() or 0, 2)
+                    except Exception:
+                        pass
+
+        except Exception:
+            # Aggregation failed, continue without stats
+            pass
+
+        return stats
+
     def _detect_encoding(self, path: Path) -> str:
-        """Try to detect file encoding."""
+        """
+        Detect file encoding with charset-normalizer fallback.
+
+        Uses charset-normalizer (4-5x faster than chardet) if available,
+        otherwise falls back to heuristic detection.
+        """
+        # Read sample for detection
+        with open(path, 'rb') as f:
+            sample = f.read(8192)
+
+        # Check for BOM (Byte Order Mark)
+        if sample.startswith(b'\xef\xbb\xbf'):
+            return 'utf-8-sig'  # UTF-8 with BOM
+        elif sample.startswith(b'\xff\xfe'):
+            return 'utf-16-le'
+        elif sample.startswith(b'\xfe\xff'):
+            return 'utf-16-be'
+
+        # Try charset-normalizer (preferred)
+        try:
+            from charset_normalizer import from_bytes
+            result = from_bytes(sample).best()
+            if result and result.encoding:
+                return result.encoding
+        except ImportError:
+            pass
+
+        # Fallback: heuristic detection
         # Try UTF-8 first
         try:
-            with open(path, 'r', encoding='utf-8') as f:
-                f.read(1024)
+            sample.decode('utf-8')
             return 'utf-8'
         except UnicodeDecodeError:
             pass
 
         # Try UTF-16
         try:
-            with open(path, 'r', encoding='utf-16') as f:
-                f.read(1024)
+            sample.decode('utf-16')
             return 'utf-16'
         except Exception:
             pass
 
         # Fallback to latin-1 (accepts anything)
         return 'latin-1'
+
+    def _strip_bom(self, content: str) -> str:
+        """Strip BOM from content if present."""
+        if content.startswith('\ufeff'):
+            return content[1:]
+        return content
 
     def _detect_format(self, columns: List[str]) -> Tuple[str, Dict]:
         """Detect CSV format from column names."""

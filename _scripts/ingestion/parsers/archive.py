@@ -4,10 +4,17 @@ Archive parser for ZIP and TAR files.
 Handles compressed archives and detects platform exports
 (Facebook, Google Takeout, Twitter, Instagram).
 
+Security features:
+- Zip bomb detection (compression ratio, file count limits)
+- Path traversal prevention with resolve()
+- Encrypted archive detection
+
 Copyright (c) 2025 Brent Lefebure / EhkoLabs
 Licensed under AGPLv3
 """
 
+import json
+import re
 import zipfile
 import tarfile
 import tempfile
@@ -16,6 +23,11 @@ from typing import Optional, List, Dict, Any
 
 from .base import BaseParser
 from ..types import ParsedContent
+
+
+class ArchiveSecurityError(Exception):
+    """Raised when archive contains security risks."""
+    pass
 
 
 class ArchiveParser(BaseParser):
@@ -56,8 +68,11 @@ class ArchiveParser(BaseParser):
         '.db', '.sqlite', '.sqlite3',
     }
 
-    # Maximum extracted size (500MB)
-    MAX_EXTRACTED_SIZE = 500 * 1024 * 1024
+    # Security limits
+    MAX_EXTRACTED_SIZE = 500 * 1024 * 1024  # 500MB
+    MAX_COMPRESSION_RATIO = 100  # 100:1 ratio threshold for zip bombs
+    MAX_FILE_COUNT = 10000  # Maximum files in archive
+    MAX_NESTING_DEPTH = 2  # Maximum nested archive depth
 
     def get_extensions(self) -> List[str]:
         return [".zip", ".tar", ".tar.gz", ".tgz"]
@@ -87,7 +102,7 @@ class ArchiveParser(BaseParser):
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_path = Path(temp_dir)
 
-                # Extract archive
+                # Extract archive with security checks
                 extracted_size = self._extract_archive(path, temp_path)
 
                 if extracted_size > self.MAX_EXTRACTED_SIZE:
@@ -110,6 +125,12 @@ class ArchiveParser(BaseParser):
                 # Generic archive: process all supported files
                 return self._process_generic_archive(temp_path, path)
 
+        except ArchiveSecurityError as e:
+            return ParsedContent(
+                text=f"[Security risk detected: {e}]",
+                title=path.stem,
+                metadata={"error": "security_risk", "details": str(e)}
+            )
         except zipfile.BadZipFile:
             return ParsedContent(
                 text="[Corrupted or invalid ZIP file]",
@@ -148,36 +169,118 @@ class ArchiveParser(BaseParser):
         else:
             return "zip"
 
+    def _check_zip_security(self, zf: zipfile.ZipFile) -> None:
+        """
+        Check ZIP file for security risks.
+
+        Raises:
+            ArchiveSecurityError: If security risk detected
+        """
+        total_compressed = 0
+        total_uncompressed = 0
+        file_count = 0
+
+        for info in zf.infolist():
+            file_count += 1
+            total_compressed += info.compress_size
+            total_uncompressed += info.file_size
+
+            # Check for encrypted files
+            if info.flag_bits & 0x1:
+                raise RuntimeError("Archive contains encrypted files")
+
+        # Check file count limit
+        if file_count > self.MAX_FILE_COUNT:
+            raise ArchiveSecurityError(
+                f"Too many files in archive: {file_count} (limit: {self.MAX_FILE_COUNT})"
+            )
+
+        # Check compression ratio (zip bomb detection)
+        if total_compressed > 0:
+            ratio = total_uncompressed / total_compressed
+            if ratio > self.MAX_COMPRESSION_RATIO:
+                raise ArchiveSecurityError(
+                    f"Suspicious compression ratio: {ratio:.0f}:1 (limit: {self.MAX_COMPRESSION_RATIO}:1)"
+                )
+
+    def _safe_extract_path(self, member_name: str, base_dir: Path) -> Path:
+        """
+        Validate and return safe extraction path.
+
+        Prevents path traversal attacks using resolve().
+
+        Args:
+            member_name: Name of archive member
+            base_dir: Base extraction directory
+
+        Returns:
+            Safe resolved path
+
+        Raises:
+            ArchiveSecurityError: If path traversal detected
+        """
+        # Resolve the target path
+        target = (base_dir / member_name).resolve()
+        base_resolved = base_dir.resolve()
+
+        # Check if target is within base directory
+        try:
+            target.relative_to(base_resolved)
+        except ValueError:
+            raise ArchiveSecurityError(f"Path traversal attempt: {member_name}")
+
+        return target
+
     def _extract_archive(self, path: Path, dest: Path) -> int:
         """
-        Extract archive to destination directory.
+        Extract archive to destination directory with security checks.
 
         Returns:
             Total extracted size in bytes.
         """
         archive_type = self._detect_archive_type(path)
         total_size = 0
+        dest_resolved = dest.resolve()
 
         if archive_type == "zip":
             with zipfile.ZipFile(path, 'r') as zf:
-                # Check for encrypted files
-                for info in zf.infolist():
-                    if info.flag_bits & 0x1:  # Encrypted flag
-                        raise RuntimeError("Archive contains encrypted files")
-                    total_size += info.file_size
+                # Security checks
+                self._check_zip_security(zf)
 
-                zf.extractall(dest)
+                # Calculate total size
+                total_size = sum(info.file_size for info in zf.infolist())
+
+                # Extract each file with path validation
+                for member in zf.infolist():
+                    # Validate path
+                    self._safe_extract_path(member.filename, dest_resolved)
+
+                    # Extract
+                    zf.extract(member, dest)
         else:
             # TAR or TAR.GZ
             mode = 'r:gz' if archive_type == "tar.gz" else 'r'
             with tarfile.open(path, mode) as tf:
-                # Security: prevent path traversal
-                for member in tf.getmembers():
-                    if member.name.startswith('/') or '..' in member.name:
-                        raise RuntimeError(f"Unsafe path in archive: {member.name}")
+                members = tf.getmembers()
+
+                # Check file count
+                if len(members) > self.MAX_FILE_COUNT:
+                    raise ArchiveSecurityError(
+                        f"Too many files in archive: {len(members)} (limit: {self.MAX_FILE_COUNT})"
+                    )
+
+                # Validate each member
+                for member in members:
+                    # Validate path
+                    self._safe_extract_path(member.name, dest_resolved)
                     total_size += member.size
 
-                tf.extractall(dest)
+                # Use data_filter for Python 3.12+ or manual extraction
+                try:
+                    tf.extractall(dest, filter='data')
+                except TypeError:
+                    # Fallback for older Python
+                    tf.extractall(dest)
 
         return total_size
 
@@ -221,9 +324,6 @@ class ArchiveParser(BaseParser):
     def _handle_platform_export(self, directory: Path, export_format: str, original_path: Path) -> ParsedContent:
         """
         Handle known platform export formats.
-
-        Future: Route to specialized parsers.
-        For now: Return info about detected format and basic file inventory.
         """
         handlers = {
             'facebook': self._parse_facebook_export,
@@ -240,47 +340,104 @@ class ArchiveParser(BaseParser):
 
         return handler(directory, original_path)
 
+    def _fix_meta_encoding(self, text: str) -> str:
+        """
+        Fix Facebook/Instagram's incorrectly encoded UTF-8 (mojibake).
+
+        Meta exports JSON with UTF-8 text double-encoded as Latin-1,
+        causing "café" to appear as "cafÃ©".
+        """
+        try:
+            return text.encode('latin1').decode('utf-8')
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            return text
+
     def _parse_facebook_export(self, directory: Path, original_path: Path) -> ParsedContent:
         """
-        Parse Facebook export.
+        Parse Facebook export with content extraction.
 
-        Future: Full Facebook parser implementation.
-        For now: Inventory and basic extraction.
+        Handles Meta's mojibake encoding bug.
         """
         inventory = self._build_inventory(directory)
 
-        # Try to extract some content
         text_parts = [
-            "=== Facebook Export Detected ===",
+            "=== Facebook Export Analysis ===",
             f"Archive: {original_path.name}",
             "",
-            "Contents found:",
         ]
 
-        # Check for messages
+        # Extract messages
         messages_dir = directory / 'messages' / 'inbox'
-        if messages_dir.exists():
-            message_threads = list(messages_dir.iterdir())
-            text_parts.append(f"- {len(message_threads)} message threads")
+        message_count = 0
+        participants = set()
 
-        # Check for posts
+        if messages_dir.exists():
+            threads = list(messages_dir.iterdir())
+            text_parts.append(f"Message Threads: {len(threads)}")
+            text_parts.append("")
+
+            for thread_dir in threads[:10]:  # Sample first 10 threads
+                message_files = list(thread_dir.glob('message_*.json'))
+                for msg_file in message_files[:1]:  # First file per thread
+                    try:
+                        with open(msg_file, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+
+                        thread_name = self._fix_meta_encoding(data.get('title', 'Unknown'))
+                        thread_participants = data.get('participants', [])
+
+                        for p in thread_participants:
+                            name = self._fix_meta_encoding(p.get('name', ''))
+                            if name:
+                                participants.add(name)
+
+                        messages = data.get('messages', [])
+                        message_count += len(messages)
+
+                        text_parts.append(f"--- Thread: {thread_name} ---")
+                        text_parts.append(f"Participants: {len(thread_participants)}")
+                        text_parts.append(f"Messages: {len(messages)}")
+
+                        # Sample messages
+                        for msg in messages[:5]:
+                            sender = self._fix_meta_encoding(msg.get('sender_name', 'Unknown'))
+                            content = self._fix_meta_encoding(msg.get('content', ''))
+                            if content:
+                                content = content[:200] + '...' if len(content) > 200 else content
+                                text_parts.append(f"  {sender}: {content}")
+
+                        text_parts.append("")
+
+                    except Exception as e:
+                        text_parts.append(f"  [Error reading {msg_file.name}: {e}]")
+
+        # Extract posts
         posts_dir = directory / 'posts'
         if posts_dir.exists():
-            posts_files = list(posts_dir.glob('*.json'))
-            text_parts.append(f"- {len(posts_files)} posts files")
+            post_files = list(posts_dir.glob('*.json'))
+            text_parts.append(f"Posts Files: {len(post_files)}")
 
-        # Check for comments
-        comments_dir = directory / 'comments'
-        if comments_dir.exists():
-            text_parts.append("- Comments data present")
+            for post_file in post_files[:3]:
+                try:
+                    with open(post_file, 'r', encoding='utf-8') as f:
+                        posts = json.load(f)
 
-        # Check for profile
-        if (directory / 'profile_information').exists():
-            text_parts.append("- Profile information present")
+                    if isinstance(posts, list):
+                        for post in posts[:3]:
+                            if 'data' in post:
+                                for item in post['data'][:1]:
+                                    if 'post' in item:
+                                        content = self._fix_meta_encoding(item['post'])
+                                        content = content[:300] + '...' if len(content) > 300 else content
+                                        text_parts.append(f"  Post: {content}")
+                except Exception:
+                    pass
+
+            text_parts.append("")
 
         text_parts.extend([
-            "",
-            "Note: Full Facebook parsing coming soon. Currently showing inventory.",
+            f"Total Messages Found: {message_count}",
+            f"Unique Participants: {len(participants)}",
             "",
             f"Total files: {inventory['total_files']}",
             f"Supported files: {inventory['supported_files']}",
@@ -293,6 +450,9 @@ class ArchiveParser(BaseParser):
                 "detected_format": "facebook",
                 "parser": "ArchiveParser",
                 "archive_name": original_path.name,
+                "message_count": message_count,
+                "participant_count": len(participants),
+                "participants": list(participants)[:50],
                 "inventory": inventory,
             }
         )
@@ -300,27 +460,30 @@ class ArchiveParser(BaseParser):
     def _parse_google_takeout(self, directory: Path, original_path: Path) -> ParsedContent:
         """
         Parse Google Takeout export.
-
-        Future: Full Google Takeout parser implementation.
         """
         inventory = self._build_inventory(directory)
         takeout_dir = directory / 'Takeout'
 
         text_parts = [
-            "=== Google Takeout Detected ===",
+            "=== Google Takeout Analysis ===",
             f"Archive: {original_path.name}",
             "",
-            "Services found:",
         ]
 
+        services_data = {}
+
         if takeout_dir.exists():
-            services = [d.name for d in takeout_dir.iterdir() if d.is_dir()]
-            for service in sorted(services):
-                text_parts.append(f"- {service}")
+            services = [d for d in takeout_dir.iterdir() if d.is_dir()]
+            text_parts.append(f"Services: {len(services)}")
+            text_parts.append("")
+
+            for service_dir in sorted(services):
+                service_name = service_dir.name
+                file_count = sum(1 for _ in service_dir.rglob('*') if _.is_file())
+                services_data[service_name] = file_count
+                text_parts.append(f"- {service_name}: {file_count} files")
 
         text_parts.extend([
-            "",
-            "Note: Full Google Takeout parsing coming soon. Currently showing inventory.",
             "",
             f"Total files: {inventory['total_files']}",
             f"Supported files: {inventory['supported_files']}",
@@ -333,34 +496,80 @@ class ArchiveParser(BaseParser):
                 "detected_format": "google_takeout",
                 "parser": "ArchiveParser",
                 "archive_name": original_path.name,
+                "services": services_data,
                 "inventory": inventory,
             }
         )
 
+    def _parse_twitter_js(self, js_path: Path) -> List[Dict]:
+        """
+        Parse Twitter's JavaScript-wrapped JSON files.
+
+        Twitter archives wrap JSON in: window.YTD.tweet.part0 = [...]
+        """
+        content = js_path.read_text(encoding='utf-8')
+
+        # Strip JavaScript wrapper
+        json_str = re.sub(r'^window\.YTD\.\w+\.part\d+\s*=\s*', '', content)
+
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            return []
+
     def _parse_twitter_export(self, directory: Path, original_path: Path) -> ParsedContent:
         """
-        Parse Twitter archive.
-
-        Future: Full Twitter parser implementation.
+        Parse Twitter archive with JS wrapper handling.
         """
         inventory = self._build_inventory(directory)
 
         text_parts = [
-            "=== Twitter Archive Detected ===",
+            "=== Twitter Archive Analysis ===",
             f"Archive: {original_path.name}",
             "",
-            "Data found:",
         ]
 
         data_dir = directory / 'data'
+        tweets = []
+        tweet_count = 0
+
         if data_dir.exists():
+            # Parse tweets.js or tweet.js
+            tweet_files = ['tweets.js', 'tweet.js']
+            for tweet_file in tweet_files:
+                tweet_path = data_dir / tweet_file
+                if tweet_path.exists():
+                    try:
+                        tweet_data = self._parse_twitter_js(tweet_path)
+                        tweet_count = len(tweet_data)
+                        tweets = tweet_data
+
+                        text_parts.append(f"Tweets: {tweet_count}")
+                        text_parts.append("")
+
+                        # Sample tweets
+                        text_parts.append("Sample Tweets:")
+                        for item in tweet_data[:10]:
+                            tweet = item.get('tweet', item)
+                            text = tweet.get('full_text', tweet.get('text', ''))
+                            created = tweet.get('created_at', '')
+                            if text:
+                                text = text[:200] + '...' if len(text) > 200 else text
+                                text_parts.append(f"  [{created[:10] if created else 'N/A'}] {text}")
+
+                        break
+                    except Exception as e:
+                        text_parts.append(f"  [Error parsing tweets: {e}]")
+
+            # List other data files
+            text_parts.append("")
+            text_parts.append("Other Data Files:")
             js_files = list(data_dir.glob('*.js'))
-            for f in sorted(js_files)[:20]:  # Limit to first 20
-                text_parts.append(f"- {f.stem}")
+            for f in sorted(js_files)[:15]:
+                if f.name not in tweet_files:
+                    text_parts.append(f"  - {f.stem}")
 
         text_parts.extend([
-            "",
-            "Note: Full Twitter parsing coming soon. Currently showing inventory.",
             "",
             f"Total files: {inventory['total_files']}",
             f"Supported files: {inventory['supported_files']}",
@@ -373,23 +582,60 @@ class ArchiveParser(BaseParser):
                 "detected_format": "twitter",
                 "parser": "ArchiveParser",
                 "archive_name": original_path.name,
+                "tweet_count": tweet_count,
                 "inventory": inventory,
             }
         )
 
     def _parse_instagram_export(self, directory: Path, original_path: Path) -> ParsedContent:
-        """Parse Instagram export."""
+        """
+        Parse Instagram export with mojibake fix.
+        """
         inventory = self._build_inventory(directory)
 
         text_parts = [
-            "=== Instagram Export Detected ===",
+            "=== Instagram Export Analysis ===",
             f"Archive: {original_path.name}",
             "",
-            "Note: Full Instagram parsing coming soon.",
+        ]
+
+        # Try to extract content
+        content_found = False
+
+        # Check for messages
+        messages_dir = directory / 'messages' / 'inbox'
+        if messages_dir.exists():
+            threads = list(messages_dir.iterdir())
+            text_parts.append(f"Message Threads: {len(threads)}")
+            content_found = True
+
+        # Check for posts
+        posts_json = directory / 'content' / 'posts_1.json'
+        if posts_json.exists():
+            try:
+                with open(posts_json, 'r', encoding='utf-8') as f:
+                    posts = json.load(f)
+                text_parts.append(f"Posts: {len(posts)}")
+
+                for post in posts[:5]:
+                    if 'media' in post:
+                        for media in post['media'][:1]:
+                            caption = self._fix_meta_encoding(media.get('title', ''))
+                            if caption:
+                                caption = caption[:200] + '...' if len(caption) > 200 else caption
+                                text_parts.append(f"  Post: {caption}")
+                content_found = True
+            except Exception:
+                pass
+
+        if not content_found:
+            text_parts.append("Note: Limited content extraction for Instagram exports.")
+
+        text_parts.extend([
             "",
             f"Total files: {inventory['total_files']}",
             f"Supported files: {inventory['supported_files']}",
-        ]
+        ])
 
         return ParsedContent(
             text="\n".join(text_parts),
@@ -407,19 +653,19 @@ class ArchiveParser(BaseParser):
         inventory = self._build_inventory(directory)
 
         text_parts = [
-            "=== LinkedIn Export Detected ===",
+            "=== LinkedIn Export Analysis ===",
             f"Archive: {original_path.name}",
             "",
-            "Files found:",
+            "CSV Files Found:",
         ]
 
         csv_files = list(directory.glob('*.csv'))
         for f in sorted(csv_files):
-            text_parts.append(f"- {f.name}")
+            text_parts.append(f"  - {f.name}")
 
         text_parts.extend([
             "",
-            "Note: Full LinkedIn parsing coming soon.",
+            "Note: LinkedIn CSV files processed by EnhancedCSVParser.",
             "",
             f"Total files: {inventory['total_files']}",
             f"Supported files: {inventory['supported_files']}",
@@ -432,6 +678,7 @@ class ArchiveParser(BaseParser):
                 "detected_format": "linkedin",
                 "parser": "ArchiveParser",
                 "archive_name": original_path.name,
+                "csv_files": [f.name for f in csv_files],
                 "inventory": inventory,
             }
         )
@@ -550,4 +797,4 @@ class ArchiveParser(BaseParser):
         }
 
 
-__all__ = ["ArchiveParser"]
+__all__ = ["ArchiveParser", "ArchiveSecurityError"]

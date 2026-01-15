@@ -4,6 +4,11 @@ VCF Contact parser.
 Parses vCard (.vcf) files from phone contacts, email clients,
 and CRM systems.
 
+Features:
+- Encoding fallback chain (UTF-8 → UTF-16 → Windows-1252 → ISO-8859-1)
+- Phone number normalization to E.164 format
+- vCard 2.1/3.0/4.0 compatibility
+
 Copyright (c) 2025 Brent Lefebure / EhkoLabs
 Licensed under AGPLv3
 """
@@ -47,6 +52,9 @@ class VCFParser(BaseParser):
         }
     }
 
+    # Encoding fallback chain for legacy vCard files
+    ENCODING_CHAIN = ['utf-8', 'utf-16', 'windows-1252', 'iso-8859-1']
+
     def get_extensions(self) -> List[str]:
         return [".vcf"]
 
@@ -57,14 +65,53 @@ class VCFParser(BaseParser):
 
         # Verify it looks like vCard
         try:
-            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-                first_lines = f.read(500)
-                return 'BEGIN:VCARD' in first_lines
+            content = self._read_with_fallback(path)
+            return 'BEGIN:VCARD' in content[:500]
         except Exception:
             return path.suffix.lower() == '.vcf'
 
     def get_file_type(self) -> str:
         return "contacts"
+
+    def _read_with_fallback(self, path: Path) -> str:
+        """
+        Read file with encoding fallback chain.
+
+        vCard 2.1 can use any charset (often Windows-1252 without declaration),
+        while 4.0 mandates UTF-8. Samsung/Android often use QUOTED-PRINTABLE.
+        """
+        for encoding in self.ENCODING_CHAIN:
+            try:
+                content = path.read_text(encoding=encoding)
+                # Validate we got reasonable content
+                if 'BEGIN:VCARD' in content or 'VCARD' in content:
+                    return content
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+
+        # Final fallback with replacement
+        return path.read_text(encoding='utf-8', errors='replace')
+
+    def _normalize_phone(self, number: str, default_region: str = 'AU') -> str:
+        """
+        Normalize phone number to E.164 format.
+
+        Uses phonenumbers library if available, otherwise returns cleaned number.
+        """
+        try:
+            import phonenumbers
+            parsed = phonenumbers.parse(number, default_region)
+            if phonenumbers.is_valid_number(parsed):
+                return phonenumbers.format_number(
+                    parsed,
+                    phonenumbers.PhoneNumberFormat.E164
+                )
+        except Exception:
+            pass
+
+        # Fallback: basic cleaning
+        cleaned = ''.join(c for c in number if c.isdigit() or c == '+')
+        return cleaned if cleaned else number
 
     def parse(self, path: Path) -> ParsedContent:
         """Parse VCF contact file."""
@@ -78,8 +125,7 @@ class VCFParser(BaseParser):
             )
 
         try:
-            with open(path, 'r', encoding='utf-8', errors='replace') as f:
-                content = f.read()
+            content = self._read_with_fallback(path)
 
             contacts = []
             for vcard in vobject.readComponents(content):
@@ -158,20 +204,26 @@ class VCFParser(BaseParser):
             if emails:
                 contact['emails'] = emails
 
-            # Phone numbers
+            # Phone numbers with normalization
             phones = []
             if hasattr(vcard, 'tel_list'):
                 for tel in vcard.tel_list:
                     phone_type = ''
                     if hasattr(tel, 'type_param'):
                         phone_type = tel.type_param
+                    raw_number = str(tel.value)
+                    normalized = self._normalize_phone(raw_number)
                     phones.append({
-                        'number': str(tel.value),
+                        'number': normalized,
+                        'raw': raw_number if normalized != raw_number else None,
                         'type': phone_type
                     })
             elif hasattr(vcard, 'tel'):
+                raw_number = str(vcard.tel.value)
+                normalized = self._normalize_phone(raw_number)
                 phones.append({
-                    'number': str(vcard.tel.value),
+                    'number': normalized,
+                    'raw': raw_number if normalized != raw_number else None,
                     'type': ''
                 })
             if phones:
@@ -193,6 +245,10 @@ class VCFParser(BaseParser):
             if hasattr(vcard, 'bday'):
                 contact['birthday'] = str(vcard.bday.value)
 
+            # Anniversary
+            if hasattr(vcard, 'anniversary'):
+                contact['anniversary'] = str(vcard.anniversary.value)
+
             # URL
             urls = []
             if hasattr(vcard, 'url_list'):
@@ -204,7 +260,23 @@ class VCFParser(BaseParser):
                 contact['urls'] = urls
 
             # Address
-            if hasattr(vcard, 'adr'):
+            addresses = []
+            if hasattr(vcard, 'adr_list'):
+                for adr in vcard.adr_list:
+                    addr_parts = []
+                    if adr.value.street:
+                        addr_parts.append(adr.value.street)
+                    if adr.value.city:
+                        addr_parts.append(adr.value.city)
+                    if adr.value.region:
+                        addr_parts.append(adr.value.region)
+                    if adr.value.code:
+                        addr_parts.append(adr.value.code)
+                    if adr.value.country:
+                        addr_parts.append(adr.value.country)
+                    if addr_parts:
+                        addresses.append(', '.join(addr_parts))
+            elif hasattr(vcard, 'adr'):
                 adr = vcard.adr.value
                 addr_parts = []
                 if adr.street:
@@ -218,7 +290,15 @@ class VCFParser(BaseParser):
                 if adr.country:
                     addr_parts.append(adr.country)
                 if addr_parts:
-                    contact['address'] = ', '.join(addr_parts)
+                    addresses.append(', '.join(addr_parts))
+            if addresses:
+                contact['address'] = addresses[0]
+                if len(addresses) > 1:
+                    contact['addresses'] = addresses
+
+            # Photo indicator
+            if hasattr(vcard, 'photo'):
+                contact['has_photo'] = True
 
             return contact
 
@@ -251,14 +331,14 @@ class VCFParser(BaseParser):
             if contact.get('emails'):
                 lines.append(f"Email: {', '.join(contact['emails'])}")
 
-            # Phone
+            # Phone (show normalized)
             if contact.get('phones'):
                 phone_strs = []
                 for p in contact['phones']:
+                    phone_str = p['number']
                     if p.get('type'):
-                        phone_strs.append(f"{p['number']} ({p['type']})")
-                    else:
-                        phone_strs.append(p['number'])
+                        phone_str += f" ({p['type']})"
+                    phone_strs.append(phone_str)
                 lines.append(f"Phone: {', '.join(phone_strs)}")
 
             # Address
@@ -272,6 +352,10 @@ class VCFParser(BaseParser):
             # Birthday
             if contact.get('birthday'):
                 lines.append(f"Birthday: {contact['birthday']}")
+
+            # Anniversary
+            if contact.get('anniversary'):
+                lines.append(f"Anniversary: {contact['anniversary']}")
 
             # URLs
             if contact.get('urls'):
@@ -313,6 +397,7 @@ class VCFParser(BaseParser):
             if c.get('categories'):
                 all_categories.extend(c['categories'])
         metadata['unique_categories'] = len(set(all_categories))
+        metadata['categories'] = sorted(set(all_categories))[:20]
 
         # Email domains
         domains = defaultdict(int)
@@ -324,13 +409,17 @@ class VCFParser(BaseParser):
                         domains[domain] += 1
         metadata['top_domains'] = dict(sorted(domains.items(), key=lambda x: -x[1])[:10])
 
-        # Contacts with notes
+        # Contacts with notes (indicates closer relationships)
         with_notes = sum(1 for c in contacts if c.get('note'))
         metadata['contacts_with_notes'] = with_notes
 
         # Contacts with birthdays
         with_birthday = sum(1 for c in contacts if c.get('birthday'))
         metadata['contacts_with_birthday'] = with_birthday
+
+        # Contacts with photos
+        with_photo = sum(1 for c in contacts if c.get('has_photo'))
+        metadata['contacts_with_photo'] = with_photo
 
         return metadata
 
