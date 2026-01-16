@@ -102,6 +102,10 @@ python recog_cli.py preflight scan <id>
 - `state_machine.py` - Case state machine (v0.8: uploading→scanning→clarifying→processing→complete)
 - `cost_estimator.py` - Token/cost estimation for LLM operations (v0.8)
 - `auto_progress.py` - Background worker for automatic state advancement (v0.8)
+- `cost_tracker.py` - LLM cost logging with budget enforcement (v0.10)
+- `pii_redactor.py` - PII detection and redaction (regex/Presidio backends) (v0.10)
+- `injection_detector.py` - Prompt injection detection with warn/block modes (v0.10)
+- `logging_utils.py` - Structured logging with secrets sanitization (v0.10)
 
 **recog_engine/cypher/** - Conversational interface:
 - `intent_classifier.py` - Hybrid regex + LLM intent classification
@@ -215,15 +219,27 @@ RECOG_PORT=5100                    # Server port
 
 ## Database
 
-SQLite at `_scripts/_data/recog.db` with tables:
+SQLite at `_scripts/_data/recog.db` with 28 tables:
+
+**Entity System:**
 - `entities`, `entity_relationships`, `entity_sentiment`, `entity_co_occurrences`, `entity_blacklist`
-- `insights`, `insight_sources`, `insight_history`
+- `entity_mentions`, `case_entity_aliases`
+
+**Insights & Patterns:**
+- `insights`, `insight_sources`, `insight_history`, `insight_entity_mentions`, `insight_timeline_events`
 - `patterns`, `insight_clusters`
-- `critique_reports`
+
+**Cases & Documents:**
+- `cases`, `case_progress`, `case_documents`, `case_timeline_events`
+- `documents`, `findings`, `timeline_events`
+
+**Processing:**
 - `preflight_sessions`, `preflight_items`
-- `processing_queue`
-- `cases`, `findings`, `timeline_events`
-- `case_progress` - Real-time processing progress tracking (v0.8)
+- `processing_queue`, `synth_runs`
+- `adaptive_chunk_tracking`
+
+**Cost & Quality:**
+- `llm_costs`, `critique_reports`
 
 ## Supported File Formats
 
