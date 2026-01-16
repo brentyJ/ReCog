@@ -67,6 +67,12 @@ python recog_cli.py db check            # Check status
 # Preflight workflow
 python recog_cli.py preflight create <folder>
 python recog_cli.py preflight scan <id>
+
+# Extraction (see Hybrid Extraction Mode below)
+python run_extraction_with_context.py               # Full API mode
+python run_extraction_with_context.py --prepare-only  # Prepare for in-conversation
+python run_sms_extraction.py <path>                 # SMS extraction
+python run_sms_extraction.py <path> --prepare-only  # Prepare for in-conversation
 ```
 
 ## Architecture
@@ -79,6 +85,36 @@ python recog_cli.py preflight scan <id>
 | 1 | LLM | Insight extraction from individual documents |
 | 2 | LLM | Pattern correlation across documents |
 | 3 | LLM | Synthesis: reports, recommendations |
+
+### Hybrid Extraction Mode
+
+The extraction scripts support two modes to optimize costs:
+
+**1. Full API Mode** (default) - For production/automation:
+```bash
+python run_extraction_with_context.py
+python run_sms_extraction.py messages.xml
+```
+- Uses Anthropic API directly
+- Costs money per token
+- Runs unattended
+
+**2. Prepare-Only Mode** - For cost-effective personal use:
+```bash
+python run_extraction_with_context.py --prepare-only
+python run_sms_extraction.py messages.xml --prepare-only
+```
+- Parses and chunks data without API calls
+- Exports chunks to `_data/chunks/<run_id>/`
+- Extraction done in Claude Code conversation (uses Max plan, no API cost)
+
+**Hybrid Workflow:**
+1. Run script with `--prepare-only` to generate chunk files
+2. Read chunks in Claude Code conversation
+3. Claude extracts insights in-conversation
+4. Save insights to database via conversation
+
+**Note:** This hybrid approach exists because in-conversation extraction uses the flat-rate Max plan subscription, while API calls cost money per token. For personal use, the hybrid approach is more cost-effective. For other users with API keys, full automation is available.
 
 ### Backend Structure (`_scripts/`)
 

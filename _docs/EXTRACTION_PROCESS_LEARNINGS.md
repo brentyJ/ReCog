@@ -111,6 +111,70 @@ cursor.execute("UPDATE insights SET status = 'raw' WHERE run_id = ?", (run_id,))
 
 ---
 
+### 8. SMS Parser Uses Different Field Name Than Instagram
+
+**Issue:** SMS messages showing as "empty" despite 841 messages loaded. Chunks were skipped with "(empty)" message.
+
+**Root Cause:** SMS parser stores message content in `text` field, while Instagram parser uses `content` field.
+
+**Solution:** Check both fields:
+```python
+content = msg.get('text') or msg.get('content', '')
+```
+
+**Future Fix:** Standardize field names across all message parsers:
+```python
+# All message parsers should use:
+{
+    "content": "message text",  # Standardize on 'content'
+    "sender": "name",
+    "timestamp": "ISO8601",
+    "direction": "sent|received"  # Optional
+}
+```
+
+**Files affected:** `ingestion/parsers/messages.py`, all extraction scripts
+
+---
+
+### 9. API Cost Management - Hybrid Extraction Mode
+
+**Issue:** Running Tier 1-3 extraction via API scripts consumes API credits (pay-per-token). For personal use, this adds up quickly.
+
+**Solution:** Implemented `--prepare-only` mode that:
+1. Parses and chunks data (free, local processing)
+2. Exports chunks to JSON files in `_data/chunks/<run_id>/`
+3. User does extraction in Claude Code conversation (uses Max plan, no API cost)
+4. Saves insights to database via conversation
+
+**When to use each mode:**
+- **API mode:** Production use, other users with API keys, automation
+- **Prepare-only:** Personal use, cost-conscious, fine-tuning extraction prompts
+
+**Files affected:** `run_sms_extraction.py`, `run_extraction_with_context.py`
+
+---
+
+### 10. Timestamp-Based Chunking with Small Chunk Merging
+
+**Issue:** Character-based chunking (splitting every N characters) loses temporal context. Messages from 2017 might be grouped with 2022 messages if they happen to fall in the same character range.
+
+**Solution:** Chunk by time period (e.g., 6-month windows) using actual message timestamps.
+
+**Additional issue:** Sparse early data creates very small chunks that get skipped.
+
+**Solution:** Merge small chunks (< N messages) with the next chunk:
+```python
+if len(chunk_msgs) < min_messages and i < len(raw_chunks) - 1:
+    carry_over = chunk_msgs  # Merge with next
+```
+
+**Result:** Run 4 achieved 100% date coverage vs 0% in baseline.
+
+**Files affected:** `run_extraction_with_context.py`, `run_sms_extraction.py`
+
+---
+
 ## Architectural Recommendations
 
 ### For New Parsers
@@ -147,17 +211,53 @@ cursor.execute("UPDATE insights SET status = 'raw' WHERE run_id = ?", (run_id,))
 
 ## Checklist for Future Extractions
 
+### Pre-Extraction
 - [ ] Verify source data path exists
+- [ ] Check parser field names (`text` vs `content` for messages)
+- [ ] Decide: API mode or prepare-only (hybrid) mode
+
+### Run Setup
 - [ ] Create extraction_run record before starting
 - [ ] Load user_profile.json for DOB context
 - [ ] Load life_context for timeline injection
-- [ ] Chunk content appropriately (~100k chars)
-- [ ] Map chunk index to approximate date range
-- [ ] Save insights with run_id
+
+### Chunking
+- [ ] Use timestamp-based chunking (not character-based)
+- [ ] Set appropriate chunk period (default: 6 months)
+- [ ] Enable small chunk merging (min 15-20 messages)
+- [ ] Tag insights with actual date ranges from chunks
+
+### Extraction
+- [ ] **API mode:** Run extraction, save insights with run_id
+- [ ] **Hybrid mode:** Export chunks, do extraction in-conversation
+
+### Post-Extraction
 - [ ] Update insight status for synthesis
 - [ ] Run synthesis and link patterns to run
 - [ ] Complete run with final counts
 - [ ] Generate comparison report if parent run exists
+
+## Hybrid Workflow Checklist
+
+For cost-effective personal extraction using Claude Code (Max plan):
+
+1. **Prepare:**
+   ```bash
+   python run_sms_extraction.py <path> --prepare-only
+   # or
+   python run_extraction_with_context.py --prepare-only
+   ```
+
+2. **In Claude Code conversation:**
+   - Read manifest: `_data/chunks/<run_id>/manifest.json`
+   - Read each chunk file
+   - Extract insights in-conversation
+   - Save to database via SQL
+
+3. **Benefits:**
+   - Uses flat-rate Max plan (already paid)
+   - No API credits consumed
+   - Can fine-tune extraction approach interactively
 
 ---
 
@@ -189,6 +289,35 @@ def build_life_context_for_period(start_year: int, end_year: int, db_path: Path)
     mid_date = f"{(start_year + end_year) // 2}-06-15"
     contexts = get_life_context_for_date(mid_date, db_path)
     # ... format and return
+```
+
+### Handle Different Message Field Names
+```python
+def format_messages_for_extraction(messages: List[Dict]) -> str:
+    """Format messages, handling different parser field names."""
+    lines = []
+    for msg in messages:
+        sender = msg.get('sender', 'Unknown')
+        # SMS uses 'text', Instagram uses 'content'
+        content = msg.get('text') or msg.get('content', '')
+        timestamp = msg.get('timestamp', '')
+        if content:
+            date_str = timestamp[:10] if timestamp else ''
+            lines.append(f"[{date_str}] {sender}: {content}")
+    return "\n".join(lines)
+```
+
+### Timestamp-Based Chunking with Merging
+```python
+def chunk_messages_by_time(messages, chunk_months=6, min_messages=20):
+    """Chunk by time period, merging small chunks."""
+    # Sort by timestamp
+    valid = sorted([m for m in messages if m.get('timestamp')],
+                   key=lambda m: m['timestamp'])
+
+    # Create chunks at time boundaries
+    # Merge small chunks (<min_messages) with next chunk
+    # See run_sms_extraction.py for full implementation
 ```
 
 ---

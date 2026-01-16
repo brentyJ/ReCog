@@ -1,6 +1,5 @@
 """
-Run extraction with full context injection (DOB + life timeline).
-Uses actual message timestamps for accurate temporal tracking.
+Run extraction on SMS export with timestamp-based chunking.
 
 HYBRID MODE SUPPORT
 -------------------
@@ -10,14 +9,14 @@ This script supports two modes of operation:
    - Uses Anthropic API for Tier 1-3 extraction
    - Requires API key in .env
    - Costs money per token
-   - Command: python run_extraction_with_context.py
+   - Command: python run_sms_extraction.py <path>
 
 2. PREPARE-ONLY MODE (--prepare-only):
    - Parses messages and creates time-based chunks
    - Exports chunks to JSON for in-conversation extraction
    - NO API calls, NO cost
    - Use this when doing extraction via Claude Code (Max plan)
-   - Command: python run_extraction_with_context.py --prepare-only
+   - Command: python run_sms_extraction.py <path> --prepare-only
 
 WHY HYBRID?
 -----------
@@ -42,9 +41,8 @@ import json
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
-from collections import defaultdict
 
-# Load .env file manually
+# Load .env file
 env_path = Path(__file__).parent / ".env"
 if env_path.exists():
     for line in env_path.read_text().splitlines():
@@ -53,27 +51,16 @@ if env_path.exists():
             key, value = line.split('=', 1)
             os.environ.setdefault(key.strip(), value.strip())
 
-# Add parent to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from recog_engine.extraction import (
-    build_extraction_prompt,
-    parse_extraction_response,
-    load_user_profile
-)
-from recog_engine.run_store import (
-    create_run,
-    complete_run,
-    get_life_context_for_date,
-)
+from recog_engine.extraction import build_extraction_prompt, parse_extraction_response, load_user_profile
+from recog_engine.run_store import create_run, complete_run, get_life_context_for_date
 from recog_engine.synth import SynthEngine, ClusterStrategy
-from ingestion.parsers.instagram import InstagramHTMLParser
+from ingestion.parsers.messages import MessagesParser
 
 
-# Configuration
 DB_PATH = Path("_data/recog.db")
 CHUNKS_DIR = Path("_data/chunks")  # For prepare-only mode exports
-INSTAGRAM_EXPORT_PATH = Path(r"C:\Users\brent\Documents\Mirrowell Data\meta-2026-Jan-10-17-13-19\instagram-brenty_jay-2026-01-09-f6TM2NkJ")
 
 
 def get_db():
@@ -83,7 +70,6 @@ def get_db():
 
 
 def parse_timestamp(ts_str: str) -> Optional[datetime]:
-    """Parse ISO timestamp string to datetime."""
     if not ts_str:
         return None
     try:
@@ -95,19 +81,9 @@ def parse_timestamp(ts_str: str) -> Optional[datetime]:
 def chunk_messages_by_time(
     messages: List[Dict],
     chunk_months: int = 6,
-    min_messages: int = 20
+    min_messages: int = 15
 ) -> List[Tuple[List[Dict], datetime, datetime]]:
-    """
-    Chunk messages by time period, merging small chunks.
-
-    Args:
-        messages: List of message dicts with 'timestamp' field
-        chunk_months: Target chunk period in months
-        min_messages: Minimum messages per chunk (smaller chunks merge with next)
-
-    Returns list of (messages, start_date, end_date) tuples.
-    """
-    # Filter messages with valid timestamps and sort
+    """Chunk messages by time period, merging small chunks."""
     valid_messages = []
     for msg in messages:
         ts = parse_timestamp(msg.get('timestamp'))
@@ -120,34 +96,27 @@ def chunk_messages_by_time(
     if not valid_messages:
         return []
 
-    # Group by time periods
     raw_chunks = []
     current_chunk = []
     chunk_start = valid_messages[0]['_parsed_ts']
 
     for msg in valid_messages:
         ts = msg['_parsed_ts']
-
-        # Check if we've exceeded the chunk period
         months_diff = (ts.year - chunk_start.year) * 12 + (ts.month - chunk_start.month)
 
         if months_diff >= chunk_months and current_chunk:
-            # Save current chunk
             chunk_end = current_chunk[-1]['_parsed_ts']
             raw_chunks.append((current_chunk, chunk_start, chunk_end))
-
-            # Start new chunk
             current_chunk = [msg]
             chunk_start = ts
         else:
             current_chunk.append(msg)
 
-    # Don't forget the last chunk
     if current_chunk:
         chunk_end = current_chunk[-1]['_parsed_ts']
         raw_chunks.append((current_chunk, chunk_start, chunk_end))
 
-    # Merge small chunks with the next chunk
+    # Merge small chunks
     if not raw_chunks:
         return []
 
@@ -156,44 +125,43 @@ def chunk_messages_by_time(
     carry_start = None
 
     for i, (chunk_msgs, start, end) in enumerate(raw_chunks):
-        # Add any carried over messages
         if carry_over:
             chunk_msgs = carry_over + chunk_msgs
             start = carry_start
             carry_over = []
             carry_start = None
 
-        # If this chunk is too small and not the last, carry it forward
         if len(chunk_msgs) < min_messages and i < len(raw_chunks) - 1:
             carry_over = chunk_msgs
             carry_start = start
         else:
-            # Chunk is large enough or is the last chunk
             merged_chunks.append((chunk_msgs, start, end))
 
-    # If we still have carry-over (last chunks were small), merge with previous
     if carry_over and merged_chunks:
         prev_msgs, prev_start, _ = merged_chunks.pop()
         merged_msgs = prev_msgs + carry_over
         merged_end = carry_over[-1]['_parsed_ts']
         merged_chunks.append((merged_msgs, prev_start, merged_end))
     elif carry_over:
-        # Edge case: all messages were in carry-over
         merged_chunks.append((carry_over, carry_start, carry_over[-1]['_parsed_ts']))
 
     return merged_chunks
 
 
 def format_messages_for_extraction(messages: List[Dict]) -> str:
-    """Format messages into text for LLM extraction."""
+    """Format messages for LLM extraction."""
     lines = []
     for msg in messages:
         sender = msg.get('sender', 'Unknown')
-        content = msg.get('content', '')
+        # SMS parser uses 'text', Instagram uses 'content'
+        content = msg.get('text') or msg.get('content', '')
         timestamp = msg.get('timestamp', '')
+        direction = msg.get('direction', '')
         if content:
-            # Format: [2019-06-15] sender: content
             date_str = timestamp[:10] if timestamp else ''
+            # Mark who sent (Brent vs Mum)
+            if sender == 'Me' or direction == 'sent':
+                sender = 'Brent'
             lines.append(f"[{date_str}] {sender}: {content}")
     return "\n".join(lines)
 
@@ -234,9 +202,11 @@ def build_life_context_for_date(date: datetime) -> str:
 
 
 def prepare_chunks_for_conversation(
+    sms_path: Path,
     run_name: str = None,
     chunk_months: int = 6,
-    min_messages: int = 20
+    min_messages: int = 15,
+    relationship_context: str = None
 ):
     """
     PREPARE-ONLY MODE: Parse and chunk messages without API calls.
@@ -250,13 +220,23 @@ def prepare_chunks_for_conversation(
     conn = get_db()
     cursor = conn.cursor()
 
-    # Create run record
+    # Parse SMS
+    print("Parsing SMS export...")
+    parser = MessagesParser()
+    parsed = parser.parse(sms_path)
+    messages = parsed.metadata.get('messages', [])
+    participants = parsed.metadata.get('participants', ['Unknown'])
+
+    print(f"Loaded {len(messages)} messages")
+    print(f"Participants: {participants}")
+
+    # Create run record (marks as 'prepared' status)
     if not run_name:
-        run_name = f"Instagram Extraction - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        run_name = f"SMS Extraction - {participants[0]} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
     run_id = create_run(
         name=run_name,
-        description=f'Instagram DMs, {chunk_months}-month chunks (PREPARE-ONLY)',
+        description=f'SMS messages with {participants[0]}, {chunk_months}-month chunks (PREPARE-ONLY)',
         context_config={
             'dob_injection': True,
             'life_context': True,
@@ -264,7 +244,7 @@ def prepare_chunks_for_conversation(
             'chunk_months': chunk_months,
             'prepare_only': True  # Flag for in-conversation extraction
         },
-        source_description='Instagram DMs @brenty_jay',
+        source_description=f'SMS with {participants[0]} ({len(messages)} messages)',
         db_path=DB_PATH
     )
 
@@ -274,20 +254,7 @@ def prepare_chunks_for_conversation(
     print(f"Run ID: {run_id}")
     print()
 
-    # Parse Instagram data
-    print("Parsing Instagram export...")
-    parser = InstagramHTMLParser()
-    parsed = parser.parse(INSTAGRAM_EXPORT_PATH)
-
-    messages = parsed.metadata.get('messages', [])
-    if not messages:
-        print("ERROR: No messages found")
-        return
-
-    print(f"Loaded {len(messages):,} messages")
-
-    # Chunk by time period
-    print(f"Chunking by {chunk_months}-month periods (min {min_messages} messages)...")
+    # Chunk by time
     chunks = chunk_messages_by_time(messages, chunk_months=chunk_months, min_messages=min_messages)
     print(f"Created {len(chunks)} chunks")
     print()
@@ -296,6 +263,14 @@ def prepare_chunks_for_conversation(
     user_profile = load_user_profile()
     print(f"User profile: DOB {user_profile.get('date_of_birth', 'N/A')}")
     print()
+
+    # Default relationship context if not provided
+    if not relationship_context:
+        relationship_context = f"""
+## Relationship Context
+- Conversation with: {participants[0]}
+- Messages marked as "Me" are from the user
+"""
 
     # Prepare export directory
     CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
@@ -309,10 +284,11 @@ def prepare_chunks_for_conversation(
     chunk_manifest = {
         'run_id': run_id,
         'run_name': run_name,
-        'source': 'Instagram DMs @brenty_jay',
+        'participants': participants,
         'total_messages': len(messages),
         'chunk_months': chunk_months,
         'user_profile': user_profile,
+        'relationship_context': relationship_context,
         'chunks': []
     }
 
@@ -332,7 +308,8 @@ def prepare_chunks_for_conversation(
             'end_date': end.strftime('%Y-%m-%d'),
             'message_count': len(chunk_msgs),
             'content': content,
-            'life_context': life_context
+            'life_context': life_context,
+            'additional_context': life_context + relationship_context
         }
 
         # Save individual chunk file
@@ -381,29 +358,33 @@ def prepare_chunks_for_conversation(
 
 
 def run_extraction(
+    sms_path: Path,
     run_name: str = None,
-    parent_run_id: str = None,
     chunk_months: int = 6,
-    min_messages: int = 20,
-    prepare_only: bool = False
+    min_messages: int = 15,
+    prepare_only: bool = False,
+    relationship_context: str = None
 ):
     """
-    Run full extraction with timestamp-based chunking and context injection.
+    Run extraction on SMS export.
 
     Args:
+        sms_path: Path to SMS XML file
         run_name: Optional name for this run
-        parent_run_id: Optional parent run ID for comparison
         chunk_months: Time period for chunking (default: 6 months)
-        min_messages: Minimum messages per chunk before merging (default: 20)
+        min_messages: Minimum messages per chunk before merging (default: 15)
         prepare_only: If True, skip API calls and export chunks for in-conversation extraction
+        relationship_context: Optional context about the relationship (for prompts)
     """
 
     # PREPARE-ONLY MODE: Export chunks without API calls
     if prepare_only:
         return prepare_chunks_for_conversation(
+            sms_path=sms_path,
             run_name=run_name,
             chunk_months=chunk_months,
-            min_messages=min_messages
+            min_messages=min_messages,
+            relationship_context=relationship_context
         )
 
     # FULL API MODE: Requires API key
@@ -424,22 +405,30 @@ def run_extraction(
     conn = get_db()
     cursor = conn.cursor()
 
+    # Parse SMS
+    print("Parsing SMS export...")
+    parser = MessagesParser()
+    parsed = parser.parse(sms_path)
+    messages = parsed.metadata.get('messages', [])
+    participants = parsed.metadata.get('participants', ['Unknown'])
+
+    print(f"Loaded {len(messages)} messages")
+    print(f"Participants: {participants}")
+
     # Create run
     if not run_name:
-        run_name = f"Extraction - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        run_name = f"SMS Extraction - {participants[0]} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
     run_id = create_run(
         name=run_name,
-        description=f'Timestamp-based extraction with {chunk_months}-month chunks (min {min_messages} msgs) and life context injection.',
+        description=f'SMS messages with {participants[0]}, {chunk_months}-month chunks with life context',
         context_config={
             'dob_injection': True,
             'life_context': True,
             'timestamp_chunking': True,
-            'chunk_months': chunk_months,
-            'min_messages': min_messages
+            'chunk_months': chunk_months
         },
-        source_description='Instagram DMs @brenty_jay (28,863 messages, 2017-2026)',
-        parent_run_id=parent_run_id,
+        source_description=f'SMS with {participants[0]} ({len(messages)} messages)',
         db_path=DB_PATH
     )
 
@@ -447,23 +436,9 @@ def run_extraction(
     print(f"EXTRACTION: {run_name}")
     print("=" * 70)
     print(f"Run ID: {run_id}")
-    print(f"Chunk period: {chunk_months} months")
     print()
 
-    # Parse Instagram data
-    print("Parsing Instagram export...")
-    parser = InstagramHTMLParser()
-    parsed = parser.parse(INSTAGRAM_EXPORT_PATH)
-
-    messages = parsed.metadata.get('messages', [])
-    if not messages:
-        print("ERROR: No messages found")
-        return
-
-    print(f"Loaded {len(messages):,} messages")
-
-    # Chunk by time period
-    print(f"Chunking by {chunk_months}-month periods (min {min_messages} messages)...")
+    # Chunk by time
     chunks = chunk_messages_by_time(messages, chunk_months=chunk_months, min_messages=min_messages)
     print(f"Created {len(chunks)} chunks")
     print()
@@ -480,36 +455,43 @@ def run_extraction(
     print(f"User profile: DOB {user_profile.get('date_of_birth', 'N/A')}")
     print()
 
-    # Run extraction on each chunk
+    # Relationship context for Mum
+    relationship_context = """
+## Relationship Context
+- Jennifer Law is Brent's biological mother
+- They have had a complicated relationship with periods of estrangement and reconciliation
+- Brent calls her "Mum" or "Muzz"
+- Messages marked as "Me" are from Brent
+- Key themes to watch for: boundaries, family dynamics, forgiveness, emotional patterns
+"""
+
+    # Run extraction
     all_insights = []
 
     for i, (chunk_msgs, chunk_start, chunk_end) in enumerate(chunks):
         print(f"[Chunk {i+1}/{len(chunks)}] {chunk_start.strftime('%Y-%m-%d')} to {chunk_end.strftime('%Y-%m-%d')} | ", end="", flush=True)
 
-        # Format messages for extraction
         content = format_messages_for_extraction(chunk_msgs)
 
-        # Skip empty chunks (shouldn't happen with min_messages merging)
         if len(content) < 100:
             print("skipped (empty)")
             continue
 
-        # Build life context for midpoint of chunk
         midpoint = chunk_start + (chunk_end - chunk_start) / 2
         life_context = build_life_context_for_date(midpoint)
 
-        # Build prompt with context
+        additional_context = life_context + relationship_context
+
         prompt = build_extraction_prompt(
             content=content,
-            source_type="instagram_dm",
-            source_description=f"Instagram DMs from {chunk_start.strftime('%Y-%m-%d')} to {chunk_end.strftime('%Y-%m-%d')} ({len(chunk_msgs)} messages)",
+            source_type="sms",
+            source_description=f"SMS with Mum from {chunk_start.strftime('%Y-%m-%d')} to {chunk_end.strftime('%Y-%m-%d')} ({len(chunk_msgs)} messages)",
             is_chat=True,
-            additional_context=life_context,
+            additional_context=additional_context,
             user_profile=user_profile,
             content_date=midpoint
         )
 
-        # Call LLM
         try:
             response = provider.generate(
                 prompt=prompt,
@@ -522,7 +504,6 @@ def run_extraction(
             if result.success and result.insights:
                 print(f"{len(result.insights)} insights")
 
-                # Tag insights with ACTUAL date range
                 for insight in result.insights:
                     insight.earliest_source_date = chunk_start.strftime('%Y-%m-%d')
                     insight.latest_source_date = chunk_end.strftime('%Y-%m-%d')
@@ -537,7 +518,7 @@ def run_extraction(
     print()
     print(f"Total insights extracted: {len(all_insights)}")
 
-    # Save insights to database
+    # Save insights
     print("\nSaving insights to database...")
 
     for insight in all_insights:
@@ -569,20 +550,19 @@ def run_extraction(
         ))
 
     conn.commit()
-    print(f"Saved {len(all_insights)} insights with actual timestamps")
+    print(f"Saved {len(all_insights)} insights")
 
-    # Run Tier 2 synthesis
+    # Run synthesis
     print("\n" + "=" * 70)
     print("TIER 2: Pattern Synthesis")
     print("=" * 70)
 
     synth_engine = SynthEngine(DB_PATH)
-
     synth_result = synth_engine.run_synthesis(
         provider=provider,
         strategy=ClusterStrategy.AUTO,
         min_cluster_size=2,
-        max_clusters=30
+        max_clusters=20
     )
 
     print(f"Clusters processed: {synth_result.clusters_processed}")
@@ -599,7 +579,6 @@ def run_extraction(
     cursor.execute("SELECT COUNT(*) FROM patterns WHERE run_id = ?", (run_id,))
     pattern_count = cursor.fetchone()[0]
 
-    # Complete the run
     complete_run(run_id, insight_count, pattern_count, DB_PATH)
 
     print(f"\n{'=' * 70}")
@@ -622,18 +601,18 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Run extraction with timestamp-based chunking and optional hybrid mode',
+        description='Run SMS extraction with optional hybrid mode',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Full API mode (costs money per token)
-  python run_extraction_with_context.py
+  python run_sms_extraction.py messages.xml
 
   # Prepare-only mode (no API cost, for in-conversation extraction)
-  python run_extraction_with_context.py --prepare-only
+  python run_sms_extraction.py messages.xml --prepare-only
 
   # Custom chunk period
-  python run_extraction_with_context.py --months 3 --prepare-only
+  python run_sms_extraction.py messages.xml --months 3 --prepare-only
 
 Hybrid Workflow:
   1. Run with --prepare-only to export chunks
@@ -642,19 +621,22 @@ Hybrid Workflow:
   4. Save insights to database via conversation
 """
     )
+    parser.add_argument('path', type=str, help='Path to SMS XML file')
     parser.add_argument('--name', type=str, help='Run name')
-    parser.add_argument('--parent', type=str, help='Parent run ID for comparison')
-    parser.add_argument('--months', type=int, default=6, help='Chunk period in months (default: 6)')
-    parser.add_argument('--min-messages', type=int, default=20, help='Minimum messages per chunk (default: 20)')
+    parser.add_argument('--months', type=int, default=6, help='Chunk period in months')
+    parser.add_argument('--min-messages', type=int, default=15, help='Minimum messages per chunk')
     parser.add_argument('--prepare-only', action='store_true',
                         help='Skip API calls, export chunks for in-conversation extraction')
+    parser.add_argument('--relationship-context', type=str,
+                        help='Context about the relationship (optional, for prompts)')
 
     args = parser.parse_args()
 
     run_extraction(
+        sms_path=Path(args.path),
         run_name=args.name,
-        parent_run_id=args.parent,
         chunk_months=args.months,
         min_messages=args.min_messages,
-        prepare_only=args.prepare_only
+        prepare_only=args.prepare_only,
+        relationship_context=args.relationship_context
     )
