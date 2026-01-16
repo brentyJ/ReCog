@@ -1034,6 +1034,76 @@ Completed:
 
 ---
 
+## Phase 13: Post-Extraction Context Enrichment 📋
+
+**Goal**: Enable users to add narrative context to algorithmically-extracted patterns through conversational reflection with Cypher, without forcing confirmations or rejections.
+
+**Priority**: Medium-High (after extraction pipeline is production-ready)
+
+**Dependencies**:
+- Current extraction pipeline must be stable first
+- Cypher conversation system needs decision tree mapping
+- Database schema for storing enrichment text linked to patterns
+
+### 13.1 Pre-Extraction Context (Already Working)
+```
+Status: ✅ Complete via case management intake
+```
+
+- [x] Users provide biographical/case context before extraction runs
+- [x] System uses this to improve pattern detection
+- [x] Case context injection into LLM prompts
+
+### 13.2 Post-Extraction Conversational Debrief
+```
+New: Cypher-driven pattern exploration
+```
+
+- [ ] After Tier 2 synthesis completes, Cypher identifies high-value patterns that would benefit from user context
+- [ ] Conversational approach: "I noticed this pattern about X. Does that resonate? Want to add context about what that period felt like?"
+- [ ] No forced confirmations or rejections - just optional enrichment
+- [ ] Non-intrusive indicator for "there are more threads here to explore" that user can click when ready
+- [ ] Prioritizes most significant patterns (0.80+ strength) but quietly signals other avenues
+
+### 13.3 Cypher Contextual Awareness
+```
+Enhance: recog_engine/cypher/
+```
+
+- [ ] Always aware of: user context, current project, extraction state, logical next steps
+- [ ] Decision tree mapping for "what to ask when"
+- [ ] Context flows both ways: enrichment improves future extractions
+- [ ] Subtle UI indicator (pulse/badge) for unexplored threads
+
+### 13.4 Storage Architecture
+```
+New: Database schema for enrichment context
+```
+
+- [ ] Enrichment context stored in database linked to patterns
+- [ ] Pattern annotation table with user narrative, timestamps, source pattern
+- [ ] For Brent's personal use: feeds into Mirrorwell pillars
+- [ ] For enterprise ReCog users: stored as case metadata
+
+### Open Questions
+
+| Question | Status | Notes |
+|----------|--------|-------|
+| Where does enterprise user enrichment context live long-term? | 🔴 Open | Need to define case context layer |
+| Is there a "case context layer" equivalent to Mirrorwell for enterprise clients? | 🔴 Open | Consider user profile abstraction |
+| What's the UI for the "pulse/indicator" for unexplored threads? | 🔴 Open | Badge on Cypher trigger? Sidebar indicator? |
+
+### Key Design Principles
+
+1. **Conversational, not autocratic** - Cypher suggests, user decides
+2. **Optional enrichment, never forced confirmation** - No "confirm this pattern" prompts
+3. **Non-intrusive but always ready to assist** - Indicator shows threads available without interrupting
+4. **Bidirectional context flow** - User enrichment improves future pattern detection
+
+**Deliverable**: Cypher-driven pattern enrichment with persistent narrative context
+
+---
+
 ## 🔒 Security Considerations (Deferred)
 
 **Purpose**: Track security features evaluated but deferred as lower priority for local-first tool. Reassess when deployment model changes.
@@ -1081,6 +1151,29 @@ python -m spacy download en_core_web_sm
 - Add Flask-Security-Too with user model
 - Configure OAuth providers (Google, GitHub)
 - Add session management and RBAC
+
+---
+
+## 📋 Technical Debt
+
+**Purpose**: Track known issues and gaps to address when time permits.
+
+### API Documentation Gap (Updated: Jan 2026)
+
+- **Status**: Substantially improved - ~75% of endpoints now documented
+- **Completed**: Health, Providers, Cache, Upload, Preflight, Entities, Insights, Queue, Synthesis, Cases
+- **Remaining**: ~25 endpoints (findings, timeline details, critique, cypher internal)
+- **Effort**: Low - remaining endpoints follow established patterns
+
+**Note**: Swagger UI at `/docs` now provides comprehensive documentation for all major API categories.
+
+### PatternType Enum Duality
+
+- **Issue**: Two PatternType enums exist with different values
+  - `core/types.py`: RECURRING, CONTRADICTION, EVOLUTION, CLUSTER (for adapters)
+  - `synth.py`: BEHAVIORAL, EMOTIONAL, TEMPORAL, RELATIONAL, COGNITIVE, TRANSITIONAL (main export)
+- **Status**: Intentional - both serve different purposes
+- **Note**: Keep as-is; document that synth.PatternType is the public API
 
 ---
 
@@ -1144,6 +1237,7 @@ python -m spacy download en_core_web_sm
 | 10.8 ✅ | Entity Quality | False positive filtering, blacklist UI |
 | 11 ✅ | Cypher Interface | Conversational analysis assistant |
 | 12 📋 | Website | Marketing site modernization |
+| 13 📋 | Context Enrichment | Post-extraction conversational debrief |
 
 ## Architecture (Post-Phase 8)
 
@@ -1188,9 +1282,11 @@ python -m spacy download en_core_web_sm
 - **Phase 9**: 2-4 sessions (many small tasks) ⏳
 - **Phase 10**: 3-5 sessions (React UI modernization) ✅
 - **Phase 11**: 2-3 sessions (Cypher interface) ✅
+- **Phase 12**: 2-3 sessions (website modernization) 📋
+- **Phase 13**: 2-4 sessions (context enrichment) 📋
 
-Total: ~14-22 sessions to full-featured platform
+Total: ~14-22 sessions to full-featured platform (Phases 4-11 complete)
 
 ---
 
-*Last updated: Phase 9 complete (v0.9 production ready) - 15 Jan 2026*
+*Last updated: Added Phase 13 (Post-Extraction Context Enrichment) - 16 Jan 2026*
