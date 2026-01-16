@@ -181,6 +181,10 @@ def run_extraction():
 
             if result.success and result.insights:
                 print(f"{len(result.insights)} insights")
+                # Tag insights with date range from this chunk
+                for insight in result.insights:
+                    insight.earliest_source_date = f"{year_start}-01-01"
+                    insight.latest_source_date = f"{year_end}-12-31"
                 all_insights.extend(result.insights)
             else:
                 print(f"No insights")
@@ -195,12 +199,17 @@ def run_extraction():
     print("\nSaving insights to database...")
 
     for insight in all_insights:
+        # Get date range from insight metadata (set during extraction)
+        earliest_date = getattr(insight, 'earliest_source_date', None)
+        latest_date = getattr(insight, 'latest_source_date', None)
+
         cursor.execute("""
             INSERT INTO insights
             (id, summary, themes_json, emotional_tags_json, patterns_json,
              significance, confidence, insight_type, status, excerpt,
+             earliest_source_date, latest_source_date,
              created_at, updated_at, run_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)
         """, (
             insight.id,
             insight.summary,
@@ -211,6 +220,8 @@ def run_extraction():
             insight.confidence,
             insight.insight_type,
             insight.excerpt[:500] if insight.excerpt else None,
+            earliest_date,
+            latest_date,
             datetime.now().isoformat(),
             datetime.now().isoformat(),
             RUN_ID
