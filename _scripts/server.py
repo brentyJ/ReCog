@@ -681,7 +681,35 @@ def health():
 
 @app.route("/api/info", methods=["GET"])
 def info():
-    """Server info endpoint."""
+    """
+    Server information and available endpoints.
+    ---
+    tags:
+      - Health
+    responses:
+      200:
+        description: Server information
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      example: ReCog Server
+                    version:
+                      type: string
+                      example: "0.10.0"
+                    endpoints:
+                      type: array
+                      items:
+                        type: string
+    """
     return api_response({
         "name": "ReCog Server",
         "version": "0.8.0",
@@ -913,14 +941,45 @@ def _verify_provider(provider_name: str, api_key: str) -> dict:
 @app.route("/api/providers", methods=["GET"])
 def list_providers():
     """
-    List all supported providers and their configuration status.
-
-    Returns for each provider:
-    - configured: Whether API key is set
-    - active: Whether it's available for use
-    - display_name: Human-readable name
-    - masked_key: Masked API key (if configured)
-    - last_verified: Timestamp of last verification (if any)
+    List all supported LLM providers and their configuration status.
+    ---
+    tags:
+      - Providers
+    responses:
+      200:
+        description: List of providers with configuration status
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    providers:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                            example: openai
+                          display_name:
+                            type: string
+                            example: OpenAI
+                          configured:
+                            type: boolean
+                          active:
+                            type: boolean
+                          masked_key:
+                            type: string
+                            example: sk-...abc
+                    active_count:
+                      type: integer
+                    configured_count:
+                      type: integer
     """
     env_vars = _read_env_file()
     providers = []
@@ -951,7 +1010,51 @@ def list_providers():
 
 @app.route("/api/providers/<provider>", methods=["GET"])
 def get_provider(provider: str):
-    """Get details for a specific provider."""
+    """
+    Get details for a specific LLM provider.
+    ---
+    tags:
+      - Providers
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [openai, anthropic]
+        description: Provider name
+    responses:
+      200:
+        description: Provider details
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    display_name:
+                      type: string
+                    configured:
+                      type: boolean
+                    active:
+                      type: boolean
+                    masked_key:
+                      type: string
+                    default_model:
+                      type: string
+                    models:
+                      type: array
+                      items:
+                        type: string
+      404:
+        description: Provider not found
+    """
     if provider not in PROVIDER_CONFIG:
         raise ResourceNotFoundError("provider", provider)
 
@@ -977,13 +1080,58 @@ def get_provider(provider: str):
 def configure_provider(provider: str):
     """
     Configure a provider with an API key.
-
-    Body: {
-        "api_key": "sk-...",
-        "verify": true  (optional, default true)
-    }
-
-    Saves key to .env file and optionally verifies it.
+    ---
+    tags:
+      - Providers
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [openai, anthropic]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - api_key
+            properties:
+              api_key:
+                type: string
+                description: API key for the provider
+                example: sk-...
+              verify:
+                type: boolean
+                default: true
+                description: Whether to verify the key with a test call
+    responses:
+      200:
+        description: Provider configured successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    provider:
+                      type: string
+                    configured:
+                      type: boolean
+                    verified:
+                      type: boolean
+                    active:
+                      type: boolean
+      400:
+        description: Invalid API key or verification failed
+      404:
+        description: Provider not found
     """
     if provider not in PROVIDER_CONFIG:
         raise ResourceNotFoundError("provider", provider)
@@ -1035,8 +1183,37 @@ def configure_provider(provider: str):
 def remove_provider(provider: str):
     """
     Remove a provider's API key.
-
-    This removes the key from .env and makes the provider unavailable.
+    ---
+    tags:
+      - Providers
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [openai, anthropic]
+    responses:
+      200:
+        description: Provider removed successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    provider:
+                      type: string
+                    configured:
+                      type: boolean
+                    message:
+                      type: string
+      404:
+        description: Provider not found
     """
     if provider not in PROVIDER_CONFIG:
         raise ResourceNotFoundError("provider", provider)
@@ -1070,9 +1247,41 @@ def remove_provider(provider: str):
 def verify_provider(provider: str):
     """
     Verify a provider's API key is working.
-
-    Makes a minimal API call to test the key.
-    Returns whether the key is valid and any error message.
+    ---
+    tags:
+      - Providers
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [openai, anthropic]
+    responses:
+      200:
+        description: API key is valid
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    provider:
+                      type: string
+                    valid:
+                      type: boolean
+                    message:
+                      type: string
+                    model:
+                      type: string
+      400:
+        description: API key is invalid or not configured
+      404:
+        description: Provider not found
     """
     if provider not in PROVIDER_CONFIG:
         raise ResourceNotFoundError("provider", provider)
@@ -1108,12 +1317,37 @@ def verify_provider(provider: str):
 @app.route("/api/providers/status", methods=["GET"])
 def providers_status():
     """
-    Quick status check for all providers.
-
-    Returns a simple status for router display:
-    - primary: First available provider (preferred for quality)
-    - fallback: Second available provider (if any)
-    - failover_enabled: Whether automatic failover is possible
+    Quick status check for all providers with failover info.
+    ---
+    tags:
+      - Providers
+    responses:
+      200:
+        description: Provider status summary
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    llm_configured:
+                      type: boolean
+                    primary:
+                      type: string
+                      example: anthropic
+                    fallback:
+                      type: string
+                      example: openai
+                    failover_enabled:
+                      type: boolean
+                    available_providers:
+                      type: array
+                      items:
+                        type: string
     """
     available = Config.AVAILABLE_PROVIDERS
 
@@ -1146,7 +1380,56 @@ def providers_status():
 
 @app.route("/api/detect", methods=["POST"])
 def detect_format():
-    """Detect file format from upload."""
+    """
+    Detect file format and suggest parsing strategy.
+    ---
+    tags:
+      - Upload
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required:
+              - file
+            properties:
+              file:
+                type: string
+                format: binary
+                description: File to analyze
+    responses:
+      200:
+        description: File format detected
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    filename:
+                      type: string
+                    supported:
+                      type: boolean
+                    file_type:
+                      type: string
+                      example: pdf
+                    parser:
+                      type: string
+                      example: PyPDF2Parser
+                    is_container:
+                      type: boolean
+                    suggestions:
+                      type: array
+                      items:
+                        type: string
+      400:
+        description: No file provided
+    """
     if "file" not in request.files:
         return api_response(error="No file provided", status=400)
     
@@ -1184,14 +1467,37 @@ def detect_format():
 def cache_stats():
     """
     Get response cache statistics.
-
-    Returns:
-        - total_entries: Number of cached items
-        - total_size_bytes: Total cache size
-        - hits: Cache hit count
-        - misses: Cache miss count
-        - hit_rate: Cache hit percentage
-        - enabled: Whether caching is enabled
+    ---
+    tags:
+      - Cache
+    responses:
+      200:
+        description: Cache statistics
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                    total_entries:
+                      type: integer
+                    total_size_mb:
+                      type: number
+                    hits:
+                      type: integer
+                    misses:
+                      type: integer
+                    hit_rate:
+                      type: number
+                      example: 75.5
+                    ttl_hours:
+                      type: integer
     """
     if not response_cache:
         return api_response({
@@ -1217,11 +1523,37 @@ def cache_stats():
 def cache_clear():
     """
     Clear the response cache.
-
-    Body (optional):
-        - feature: Only clear cache for specific feature (extraction, tier0)
-
-    Returns number of entries cleared.
+    ---
+    tags:
+      - Cache
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              feature:
+                type: string
+                enum: [extraction, tier0]
+                description: Only clear cache for specific feature
+    responses:
+      200:
+        description: Cache cleared
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    cleared:
+                      type: integer
+                      description: Number of entries cleared
+                    feature:
+                      type: string
     """
     if not response_cache:
         return api_response({
@@ -1245,8 +1577,25 @@ def cache_clear():
 def cache_cleanup():
     """
     Remove expired cache entries.
-
-    Returns number of entries removed.
+    ---
+    tags:
+      - Cache
+    responses:
+      200:
+        description: Expired entries removed
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    removed:
+                      type: integer
+                      description: Number of expired entries removed
     """
     if not response_cache:
         return api_response({
@@ -1269,8 +1618,36 @@ def cache_cleanup():
 def rate_limit_status():
     """
     Get current rate limit configuration and status.
-
-    Returns rate limit settings and current state.
+    ---
+    tags:
+      - Health
+    responses:
+      200:
+        description: Rate limit configuration
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                    limits:
+                      type: object
+                      properties:
+                        default:
+                          type: string
+                          example: 60/minute
+                        expensive:
+                          type: string
+                          example: 10/minute
+                        upload:
+                          type: string
+                          example: 20/minute
     """
     return api_response(get_rate_limit_status())
 
@@ -1481,16 +1858,60 @@ def upload_file():
 @rate_limit_upload
 def upload_batch():
     """
-    Upload multiple files into a single preflight session with auto-progression.
-
-    Accepts multipart form data with multiple files:
-        - files: Multiple files to upload
-        - case_id: Optional case UUID to link for context injection
-        - auto_process: Optional bool to enable auto-progression (default: true)
-
-    Returns preflight session ID with all items for review.
-
-    v0.8: Auto-creates case if none provided, transitions to scanning state.
+    Upload multiple files into a single preflight session.
+    ---
+    tags:
+      - Upload
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required:
+              - files
+            properties:
+              files:
+                type: array
+                items:
+                  type: string
+                  format: binary
+                description: Multiple files to upload
+              case_id:
+                type: string
+                format: uuid
+                description: Optional case UUID to link
+              auto_process:
+                type: boolean
+                default: true
+                description: Enable auto-progression through workflow
+    responses:
+      200:
+        description: Files uploaded successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    uploaded:
+                      type: boolean
+                    file_count:
+                      type: integer
+                    preflight_session_id:
+                      type: string
+                    case_id:
+                      type: string
+                    items:
+                      type: integer
+                    entities:
+                      type: integer
+      400:
+        description: No files provided or validation errors
     """
     if "files" not in request.files:
         return api_response(error="No files provided", status=400)
@@ -1749,7 +2170,44 @@ def run_tier0():
 
 @app.route("/api/preflight/<int:session_id>", methods=["GET"])
 def get_preflight(session_id: int):
-    """Get preflight session summary."""
+    """
+    Get preflight session summary.
+    ---
+    tags:
+      - Upload
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: Preflight session ID
+    responses:
+      200:
+        description: Session summary
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    session_id:
+                      type: integer
+                    status:
+                      type: string
+                    total_items:
+                      type: integer
+                    included_items:
+                      type: integer
+                    total_words:
+                      type: integer
+      404:
+        description: Session not found
+    """
     summary = preflight_manager.get_summary(session_id)
     
     if "error" in summary:
@@ -1760,7 +2218,52 @@ def get_preflight(session_id: int):
 
 @app.route("/api/preflight/<int:session_id>/items", methods=["GET"])
 def get_preflight_items(session_id: int):
-    """Get all items in preflight session."""
+    """
+    Get all items in preflight session.
+    ---
+    tags:
+      - Upload
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: List of preflight items
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    session_id:
+                      type: integer
+                    items:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                          source_type:
+                            type: string
+                          title:
+                            type: string
+                          word_count:
+                            type: integer
+                          included:
+                            type: boolean
+                    total:
+                      type: integer
+                    included:
+                      type: integer
+    """
     items = preflight_manager.get_items(session_id)
     
     # Simplify for API response
@@ -1794,14 +2297,56 @@ def get_preflight_items(session_id: int):
 def filter_preflight(session_id: int):
     """
     Apply filters to preflight session.
-    
-    Body: {
-        "min_words": 100,
-        "min_messages": 5,
-        "date_after": "2024-01-01",
-        "date_before": "2024-12-31",
-        "keywords": ["important", "urgent"]
-    }
+    ---
+    tags:
+      - Upload
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              min_words:
+                type: integer
+                description: Minimum word count
+              min_messages:
+                type: integer
+                description: Minimum message count (for chat exports)
+              date_after:
+                type: string
+                format: date
+              date_before:
+                type: string
+                format: date
+              keywords:
+                type: array
+                items:
+                  type: string
+    responses:
+      200:
+        description: Filter applied
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    filtered:
+                      type: boolean
+                    items_remaining:
+                      type: integer
+                    estimated_cost_cents:
+                      type: number
     """
     data = request.get_json()
     
@@ -1825,7 +2370,37 @@ def filter_preflight(session_id: int):
 
 @app.route("/api/preflight/<int:session_id>/exclude/<int:item_id>", methods=["POST"])
 def exclude_item(session_id: int, item_id: int):
-    """Exclude an item from preflight session."""
+    """
+    Exclude an item from preflight session.
+    ---
+    tags:
+      - Upload
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              reason:
+                type: string
+                default: manual
+    responses:
+      200:
+        description: Item excluded
+      404:
+        description: Item not found
+    """
     reason = request.json.get("reason", "manual") if request.is_json else "manual"
     
     success = preflight_manager.exclude_item(item_id, reason)
@@ -1837,7 +2412,28 @@ def exclude_item(session_id: int, item_id: int):
 
 @app.route("/api/preflight/<int:session_id>/include/<int:item_id>", methods=["POST"])
 def include_item(session_id: int, item_id: int):
-    """Re-include an excluded item."""
+    """
+    Re-include an excluded item.
+    ---
+    tags:
+      - Upload
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: Item included
+      404:
+        description: Item not found
+    """
     success = preflight_manager.include_item(item_id)
     
     if success:
@@ -1849,8 +2445,38 @@ def include_item(session_id: int, item_id: int):
 def confirm_preflight(session_id: int):
     """
     Confirm preflight session and queue for processing.
-    
-    This marks items for LLM extraction (requires API key).
+    ---
+    tags:
+      - Upload
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: Session confirmed, items queued
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    confirmed:
+                      type: boolean
+                    session_id:
+                      type: integer
+                    items_queued:
+                      type: integer
+                    estimated_cost_cents:
+                      type: number
+      400:
+        description: Session cannot be confirmed
     """
     result = preflight_manager.confirm_session(session_id)
     
@@ -1935,7 +2561,21 @@ def list_entities():
 
 @app.route("/api/entities/unknown", methods=["GET"])
 def get_unknown_entities():
-    """Get entities needing user identification."""
+    """
+    Get entities needing user identification.
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 50
+    responses:
+      200:
+        description: List of unidentified entities
+    """
     limit = int(request.args.get("limit", 50))
     entities = entity_registry.get_unknown_entities(limit)
     
@@ -1947,7 +2587,23 @@ def get_unknown_entities():
 
 @app.route("/api/entities/<int:entity_id>", methods=["GET"])
 def get_entity(entity_id: int):
-    """Get entity by ID."""
+    """
+    Get entity by ID.
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: entity_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: Entity details
+      404:
+        description: Entity not found
+    """
     entity = entity_registry.get_entity_by_id(entity_id)
     
     if not entity:
@@ -1961,15 +2617,40 @@ def get_entity(entity_id: int):
 def update_entity(entity_id: int):
     """
     Update entity with user context.
-    
-    Body: {
-        "display_name": "Mum",
-        "relationship": "mother",
-        "notes": "...",
-        "anonymise_in_prompts": true,
-        "placeholder_name": "Person A",
-        "confirmed": true
-    }
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: entity_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              display_name:
+                type: string
+                example: Mum
+              relationship:
+                type: string
+                example: mother
+              notes:
+                type: string
+              anonymise_in_prompts:
+                type: boolean
+              placeholder_name:
+                type: string
+              confirmed:
+                type: boolean
+    responses:
+      200:
+        description: Entity updated
+      400:
+        description: Update failed
     """
     data = request.get_json()
     
@@ -1994,9 +2675,20 @@ def update_entity(entity_id: int):
 def delete_entity(entity_id: int):
     """
     Permanently delete an entity from the registry.
-    
-    Use this for complete removal. For false positives that should be
-    blocked in future, use /api/entities/<id>/reject instead.
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: entity_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: Entity deleted
+      404:
+        description: Entity not found
     """
     conn = _get_db_connection()
     try:
@@ -2026,9 +2718,20 @@ def delete_entity(entity_id: int):
 def unconfirm_entity(entity_id: int):
     """
     Move an entity back to 'needs identification' status.
-    
-    Clears confirmed flag and user-provided metadata, keeping the
-    entity in the registry for re-identification.
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: entity_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: Entity unconfirmed
+      404:
+        description: Entity not found
     """
     conn = _get_db_connection()
     try:
@@ -2068,7 +2771,33 @@ def unconfirm_entity(entity_id: int):
 
 @app.route("/api/entities/stats", methods=["GET"])
 def entity_stats():
-    """Get entity registry statistics."""
+    """
+    Get entity registry statistics.
+    ---
+    tags:
+      - Entities
+    responses:
+      200:
+        description: Entity statistics
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    total:
+                      type: integer
+                    confirmed:
+                      type: integer
+                    unconfirmed:
+                      type: integer
+                    by_type:
+                      type: object
+    """
     stats = entity_registry.get_stats()
     return api_response(stats)
 
@@ -2078,23 +2807,44 @@ def entity_stats():
 def validate_entities():
     """
     Validate unconfirmed person entities using LLM.
-
-    Uses AI to identify false positives (e.g., "Foundation", "Research", "Protocol")
-    and removes them from the registry, adding to the blacklist.
-
-    Request body (optional):
-        {
-            "batch_size": 50  // Number of entities to validate (default 50)
-        }
-
-    Returns:
-        {
-            "validated": int,        // Total entities checked
-            "removed": int,          // Number removed as false positives
-            "kept": int,             // Number kept as valid
-            "removed_names": [...],  // Names that were removed
-            "message": str
-        }
+    ---
+    tags:
+      - Entities
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              batch_size:
+                type: integer
+                default: 50
+                description: Number of entities to validate
+    responses:
+      200:
+        description: Validation results
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    validated:
+                      type: integer
+                    removed:
+                      type: integer
+                    kept:
+                      type: integer
+                    removed_names:
+                      type: array
+                      items:
+                        type: string
+      500:
+        description: Validation failed
     """
     try:
         data = request.get_json() or {}
@@ -2123,14 +2873,34 @@ def validate_entities():
 @require_json
 def reject_entity(entity_id: int):
     """
-    Reject an entity as a false positive (e.g., "Not a Person").
-    
-    Adds to blacklist and optionally deletes from entity registry.
-    
-    Body: {
-        "reason": "not_a_person",  # or "common_word", "false_positive"
-        "delete_entity": true      # Remove from registry (default true)
-    }
+    Reject an entity as a false positive and add to blacklist.
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: entity_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              reason:
+                type: string
+                enum: [not_a_person, common_word, false_positive]
+                default: not_a_person
+              delete_entity:
+                type: boolean
+                default: true
+    responses:
+      200:
+        description: Entity rejected and blacklisted
+      404:
+        description: Entity not found
     """
     data = request.get_json()
     reason = data.get("reason", "not_a_person")
@@ -2194,10 +2964,23 @@ def reject_entity(entity_id: int):
 def list_blacklist():
     """
     List blacklisted entity values.
-    
-    Query params:
-        - type: Filter by entity type (person, phone, email)
-        - limit: Max results (default 100)
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: type
+        in: query
+        schema:
+          type: string
+          default: person
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 100
+    responses:
+      200:
+        description: Blacklisted entities
     """
     entity_type = request.args.get("type", "person")
     limit = int(request.args.get("limit", 100))
@@ -2237,7 +3020,23 @@ def list_blacklist():
 
 @app.route("/api/entities/blacklist/<int:blacklist_id>", methods=["DELETE"])
 def remove_from_blacklist(blacklist_id: int):
-    """Remove an entry from the blacklist (un-reject)."""
+    """
+    Remove an entry from the blacklist.
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: blacklist_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: Entry removed from blacklist
+      404:
+        description: Entry not found
+    """
     conn = _get_db_connection()
     try:
         row = conn.execute(
@@ -2261,7 +3060,15 @@ def remove_from_blacklist(blacklist_id: int):
 
 @app.route("/api/entities/blacklist/reload", methods=["POST"])
 def reload_blacklist():
-    """Reload blacklist from database into runtime memory."""
+    """
+    Reload blacklist from database into runtime memory.
+    ---
+    tags:
+      - Entities
+    responses:
+      200:
+        description: Blacklist reloaded
+    """
     from recog_engine.tier0 import load_blacklist_from_db
     
     blacklist = load_blacklist_from_db(Config.DB_PATH)
@@ -2280,11 +3087,34 @@ def reload_blacklist():
 def get_entity_relationships(entity_id: int):
     """
     Get relationships for an entity.
-    
-    Query params:
-        - type: Filter by relationship type
-        - direction: 'outgoing', 'incoming', or 'both' (default)
-        - min_strength: Minimum relationship strength (0-1)
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: entity_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: type
+        in: query
+        schema:
+          type: string
+        description: Filter by relationship type
+      - name: direction
+        in: query
+        schema:
+          type: string
+          enum: [outgoing, incoming, both]
+          default: both
+      - name: min_strength
+        in: query
+        schema:
+          type: number
+          default: 0.0
+    responses:
+      200:
+        description: Entity relationships
     """
     rel_type = request.args.get("type")
     direction = request.args.get("direction", "both")
@@ -2309,14 +3139,42 @@ def get_entity_relationships(entity_id: int):
 def add_entity_relationship(entity_id: int):
     """
     Add a relationship from this entity to another.
-    
-    Body: {
-        "target_entity_id": 123,
-        "relationship_type": "manages",
-        "strength": 0.8,
-        "bidirectional": false,
-        "context": "How we know this"
-    }
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: entity_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - target_entity_id
+            properties:
+              target_entity_id:
+                type: integer
+              relationship_type:
+                type: string
+                default: associated_with
+              strength:
+                type: number
+                default: 0.5
+              bidirectional:
+                type: boolean
+                default: false
+              context:
+                type: string
+    responses:
+      200:
+        description: Relationship created
+      400:
+        description: Missing target_entity_id
     """
     data = request.get_json()
     
@@ -2348,10 +3206,30 @@ def add_entity_relationship(entity_id: int):
 def get_entity_network(entity_id: int):
     """
     Get the relationship network around an entity.
-    
-    Query params:
-        - depth: How many hops to traverse (default 1)
-        - min_strength: Minimum relationship strength (default 0.2)
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: entity_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: depth
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: min_strength
+        in: query
+        schema:
+          type: number
+          default: 0.2
+    responses:
+      200:
+        description: Entity network graph
+      404:
+        description: Entity not found
     """
     depth = int(request.args.get("depth", 1))
     min_strength = float(request.args.get("min_strength", 0.2))
@@ -2378,9 +3256,23 @@ def get_entity_network(entity_id: int):
 def get_entity_timeline(entity_id: int):
     """
     Get a timeline of entity appearances and events.
-    
-    Query params:
-        - limit: Max events to return (default 100)
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: entity_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 100
+    responses:
+      200:
+        description: Entity timeline events
     """
     limit = int(request.args.get("limit", 100))
     
@@ -2397,9 +3289,23 @@ def get_entity_timeline(entity_id: int):
 def get_entity_sentiment(entity_id: int):
     """
     Get sentiment summary and history for an entity.
-    
-    Query params:
-        - limit: Max history records (default 50)
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: entity_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 50
+    responses:
+      200:
+        description: Entity sentiment data
     """
     limit = int(request.args.get("limit", 50))
     
@@ -2426,13 +3332,39 @@ def get_entity_sentiment(entity_id: int):
 def record_entity_sentiment(entity_id: int):
     """
     Record sentiment for an entity.
-    
-    Body: {
-        "score": 0.5,  # -1 to 1
-        "source_type": "insight",
-        "source_id": "abc123",
-        "excerpt": "Relevant text..."
-    }
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: entity_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - score
+            properties:
+              score:
+                type: number
+                minimum: -1
+                maximum: 1
+              source_type:
+                type: string
+              source_id:
+                type: string
+              excerpt:
+                type: string
+    responses:
+      200:
+        description: Sentiment recorded
+      400:
+        description: Score required
     """
     data = request.get_json()
     
@@ -2458,9 +3390,28 @@ def record_entity_sentiment(entity_id: int):
 def find_entity_path(entity_a_id: int, entity_b_id: int):
     """
     Find the shortest relationship path between two entities.
-    
-    Query params:
-        - max_depth: Maximum hops to search (default 4)
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: entity_a_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: entity_b_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: max_depth
+        in: query
+        schema:
+          type: integer
+          default: 4
+    responses:
+      200:
+        description: Path between entities (if exists)
     """
     max_depth = int(request.args.get("max_depth", 4))
     
@@ -2490,7 +3441,15 @@ def find_entity_path(entity_a_id: int, entity_b_id: int):
 
 @app.route("/api/entities/graph/stats", methods=["GET"])
 def entity_graph_stats():
-    """Get entity graph statistics including relationships and sentiment."""
+    """
+    Get entity graph statistics including relationships and sentiment.
+    ---
+    tags:
+      - Entities
+    responses:
+      200:
+        description: Graph statistics
+    """
     stats = entity_graph.get_graph_stats()
     return api_response(stats)
 
@@ -2498,12 +3457,28 @@ def entity_graph_stats():
 @app.route("/api/relationships", methods=["GET"])
 def list_relationships():
     """
-    List all relationships.
-    
-    Query params:
-        - type: Filter by relationship type
-        - min_strength: Minimum strength
-        - limit: Max results (default 100)
+    List all entity relationships.
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: type
+        in: query
+        schema:
+          type: string
+      - name: min_strength
+        in: query
+        schema:
+          type: number
+          default: 0.0
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 100
+    responses:
+      200:
+        description: List of relationships
     """
     rel_type = request.args.get("type")
     min_strength = float(request.args.get("min_strength", 0.0))
@@ -2555,7 +3530,23 @@ def list_relationships():
 
 @app.route("/api/relationships/<int:relationship_id>", methods=["DELETE"])
 def delete_relationship(relationship_id: int):
-    """Delete a relationship."""
+    """
+    Delete a relationship.
+    ---
+    tags:
+      - Entities
+    parameters:
+      - name: relationship_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: Relationship deleted
+      404:
+        description: Relationship not found
+    """
     success = entity_graph.remove_relationship(relationship_id)
     
     if success:
@@ -2566,7 +3557,15 @@ def delete_relationship(relationship_id: int):
 
 @app.route("/api/relationships/types", methods=["GET"])
 def list_relationship_types():
-    """List available relationship types."""
+    """
+    List available relationship types.
+    ---
+    tags:
+      - Entities
+    responses:
+      200:
+        description: List of relationship types
+    """
     types = [t.value for t in RelationshipType]
     return api_response({"types": types})
 
@@ -2917,15 +3916,48 @@ def extract_insights():
 def list_insights():
     """
     List extracted insights from database.
-    
-    Query params:
-        - status: raw, refined, surfaced, rejected
-        - min_significance: 0.0-1.0
-        - insight_type: observation, pattern, relationship, etc.
-        - limit: max results (default 100)
-        - offset: pagination offset
-        - order_by: significance, confidence, created_at, updated_at
-        - order_dir: ASC or DESC
+    ---
+    tags:
+      - Insights
+    parameters:
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [raw, refined, surfaced, rejected]
+      - name: min_significance
+        in: query
+        schema:
+          type: number
+      - name: insight_type
+        in: query
+        schema:
+          type: string
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 100
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          default: 0
+      - name: order_by
+        in: query
+        schema:
+          type: string
+          enum: [significance, confidence, created_at, updated_at]
+          default: significance
+      - name: order_dir
+        in: query
+        schema:
+          type: string
+          enum: [ASC, DESC]
+          default: DESC
+    responses:
+      200:
+        description: List of insights
     """
     status = request.args.get("status")
     min_sig = request.args.get("min_significance")
@@ -2950,7 +3982,23 @@ def list_insights():
 
 @app.route("/api/insights/<insight_id>", methods=["GET"])
 def get_insight(insight_id: str):
-    """Get a single insight by ID."""
+    """
+    Get a single insight by ID.
+    ---
+    tags:
+      - Insights
+    parameters:
+      - name: insight_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      200:
+        description: Insight details with sources and history
+      404:
+        description: Insight not found
+    """
     insight = insight_store.get_insight(insight_id)
     
     if not insight:
@@ -2968,13 +4016,39 @@ def get_insight(insight_id: str):
 def update_insight_status(insight_id: str):
     """
     Update an insight's status or significance.
-    
-    Body: {
-        "status": "surfaced",
-        "significance": 0.8,
-        "themes": ["updated", "themes"],
-        "patterns": ["new-pattern"]
-    }
+    ---
+    tags:
+      - Insights
+    parameters:
+      - name: insight_id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [raw, refined, surfaced, rejected]
+              significance:
+                type: number
+              themes:
+                type: array
+                items:
+                  type: string
+              patterns:
+                type: array
+                items:
+                  type: string
+    responses:
+      200:
+        description: Insight updated
+      404:
+        description: Insight not found
     """
     data = request.get_json()
     
@@ -2996,9 +4070,27 @@ def update_insight_status(insight_id: str):
 @app.route("/api/insights/<insight_id>", methods=["DELETE"])
 def delete_insight(insight_id: str):
     """
-    Soft-delete an insight (sets status to 'rejected').
-    
-    Query param ?hard=true for permanent deletion.
+    Delete an insight (soft delete by default).
+    ---
+    tags:
+      - Insights
+    parameters:
+      - name: insight_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: hard
+        in: query
+        schema:
+          type: boolean
+          default: false
+        description: Permanent deletion if true
+    responses:
+      200:
+        description: Insight deleted
+      404:
+        description: Insight not found
     """
     hard_delete = request.args.get("hard", "false").lower() == "true"
     
@@ -3012,7 +4104,15 @@ def delete_insight(insight_id: str):
 
 @app.route("/api/insights/stats", methods=["GET"])
 def insight_stats():
-    """Get insight statistics."""
+    """
+    Get insight statistics.
+    ---
+    tags:
+      - Insights
+    responses:
+      200:
+        description: Insight statistics
+    """
     stats = insight_store.get_stats()
     return api_response(stats)
 
@@ -3021,11 +4121,19 @@ def insight_stats():
 def insight_activity():
     """
     Get insight creation activity over time.
-
-    Query params:
-        - days: Number of days to look back (default 30)
-
-    Returns daily counts of insights created.
+    ---
+    tags:
+      - Insights
+    parameters:
+      - name: days
+        in: query
+        schema:
+          type: integer
+          default: 30
+        description: Number of days to look back
+    responses:
+      200:
+        description: Daily insight creation counts
     """
     days = int(request.args.get("days", 30))
 
@@ -3066,11 +4174,28 @@ def _get_db_connection():
 def list_queue():
     """
     List processing queue items.
-    
-    Query params:
-        - status: pending, processing, complete, failed (default: all)
-        - limit: max results (default 50)
-        - offset: pagination offset
+    ---
+    tags:
+      - Queue
+    parameters:
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [pending, processing, complete, failed]
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 50
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          default: 0
+    responses:
+      200:
+        description: Queue items
     """
     status = request.args.get("status")
     limit = int(request.args.get("limit", 50))
@@ -3121,7 +4246,15 @@ def list_queue():
 
 @app.route("/api/queue/stats", methods=["GET"])
 def queue_stats():
-    """Get queue statistics."""
+    """
+    Get queue statistics.
+    ---
+    tags:
+      - Queue
+    responses:
+      200:
+        description: Queue statistics by status and operation type
+    """
     conn = _get_db_connection()
     try:
         # Count by status
@@ -3155,7 +4288,23 @@ def queue_stats():
 
 @app.route("/api/queue/<int:job_id>", methods=["GET"])
 def get_queue_item(job_id: int):
-    """Get a single queue item by ID."""
+    """
+    Get a single queue item by ID.
+    ---
+    tags:
+      - Queue
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: Queue item details
+      404:
+        description: Job not found
+    """
     conn = _get_db_connection()
     try:
         row = conn.execute(
@@ -3186,7 +4335,25 @@ def get_queue_item(job_id: int):
 
 @app.route("/api/queue/<int:job_id>/retry", methods=["POST"])
 def retry_queue_item(job_id: int):
-    """Retry a failed queue item."""
+    """
+    Retry a failed queue item.
+    ---
+    tags:
+      - Queue
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: Job queued for retry
+      400:
+        description: Cannot retry job with current status
+      404:
+        description: Job not found
+    """
     conn = _get_db_connection()
     try:
         # Check current status
@@ -3219,7 +4386,23 @@ def retry_queue_item(job_id: int):
 
 @app.route("/api/queue/<int:job_id>", methods=["DELETE"])
 def delete_queue_item(job_id: int):
-    """Delete a queue item."""
+    """
+    Delete a queue item.
+    ---
+    tags:
+      - Queue
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: Queue item deleted
+      404:
+        description: Job not found
+    """
     conn = _get_db_connection()
     try:
         cursor = conn.execute(
@@ -3240,8 +4423,26 @@ def delete_queue_item(job_id: int):
 def clear_queue():
     """
     Clear queue items by status.
-    
-    Body: {"status": "failed"} or {"status": "complete"}
+    ---
+    tags:
+      - Queue
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - status
+            properties:
+              status:
+                type: string
+                enum: [failed, complete]
+    responses:
+      200:
+        description: Queue items cleared
+      400:
+        description: Invalid status
     """
     if not request.is_json:
         return api_response(error="JSON body required", status=400)
@@ -3280,12 +4481,28 @@ def clear_queue():
 def create_clusters():
     """
     Create insight clusters for synthesis.
-    
-    Body: {
-        "strategy": "auto|thematic|temporal|entity",
-        "min_cluster_size": 3,
-        "insight_status": "raw"
-    }
+    ---
+    tags:
+      - Synthesis
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              strategy:
+                type: string
+                enum: [auto, thematic, temporal, entity]
+                default: auto
+              min_cluster_size:
+                type: integer
+                default: 3
+              insight_status:
+                type: string
+                default: raw
+    responses:
+      200:
+        description: Clusters created
     """
     data = request.get_json() if request.is_json else {}
     
@@ -3312,7 +4529,21 @@ def create_clusters():
 
 @app.route("/api/synth/clusters", methods=["GET"])
 def list_clusters():
-    """List pending clusters awaiting synthesis."""
+    """
+    List pending clusters awaiting synthesis.
+    ---
+    tags:
+      - Synthesis
+    parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 20
+    responses:
+      200:
+        description: Pending clusters
+    """
     limit = int(request.args.get("limit", 20))
     
     clusters = synth_engine.get_pending_clusters(limit=limit)
@@ -3946,7 +5177,23 @@ def list_cases():
 
 @app.route("/api/cases/<case_id>", methods=["GET"])
 def get_case(case_id: str):
-    """Get case details by ID."""
+    """
+    Get case details by ID.
+    ---
+    tags:
+      - Cases
+    parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      200:
+        description: Case details
+      404:
+        description: Case not found
+    """
     case = case_store.get_case(case_id)
     
     if not case:
@@ -3960,13 +5207,37 @@ def get_case(case_id: str):
 def update_case(case_id: str):
     """
     Update case fields.
-    
-    Body: {
-        "title": "Updated title",
-        "context": "Updated context",
-        "focus_areas": ["new", "areas"],
-        "status": "archived"
-    }
+    ---
+    tags:
+      - Cases
+    parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              title:
+                type: string
+              context:
+                type: string
+              focus_areas:
+                type: array
+                items:
+                  type: string
+              status:
+                type: string
+                enum: [active, archived]
+    responses:
+      200:
+        description: Case updated
+      404:
+        description: Case not found
     """
     data = request.get_json()
     
@@ -3987,7 +5258,23 @@ def update_case(case_id: str):
 
 @app.route("/api/cases/<case_id>", methods=["DELETE"])
 def delete_case(case_id: str):
-    """Delete a case and all related data (cascade)."""
+    """
+    Delete a case and all related data (cascade).
+    ---
+    tags:
+      - Cases
+    parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      200:
+        description: Case deleted
+      404:
+        description: Case not found
+    """
     success = case_store.delete_case(case_id)
     
     if success:
@@ -3998,7 +5285,21 @@ def delete_case(case_id: str):
 
 @app.route("/api/cases/<case_id>/documents", methods=["GET"])
 def list_case_documents(case_id: str):
-    """List all documents in a case."""
+    """
+    List all documents in a case.
+    ---
+    tags:
+      - Cases
+    parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      200:
+        description: Case documents
+    """
     docs = case_store.list_documents(case_id)
     return api_response({
         "case_id": case_id,
@@ -4230,12 +5531,42 @@ def promote_to_finding():
 def list_case_findings(case_id: str):
     """
     List findings for a case.
-    
-    Query params:
-        - status: verified, needs_verification, rejected
-        - tags: comma-separated tag filter
-        - limit: max results (default 100)
-        - offset: pagination offset
+    ---
+    tags:
+      - Findings
+    parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Case ID
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [verified, needs_verification, rejected]
+        description: Filter by verification status
+      - name: tags
+        in: query
+        schema:
+          type: string
+        description: Comma-separated tag filter
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 100
+        description: Max results
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          default: 0
+        description: Pagination offset
+    responses:
+      200:
+        description: List of findings
     """
     status = request.args.get("status")
     tags_str = request.args.get("tags")
@@ -4256,7 +5587,24 @@ def list_case_findings(case_id: str):
 
 @app.route("/api/findings/<finding_id>", methods=["GET"])
 def get_finding(finding_id: str):
-    """Get a finding by ID."""
+    """
+    Get a finding by ID.
+    ---
+    tags:
+      - Findings
+    parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Finding ID
+    responses:
+      200:
+        description: Finding details
+      404:
+        description: Finding not found
+    """
     finding = findings_store.get_finding(finding_id)
     
     if not finding:
@@ -4270,11 +5618,35 @@ def get_finding(finding_id: str):
 def update_finding(finding_id: str):
     """
     Update finding status or tags.
-    
-    Body: {
-        "status": "verified|needs_verification|rejected",
-        "tags": ["updated", "tags"]
-    }
+    ---
+    tags:
+      - Findings
+    parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Finding ID
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [verified, needs_verification, rejected]
+              tags:
+                type: array
+                items:
+                  type: string
+    responses:
+      200:
+        description: Updated finding
+      404:
+        description: Finding not found
     """
     data = request.get_json()
     
@@ -4302,8 +5674,33 @@ def update_finding(finding_id: str):
 def add_finding_note(finding_id: str):
     """
     Add or update user notes on a finding.
-    
-    Body: {"note": "My analysis notes..."}
+    ---
+    tags:
+      - Findings
+    parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Finding ID
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - note
+            properties:
+              note:
+                type: string
+                description: User analysis notes
+    responses:
+      200:
+        description: Note added
+      404:
+        description: Finding not found
     """
     data = request.get_json()
     note = data.get("note", "")
@@ -4318,7 +5715,24 @@ def add_finding_note(finding_id: str):
 
 @app.route("/api/findings/<finding_id>", methods=["DELETE"])
 def delete_finding(finding_id: str):
-    """Delete a finding (demote insight back to standalone)."""
+    """
+    Delete a finding (demote insight back to standalone).
+    ---
+    tags:
+      - Findings
+    parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Finding ID
+    responses:
+      200:
+        description: Finding deleted
+      404:
+        description: Finding not found
+    """
     success = findings_store.delete_finding(finding_id)
     
     if success:
@@ -4332,12 +5746,43 @@ def delete_finding(finding_id: str):
 def auto_promote_findings(case_id: str):
     """
     Auto-promote high-quality insights to findings.
-    
-    Body: {
-        "insight_ids": ["id1", "id2", ...],
-        "min_confidence": 0.7,
-        "min_significance": 0.6
-    }
+    ---
+    tags:
+      - Findings
+    parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Case ID
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - insight_ids
+            properties:
+              insight_ids:
+                type: array
+                items:
+                  type: string
+                description: List of insight IDs to consider
+              min_confidence:
+                type: number
+                default: 0.7
+                description: Minimum confidence threshold
+              min_significance:
+                type: number
+                default: 0.6
+                description: Minimum significance threshold
+    responses:
+      200:
+        description: Promotion results
+      400:
+        description: insight_ids required
     """
     data = request.get_json()
     
@@ -4357,7 +5802,22 @@ def auto_promote_findings(case_id: str):
 
 @app.route("/api/cases/<case_id>/findings/stats", methods=["GET"])
 def get_findings_stats(case_id: str):
-    """Get findings statistics for a case."""
+    """
+    Get findings statistics for a case.
+    ---
+    tags:
+      - Findings
+    parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Case ID
+    responses:
+      200:
+        description: Findings statistics
+    """
     stats = findings_store.get_stats(case_id)
     return api_response(stats)
 
@@ -4370,14 +5830,55 @@ def get_findings_stats(case_id: str):
 def get_case_timeline(case_id: str):
     """
     Get timeline events for a case.
-    
-    Query params:
-        - event_types: comma-separated filter (case_created,doc_added,finding_verified,...)
-        - since: ISO datetime filter (events after)
-        - until: ISO datetime filter (events before)
-        - limit: max results (default 100)
-        - offset: pagination offset
-        - order: ASC (oldest first) or DESC (newest first, default)
+    ---
+    tags:
+      - Timeline
+    parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Case ID
+      - name: event_types
+        in: query
+        schema:
+          type: string
+        description: Comma-separated filter (case_created, doc_added, finding_verified, etc.)
+      - name: since
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: ISO datetime filter (events after)
+      - name: until
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: ISO datetime filter (events before)
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 100
+        description: Max results
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          default: 0
+        description: Pagination offset
+      - name: order
+        in: query
+        schema:
+          type: string
+          enum: [ASC, DESC]
+          default: DESC
+        description: Sort order (ASC=oldest first, DESC=newest first)
+    responses:
+      200:
+        description: Timeline events
     """
     event_types_str = request.args.get("event_types")
     event_types = event_types_str.split(",") if event_types_str else None
@@ -4406,10 +5907,33 @@ def get_case_timeline(case_id: str):
 def add_timeline_annotation(case_id: str):
     """
     Add a human annotation/note to the timeline.
-    
-    Body: {
-        "note": "Key discovery: This contradicts our initial hypothesis"
-    }
+    ---
+    tags:
+      - Timeline
+    parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Case ID
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - note
+            properties:
+              note:
+                type: string
+                description: Timeline annotation note
+    responses:
+      200:
+        description: Created timeline event
+      400:
+        description: note required
     """
     data = request.get_json()
     note = data.get("note", "")
@@ -4432,8 +5956,31 @@ def add_timeline_annotation(case_id: str):
 def annotate_timeline_event(event_id: str):
     """
     Add human annotation to an existing timeline event.
-    
-    Body: {"annotation": "This was a turning point in the investigation"}
+    ---
+    tags:
+      - Timeline
+    parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Event ID
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              annotation:
+                type: string
+                description: Human annotation text
+    responses:
+      200:
+        description: Event annotated
+      404:
+        description: Event not found
     """
     data = request.get_json()
     annotation = data.get("annotation", "")
@@ -4448,7 +5995,22 @@ def annotate_timeline_event(event_id: str):
 
 @app.route("/api/cases/<case_id>/timeline/summary", methods=["GET"])
 def get_timeline_summary(case_id: str):
-    """Get timeline summary statistics."""
+    """
+    Get timeline summary statistics.
+    ---
+    tags:
+      - Timeline
+    parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Case ID
+    responses:
+      200:
+        description: Timeline summary statistics
+    """
     summary = timeline_store.get_summary(case_id)
     return api_response(summary)
 
@@ -4457,9 +6019,25 @@ def get_timeline_summary(case_id: str):
 def get_daily_timeline(case_id: str):
     """
     Get daily event counts.
-    
-    Query params:
-        - days: Number of days to summarize (default 7)
+    ---
+    tags:
+      - Timeline
+    parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Case ID
+      - name: days
+        in: query
+        schema:
+          type: integer
+          default: 7
+        description: Number of days to summarize
+    responses:
+      200:
+        description: Daily event counts
     """
     days = int(request.args.get("days", 7))
     daily = timeline_store.get_daily_summary(case_id, days=days)
@@ -4473,9 +6051,25 @@ def get_daily_timeline(case_id: str):
 def get_case_activity(case_id: str):
     """
     Get recent activity for a case (convenience endpoint).
-    
-    Query params:
-        - limit: Number of recent events (default 10)
+    ---
+    tags:
+      - Timeline
+    parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Case ID
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 10
+        description: Number of recent events to return
+    responses:
+      200:
+        description: Recent activity events
     """
     limit = int(request.args.get("limit", 10))
     activity = timeline_store.get_recent_activity(case_id, limit=limit)
