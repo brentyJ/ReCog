@@ -7,13 +7,16 @@
 
 ## Run Overview
 
-| Metric | Baseline | Run 2 | Delta |
-|--------|----------|-------|-------|
-| **Name** | Baseline - Pure Extraction | Run 2 - Age + Life Context | - |
-| **Insights** | 52 | 78 | +26 (+50%) |
-| **Patterns** | 67 | 40 | -27 |
-| **DOB Context** | No | Yes (Feb 27, 1986) | Added |
-| **Life Context** | No | Yes (15 events) | Added |
+| Metric | Baseline | Run 2 | Run 4 | Notes |
+|--------|----------|-------|-------|-------|
+| **Name** | Baseline - Pure Extraction | Run 2 - Age + Life Context | Run 4 - Timestamp Chunking | - |
+| **Insights** | 52 | 78 | 52 | Run 4 uses actual timestamps |
+| **Patterns** | 67 | 40 | 85 | Run 4 has best clustering |
+| **DOB Context** | No | Yes | Yes | Feb 27, 1986 |
+| **Life Context** | No | Yes | Yes | 15 events |
+| **Date Coverage** | 0% | 0% (estimated) | 100% (actual) | Key improvement |
+| **Avg Significance** | 0.62 | - | 0.66 | +0.04 |
+| **Max Significance** | 0.80 | 0.90 | 0.90 | - |
 
 ---
 
@@ -178,10 +181,141 @@ After fixing the clustering bug (insights now have proper date fields):
 
 ---
 
+## Run 4: Timestamp-Based Extraction
+
+### Overview
+
+Run 4 introduced actual message timestamps for chunking instead of character-based chunking with estimated dates. This is the most significant technical improvement to the extraction pipeline.
+
+**Key Changes:**
+- Messages chunked by 6-month time periods using actual timestamps
+- Small chunks (<20 messages) merged with adjacent chunks
+- Insights tagged with real `earliest_source_date` / `latest_source_date`
+- Life context injection uses actual midpoint date of each chunk
+
+### Run 4 vs Baseline Comparison
+
+| Metric | Baseline | Run 4 | Change |
+|--------|----------|-------|--------|
+| **Insights** | 52 | 52 | same |
+| **Patterns** | 67 | 85 | +18 (+27%) |
+| **Avg Significance** | 0.62 | 0.66 | +0.04 |
+| **Max Significance** | 0.80 | 0.90 | +0.10 |
+| **Date Coverage** | 0% | 100% | +100% |
+| **Time Span** | unknown | 2017-03-01 to 2026-01-08 | 9 years |
+
+### Insight Type Shifts
+
+| Type | Baseline | Run 4 | Delta |
+|------|----------|-------|-------|
+| fact | 5 | 9 | +4 |
+| observation | 19 | 26 | +7 |
+| opinion | 4 | 1 | -3 |
+| pattern | 11 | 5 | -6 |
+| realisation | 11 | 9 | -2 |
+| relationship | 2 | 2 | 0 |
+
+**Interpretation:** Timestamp-based extraction favors concrete facts and observations over abstract patterns and opinions.
+
+### Theme Changes (Biggest Deltas)
+
+| Theme | Baseline | Run 4 | Delta |
+|-------|----------|-------|-------|
+| social-connection | 1 | 6 | +5 |
+| pet-loss | 0 | 4 | +4 |
+| compassion | 0 | 3 | +3 |
+| police-work | 0 | 3 | +3 |
+| empathy | 1 | 3 | +2 |
+| friendship | 1 | 3 | +2 |
+| emotional-healing | 0 | 2 | +2 |
+
+### Emotional Tag Changes
+
+| Emotion | Baseline | Run 4 | Delta |
+|---------|----------|-------|-------|
+| sadness | 5 | 12 | +7 |
+| hope | 7 | 12 | +5 |
+| joy | 9 | 12 | +3 |
+| love | 10 | 12 | +2 |
+| nostalgia | 6 | 3 | -3 |
+
+**Interpretation:** Actual timestamps reveal more emotional depth - the full arc of sadness through hope to joy becomes visible when events are properly dated.
+
+### Top Insights Comparison
+
+**Baseline Top Insight (no dates):**
+> [realisation] sig=0.80 | no date
+> Brent went through a breakup with Sarah where she kept both of their dogs...
+> Themes: relationships, breakup-recovery, pets-as-healing
+
+**Run 4 Top Insight (with timestamps):**
+> [fact] sig=0.90 | 2017-03-01 to 2019-07-31
+> Brent's marriage to Sarah ended in mutual breakup a few months prior, with him describing their relationship as 'everything was too hard'...
+> Themes: relationship-breakdown, marriage-dissolution, mutual-separation
+
+---
+
+## Run 4 vs Run 2 Synthesis Comparison
+
+### Temporal Precision
+
+| Aspect | Run 2 (Estimated Dates) | Run 4 (Actual Timestamps) |
+|--------|-------------------------|---------------------------|
+| **Data Source** | Context injection, chunk index dates | Actual message timestamps 2017-2026 |
+| **Date Coverage** | "ages 31-39" (estimated) | Specific: 2017-03-01 to 2026-01-08 |
+| **Temporal Anchors** | ~8 references | 23+ specific references |
+
+### Narrative Improvements
+
+**Relationship Timeline:**
+- Run 2: "post-divorce reconstruction (2019)" - generic
+- Run 4: Full arc from "age 23 to 33" through "Tinder phase 2023" to "August 2025 marriage"
+
+**Career Narrative:**
+- Run 2: "patrol officer to IT sergeant" - vague
+- Run 4: "patrol → CIU → DRU → Sergeant/IT → Austin Hospital" with dates
+
+**Pet Timeline:**
+- Run 2: "deep attachment to Artie" - no dates
+- Run 4: "Artie during post-separation (2019)", "Jessie's death late 2024 - crying daily for 15 days", "Kingsley adoption"
+
+**Grief Processing:**
+- Run 2: Generic emotional patterns
+- Run 4: Quantified: "crying daily for 15 days despite not living with Jessie for 5 years"
+
+### New Insights Only Possible With Timestamps
+
+1. **Specific career units**: CIU, DRU mentioned by name
+2. **Austin Hospital role** identified
+3. **Jessie grief duration** quantified (15 days)
+4. **"Reckless and sociopathic" Tinder phase** (2023) - actual quote with date
+5. **Started drawing at age 33** - specific milestone
+6. **Kingsley adoption** mentioned
+7. **"Compartmentalized crisis management"** as coping pattern
+
+### Core Framing Evolution
+
+| Run | Core Framing | Growth Edge |
+|-----|--------------|-------------|
+| Baseline | "Gratitude, vulnerability, connection" | Generic "growth trajectory" |
+| Run 2 | "Justice and reform" | "integrating wisdom while not losing romantic nature" |
+| Run 4 | "Late bloomer renaissance" | "learning to process emotions in real-time rather than through avoidance" |
+
+### Key Improvement Summary
+
+- Run 4 adds **23 specific temporal anchors** vs Run 2's ~8
+- Run 4 traces **9 discrete life events** vs Run 2's general descriptions
+- Run 4 provides **4 quantified emotional patterns** (e.g., "15 days crying")
+- Run 4 identifies **3 new behavioral patterns** not visible in Run 2
+
+---
+
 ## Run IDs for Future Reference
 
 - **Baseline:** `dbf20292-dc80-464a-a716-a73a9dc955d6`
 - **Run 2:** `9e016a1d-e23a-4fcd-a005-527a5b6e1aa1`
+- **Run 3:** `8ddc7cc3-f214-4f57-bef3-ac7b183f53cc` (timestamp chunking, skipped small chunks)
+- **Run 4:** `653ce3cc-4112-44f9-93ac-8c8ba72a32ce` (timestamp chunking, merged small chunks)
 
 ---
 
@@ -197,14 +331,50 @@ Original Run 2 produced only 13 patterns due to a bug where `earliest_source_dat
 
 ---
 
+## Technical Notes: Timestamp-Based Chunking
+
+### Run 3 vs Run 4
+
+Run 3 introduced timestamp-based chunking but skipped small chunks (< 1000 chars):
+- 17 chunks created, 3 skipped as "too small"
+- Early 2017-2018 data lost
+
+Run 4 added small chunk merging:
+- Small chunks (< 20 messages) merged with next chunk
+- 14 chunks, 0 skipped
+- Chunk 1 now spans 2017-03 to 2019-07 (136 msgs) - captures early sparse data
+
+### Chunking Algorithm
+
+```python
+def chunk_messages_by_time(messages, chunk_months=6, min_messages=20):
+    # 1. Sort messages by timestamp
+    # 2. Create chunks at 6-month boundaries
+    # 3. Merge small chunks (<20 msgs) with next chunk
+    # 4. Return (messages, start_date, end_date) tuples
+```
+
+### CLI Usage
+
+```bash
+python run_extraction_with_context.py \
+  --name "Run Name" \
+  --parent <parent_run_id> \
+  --months 6 \
+  --min-messages 20
+```
+
+---
+
 ## Next Steps
 
-1. Add career timeline to life context (police end date, current role)
+1. ~~Add career timeline to life context~~ (Done)
 2. Run Facebook data extraction for event date refinement
 3. Consider running with even richer context (specific conversations, key people)
-4. Track deltas between subsequent runs
+4. ~~Implement timestamp-based chunking~~ (Done - Run 4)
+5. Add conversation-level threading for multi-person context
 
 ---
 
 *Generated by ReCog Run Comparison System*
-*Updated: 2026-01-16 with Tier 3 synthesis comparison and clustering fix*
+*Updated: 2026-01-16 with Run 4 timestamp-based extraction comparison*
