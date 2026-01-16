@@ -439,6 +439,97 @@ Do NOT:
 - Include tangential observations unrelated to the case
 """
 
+# User profile context template for age/identity reference
+USER_PROFILE_TEMPLATE = """## Subject Profile
+**Date of Birth:** {dob}
+**Current Age:** {current_age}
+**Age at Content Date:** {content_age}
+
+Use this age context when interpreting:
+- Life stage references (e.g., "when I was young", "at my age")
+- Maturity patterns and developmental milestones
+- Career/relationship timeline expectations
+- Generational references and cultural context
+"""
+
+
+def calculate_age(dob: datetime, reference_date: datetime = None) -> int:
+    """Calculate age at a given date."""
+    if reference_date is None:
+        reference_date = datetime.now()
+    age = reference_date.year - dob.year
+    if (reference_date.month, reference_date.day) < (dob.month, dob.day):
+        age -= 1
+    return age
+
+
+def load_user_profile(profile_path: str = None) -> Optional[Dict]:
+    """
+    Load user profile from JSON config file.
+
+    Default location: _data/user_profile.json
+
+    Returns:
+        Dict with profile data or None if not found
+    """
+    from pathlib import Path
+
+    if profile_path:
+        path = Path(profile_path)
+    else:
+        # Default location
+        path = Path(__file__).parent.parent / "_data" / "user_profile.json"
+
+    if not path.exists():
+        return None
+
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.warning(f"Failed to load user profile: {e}")
+        return None
+
+
+def build_user_context(
+    profile: Dict = None,
+    content_date: datetime = None
+) -> str:
+    """
+    Build user context string for injection into extraction prompts.
+
+    Args:
+        profile: User profile dict (loaded from config or provided)
+        content_date: Date of the content being analyzed (for age calculation)
+
+    Returns:
+        Formatted user context string, or empty string if no profile
+    """
+    if profile is None:
+        profile = load_user_profile()
+
+    if not profile:
+        return ""
+
+    dob_str = profile.get("date_of_birth")
+    if not dob_str:
+        return ""
+
+    try:
+        dob = datetime.strptime(dob_str, "%Y-%m-%d")
+    except ValueError:
+        logger.warning(f"Invalid DOB format: {dob_str}")
+        return ""
+
+    current_age = calculate_age(dob)
+    content_age = calculate_age(dob, content_date) if content_date else current_age
+
+    return USER_PROFILE_TEMPLATE.format(
+        dob=dob.strftime("%B %d, %Y"),
+        current_age=current_age,
+        content_age=content_age if content_date else f"{current_age} (current)"
+    )
+
 
 def build_extraction_prompt(
     content: str,
@@ -448,10 +539,12 @@ def build_extraction_prompt(
     is_chat: bool = False,
     additional_context: str = "",
     case_context: Optional[Dict] = None,
+    user_profile: Optional[Dict] = None,
+    content_date: Optional[datetime] = None,
 ) -> str:
     """
     Build the complete extraction prompt for LLM.
-    
+
     Args:
         content: The content to analyse
         source_type: Type of source (document, chat, transcript, etc.)
@@ -460,7 +553,9 @@ def build_extraction_prompt(
         is_chat: Whether content has speaker attribution
         additional_context: Any extra context to include
         case_context: Optional case context dict with title, context, focus_areas
-        
+        user_profile: Optional user profile dict with date_of_birth for age context
+        content_date: Optional date of content for age-at-time calculation
+
     Returns:
         Complete prompt string
     """
@@ -493,7 +588,17 @@ def build_extraction_prompt(
             focus_areas=focus_areas_str,
         )
         context_parts.append(case_section)
-    
+
+    # Add user profile context if provided (for age reference)
+    if user_profile or user_profile is None:
+        # If user_profile is None, try to load from default config
+        user_context = build_user_context(
+            profile=user_profile if user_profile else None,
+            content_date=content_date
+        )
+        if user_context:
+            context_parts.append(user_context)
+
     # Add entity context if provided
     if additional_context:
         context_parts.append(additional_context)
