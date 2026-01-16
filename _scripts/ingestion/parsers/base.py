@@ -60,8 +60,10 @@ def get_parser(path: Path) -> Optional[BaseParser]:
     from .calendar import ICSParser
     from .contacts import VCFParser
     from .notion import NotionParser
+    from .instagram import InstagramHTMLParser
 
     parsers = [
+        InstagramHTMLParser(), # Check Instagram exports (directories)
         ArchiveParser(),     # Check archives first (ZIP, TAR)
         PDFParser(),
         DocxParser(),        # Check DOCX before plaintext
@@ -103,8 +105,10 @@ def get_all_parsers() -> List[BaseParser]:
     from .calendar import ICSParser
     from .contacts import VCFParser
     from .notion import NotionParser
+    from .instagram import InstagramHTMLParser
 
     return [
+        InstagramHTMLParser(),
         ArchiveParser(),
         PDFParser(),
         DocxParser(),

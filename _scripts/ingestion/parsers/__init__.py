@@ -21,6 +21,7 @@ from .archive import ArchiveParser
 from .calendar import ICSParser
 from .contacts import VCFParser
 from .notion import NotionParser
+from .instagram import InstagramHTMLParser
 
 __all__ = [
     "BaseParser",
@@ -43,4 +44,5 @@ __all__ = [
     "ICSParser",
     "VCFParser",
     "NotionParser",
+    "InstagramHTMLParser",
 ]
